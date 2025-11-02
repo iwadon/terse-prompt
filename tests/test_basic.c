@@ -292,7 +292,7 @@ TEST(CursorMovement, MoveToOffset)
 TEST(HandleManagement, Open_DefaultOptions)
 {
     tprompt_handle_t handle = tprompt_open(NULL);
-    EXPECT_NE(handle, NULL);
+    ASSERT_NE(handle, NULL);
 
     // Verify default settings
     EXPECT_NE(handle->terse, NULL);
@@ -318,7 +318,7 @@ TEST(HandleManagement, Open_CustomOptions)
     };
 
     tprompt_handle_t handle = tprompt_open(&opts);
-    EXPECT_NE(handle, NULL);
+    ASSERT_NE(handle, NULL);
     EXPECT_STREQ(handle->prompt, "test> ");
     EXPECT_EQ(handle->options.max_input_size, 2048);
     EXPECT_EQ(handle->history.max_size, 50);

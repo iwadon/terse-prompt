@@ -791,7 +791,12 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
         handle->terse = options->terse_handle;
         handle->owns_terse = false;
     } else {
+        // Try TERSE_PROFILE_AUTO first, fall back to TERSE_P0 for non-TTY environments
         handle->terse = terse_open(TERSE_PROFILE_AUTO, NULL);
+        if (!handle->terse) {
+            // Fall back to P0 (basic profile) which works in non-TTY environments
+            handle->terse = terse_open(TERSE_P0, NULL);
+        }
         if (!handle->terse) {
             tprompt_set_error(&tprompt_global_error, TPROMPT_ERROR_TERSE, errno,
                              "Failed to create terse handle");
@@ -818,10 +823,19 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
     // Load history from file if specified
     if (options->history_file && !(options->flags & TPROMPT_FLAG_DISABLE_HISTORY)) {
         handle->history_file_path = strdup(options->history_file);
-        if (handle->history_file_path) {
-            tprompt_history_load_internal(&handle->history, handle->history_file_path);
-            // Ignore errors on load
+        if (!handle->history_file_path) {
+            tprompt_set_error(&tprompt_global_error, TPROMPT_ERROR_MEMORY, errno,
+                             "Failed to allocate history file path");
+            tprompt_history_free(&handle->history);
+            tprompt_buffer_free(&handle->buffer);
+            if (handle->owns_terse) {
+                terse_close(handle->terse);
+            }
+            free(handle);
+            return NULL;
         }
+        tprompt_history_load_internal(&handle->history, handle->history_file_path);
+        // Ignore errors on load
     }
 
     // Initialize completion
@@ -830,6 +844,18 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
     handle->completion_user_data = options->completion_user_data;
     if (options->completion_prefixes) {
         handle->completion_prefixes = strdup(options->completion_prefixes);
+        if (!handle->completion_prefixes) {
+            tprompt_set_error(&tprompt_global_error, TPROMPT_ERROR_MEMORY, errno,
+                             "Failed to allocate completion prefixes");
+            free(handle->history_file_path);
+            tprompt_history_free(&handle->history);
+            tprompt_buffer_free(&handle->buffer);
+            if (handle->owns_terse) {
+                terse_close(handle->terse);
+            }
+            free(handle);
+            return NULL;
+        }
     }
 
     // Initialize display state
@@ -841,6 +867,20 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 
     // Store prompt
     handle->prompt = strdup(options->prompt);
+    if (!handle->prompt) {
+        tprompt_set_error(&tprompt_global_error, TPROMPT_ERROR_MEMORY, errno,
+                         "Failed to allocate prompt string");
+        free(handle->completion_prefixes);
+        tprompt_completion_free(&handle->completion_state);
+        free(handle->history_file_path);
+        tprompt_history_free(&handle->history);
+        tprompt_buffer_free(&handle->buffer);
+        if (handle->owns_terse) {
+            terse_close(handle->terse);
+        }
+        free(handle);
+        return NULL;
+    }
 
     // Clear error
     tprompt_clear_error(&handle->last_error);
