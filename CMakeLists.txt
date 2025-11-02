@@ -30,7 +30,6 @@ target_include_directories(tprompt
 	PUBLIC
 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 		$<INSTALL_INTERFACE:include>
-	PRIVATE
 		${CMAKE_CURRENT_SOURCE_DIR}/external/terse/c/include
 )
 

@@ -353,26 +353,126 @@ size_t tprompt_utf8_char_length(unsigned char byte)
 
 size_t tprompt_utf8_prev_char(const char *text, size_t offset)
 {
-    // TODO: Implement UTF-8 previous character detection
-    return offset > 0 ? offset - 1 : 0;
+    if (!text || offset == 0) {
+        return 0;
+    }
+
+    // Move backward from current position
+    size_t pos = offset - 1;
+
+    // Skip backward over continuation bytes (10xxxxxx)
+    while (pos > 0 && (text[pos] & 0xC0) == 0x80) {
+        pos--;
+    }
+
+    return pos;
 }
 
 size_t tprompt_utf8_next_char(const char *text, size_t offset, size_t max_length)
 {
-    // TODO: Implement UTF-8 next character detection
-    return offset < max_length ? offset + 1 : max_length;
+    if (!text || offset >= max_length) {
+        return max_length;
+    }
+
+    // Get character length at current position
+    size_t char_len = tprompt_utf8_char_length((unsigned char)text[offset]);
+    if (char_len == 0) {
+        // Invalid UTF-8, skip one byte
+        return offset + 1;
+    }
+
+    // Move forward by character length
+    size_t new_offset = offset + char_len;
+    if (new_offset > max_length) {
+        new_offset = max_length;
+    }
+
+    return new_offset;
 }
 
 bool tprompt_utf8_validate(const char *text, size_t length)
 {
-    // TODO: Implement UTF-8 validation
+    if (!text) {
+        return false;
+    }
+
+    size_t i = 0;
+    while (i < length) {
+        unsigned char byte = (unsigned char)text[i];
+        size_t char_len = tprompt_utf8_char_length(byte);
+
+        // Invalid lead byte
+        if (char_len == 0) {
+            return false;
+        }
+
+        // Check if we have enough bytes remaining
+        if (i + char_len > length) {
+            return false;
+        }
+
+        // Validate continuation bytes
+        for (size_t j = 1; j < char_len; j++) {
+            unsigned char cont = (unsigned char)text[i + j];
+            if ((cont & 0xC0) != 0x80) {
+                return false;
+            }
+        }
+
+        // Additional validation for overlong encodings and invalid ranges
+        if (char_len == 2) {
+            // 2-byte: 0xC2-0xDF (must be >= 0x80)
+            if (byte < 0xC2) {
+                return false;
+            }
+        } else if (char_len == 3) {
+            // 3-byte: Check for overlong and surrogates
+            if (byte == 0xE0 && (unsigned char)text[i + 1] < 0xA0) {
+                return false; // Overlong
+            }
+            if (byte == 0xED && (unsigned char)text[i + 1] >= 0xA0) {
+                return false; // UTF-16 surrogate
+            }
+        } else if (char_len == 4) {
+            // 4-byte: Check for overlong and out of range
+            if (byte == 0xF0 && (unsigned char)text[i + 1] < 0x90) {
+                return false; // Overlong
+            }
+            if (byte > 0xF4) {
+                return false; // Beyond U+10FFFF
+            }
+            if (byte == 0xF4 && (unsigned char)text[i + 1] > 0x8F) {
+                return false; // Beyond U+10FFFF
+            }
+        }
+
+        i += char_len;
+    }
+
     return true;
 }
 
 size_t tprompt_utf8_char_count(const char *text, size_t length)
 {
-    // TODO: Implement UTF-8 character counting
-    return length;
+    if (!text) {
+        return 0;
+    }
+
+    size_t count = 0;
+    size_t i = 0;
+
+    while (i < length) {
+        size_t char_len = tprompt_utf8_char_length((unsigned char)text[i]);
+        if (char_len == 0) {
+            // Invalid byte, skip it
+            i++;
+        } else {
+            i += char_len;
+            count++;
+        }
+    }
+
+    return count;
 }
 
 /* ========================================================================
@@ -446,27 +546,149 @@ int tprompt_completion_confirm(tprompt_handle_t handle)
  * Display and Rendering - Internal Helpers
  * ======================================================================== */
 
+/**
+ * @brief Calculate cursor column position including prompt width
+ * @param handle Prompt handle
+ * @return Physical column position (0-based)
+ */
+static size_t tprompt_calculate_cursor_col(tprompt_handle_t handle)
+{
+    if (!handle) {
+        return 0;
+    }
+
+    // Start with prompt length (assuming single-width characters)
+    size_t prompt_len = handle->prompt ? strlen(handle->prompt) : 0;
+    size_t col = prompt_len;
+
+    // Add character widths from buffer start to cursor position
+    // For now, assume 1 column per character (will be enhanced with terse width info)
+    size_t char_count = tprompt_utf8_char_count(handle->buffer.data, handle->buffer.cursor);
+    col += char_count;
+
+    return col;
+}
+
 void tprompt_display_calculate_layout(tprompt_handle_t handle)
 {
-    // TODO: Implement layout calculation
+    if (!handle) {
+        return;
+    }
+
+    // Get terminal dimensions from terse
+    terse_size_t size = terse_get_size(handle->terse);
+    if (size.known) {
+        handle->display.terminal_width = (size_t)size.cols;
+        handle->display.terminal_height = (size_t)size.rows;
+    }
+
+    // Calculate cursor column position
+    size_t cursor_col = tprompt_calculate_cursor_col(handle);
+
+    // For single-line mode (current implementation), physical line is always 0
+    handle->display.physical_line = 0;
+    handle->display.physical_column = cursor_col;
+    handle->display.total_physical_lines = 1;
+
+    // Future: Multi-line wrapping logic will be added here
 }
 
 int tprompt_display_render(tprompt_handle_t handle)
 {
-    // TODO: Implement display rendering
-    return -1;
+    if (!handle) {
+        return -1;
+    }
+
+    // Clear current line first
+    if (terse_clear_line(handle->terse, TERSE_CLEAR_ALL) < 0) {
+        tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                         "Failed to clear line");
+        return -1;
+    }
+
+    // Move cursor to start of line
+    if (terse_move_to(handle->terse, -1, 0) < 0) {
+        tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                         "Failed to move cursor to line start");
+        return -1;
+    }
+
+    // Write prompt
+    if (handle->prompt) {
+        if (terse_write_text(handle->terse, handle->prompt) < 0) {
+            tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                             "Failed to write prompt");
+            return -1;
+        }
+    }
+
+    // Write buffer contents
+    if (handle->buffer.length > 0) {
+        if (terse_write_text(handle->terse, handle->buffer.data) < 0) {
+            tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                             "Failed to write buffer");
+            return -1;
+        }
+    }
+
+    // Update cursor position
+    return tprompt_display_update_cursor(handle);
 }
 
 int tprompt_display_update_cursor(tprompt_handle_t handle)
 {
-    // TODO: Implement cursor position update
-    return -1;
+    if (!handle) {
+        return -1;
+    }
+
+    // Calculate cursor position
+    tprompt_display_calculate_layout(handle);
+
+    // Move cursor to calculated position
+    if (terse_move_to(handle->terse, -1, (int)handle->display.physical_column) < 0) {
+        tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                         "Failed to update cursor position");
+        return -1;
+    }
+
+    // Flush to ensure cursor is visible
+    if (terse_flush(handle->terse) < 0) {
+        tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                         "Failed to flush output");
+        return -1;
+    }
+
+    return 0;
 }
 
 int tprompt_display_clear(tprompt_handle_t handle)
 {
-    // TODO: Implement display clearing
-    return -1;
+    if (!handle) {
+        return -1;
+    }
+
+    // Clear the current line
+    if (terse_clear_line(handle->terse, TERSE_CLEAR_ALL) < 0) {
+        tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                         "Failed to clear display");
+        return -1;
+    }
+
+    // Move cursor to start of line
+    if (terse_move_to(handle->terse, -1, 0) < 0) {
+        tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                         "Failed to move cursor");
+        return -1;
+    }
+
+    // Flush
+    if (terse_flush(handle->terse) < 0) {
+        tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                         "Failed to flush output");
+        return -1;
+    }
+
+    return 0;
 }
 
 /* ========================================================================
