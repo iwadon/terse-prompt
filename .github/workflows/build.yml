@@ -14,8 +14,10 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v5
         with:
+          token: ${{ env.INSTALL_TOKEN }}
           submodules: recursive
 
       - name: Install dependencies
