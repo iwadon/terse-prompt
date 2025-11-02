@@ -13,3 +13,19 @@ target_link_libraries(test_basic PRIVATE
 )
 
 add_test(NAME test_basic COMMAND test_basic)
+
+# Phase 2 history tests
+add_executable(test_history
+    test_history.c
+)
+
+target_include_directories(test_history PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_link_libraries(test_history PRIVATE
+    tprompt
+    attest
+)
+
+add_test(NAME test_history COMMAND test_history)

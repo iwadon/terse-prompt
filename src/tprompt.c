@@ -300,20 +300,114 @@ void tprompt_history_free(tprompt_history_t *history)
 
 int tprompt_history_add_internal(tprompt_history_t *history, const char *text)
 {
-    // TODO: Implement history addition with deduplication
+    if (!history || !text) {
+        return -1;
+    }
+
+    // Skip empty entries
+    if (text[0] == '\0') {
+        return 0;
+    }
+
+    // Duplicate check: don't add if it's the same as the most recent entry
+    if (history->head && history->head->text) {
+        if (strcmp(history->head->text, text) == 0) {
+            return 0;  // Skip duplicate
+        }
+    }
+
+    // Allocate new entry
+    tprompt_history_entry_t *entry = malloc(sizeof(tprompt_history_entry_t));
+    if (!entry) {
+        return -1;
+    }
+
+    // Duplicate text
+    entry->text = strdup(text);
+    if (!entry->text) {
+        free(entry);
+        return -1;
+    }
+
+    entry->next = NULL;
+    entry->prev = NULL;
+
+    // Insert at head (most recent position)
+    if (!history->head) {
+        // Empty history
+        history->head = entry;
+        history->tail = entry;
+    } else {
+        // Add to head
+        entry->next = history->head;
+        history->head->prev = entry;
+        history->head = entry;
+    }
+
+    history->count++;
+
+    // LRU eviction: remove from tail if we exceed max_size
+    while (history->max_size > 0 && history->count > history->max_size) {
+        if (!history->tail) {
+            break;  // Safety check
+        }
+
+        tprompt_history_entry_t *old_tail = history->tail;
+        history->tail = old_tail->prev;
+
+        if (history->tail) {
+            history->tail->next = NULL;
+        } else {
+            // List became empty
+            history->head = NULL;
+        }
+
+        free(old_tail->text);
+        free(old_tail);
+        history->count--;
+    }
+
+    // Reset navigation position to head (most recent)
+    history->current = NULL;
+
     return 0;
 }
 
 const char *tprompt_history_prev(tprompt_history_t *history)
 {
-    // TODO: Implement history navigation
+    if (!history) {
+        return NULL;
+    }
+
+    // If current is NULL, start from head (most recent)
+    if (!history->current) {
+        history->current = history->head;
+        return history->current ? history->current->text : NULL;
+    }
+
+    // Try to move to next (older) entry
+    // Note: 'next' points toward older entries, 'prev' points toward newer entries
+    if (history->current->next) {
+        history->current = history->current->next;
+        return history->current->text;
+    }
+
+    // Already at the oldest entry, return NULL but keep current position
     return NULL;
 }
 
 const char *tprompt_history_next(tprompt_history_t *history)
 {
-    // TODO: Implement history navigation
-    return NULL;
+    if (!history || !history->current) {
+        return NULL;
+    }
+
+    // Move to prev (newer) entry
+    // Note: 'next' points toward older entries, 'prev' points toward newer entries
+    history->current = history->current->prev;
+
+    // Return current entry's text (or NULL if at end - returning to current input)
+    return history->current ? history->current->text : NULL;
 }
 
 void tprompt_history_reset_position(tprompt_history_t *history)
@@ -325,13 +419,76 @@ void tprompt_history_reset_position(tprompt_history_t *history)
 
 int tprompt_history_load_internal(tprompt_history_t *history, const char *file_path)
 {
-    // TODO: Implement history file loading
+    if (!history || !file_path) {
+        return -1;
+    }
+
+    // Open file for reading
+    FILE *fp = fopen(file_path, "r");
+    if (!fp) {
+        // File not found is not an error (first time use)
+        if (errno == ENOENT) {
+            return 0;
+        }
+        return -1;
+    }
+
+    // Read line by line
+    char *line = NULL;
+    size_t line_cap = 0;
+    ssize_t line_len;
+
+    while ((line_len = getline(&line, &line_cap, fp)) != -1) {
+        // Remove trailing newline if present
+        if (line_len > 0 && line[line_len - 1] == '\n') {
+            line[line_len - 1] = '\0';
+            line_len--;
+        }
+
+        // Remove trailing carriage return if present (CRLF handling)
+        if (line_len > 0 && line[line_len - 1] == '\r') {
+            line[line_len - 1] = '\0';
+            line_len--;
+        }
+
+        // Add to history (skip empty lines handled by add_internal)
+        tprompt_history_add_internal(history, line);
+    }
+
+    free(line);
+    fclose(fp);
+
     return 0;
 }
 
 int tprompt_history_save_internal(tprompt_history_t *history, const char *file_path)
 {
-    // TODO: Implement history file saving
+    if (!history || !file_path) {
+        return -1;
+    }
+
+    // Open file for writing (truncate)
+    FILE *fp = fopen(file_path, "w");
+    if (!fp) {
+        return -1;
+    }
+
+    // Write entries from tail to head (oldest to most recent)
+    // This ensures that when we load and insert at head, the order is preserved
+    tprompt_history_entry_t *entry = history->tail;
+    while (entry) {
+        // Write entry with newline
+        if (fprintf(fp, "%s\n", entry->text) < 0) {
+            fclose(fp);
+            return -1;
+        }
+        entry = entry->prev;
+    }
+
+    if (fclose(fp) != 0) {
+        return -1;
+    }
+
     return 0;
 }
 
