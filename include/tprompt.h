@@ -1,0 +1,385 @@
+/**
+ * @file tprompt.h
+ * @brief terse-prompt: Multi-line text input library for CLI REPL tools
+ * @version 0.1
+ * @date 2025-11-02
+ *
+ * terse-prompt provides two API styles:
+ * 1. Simple wrapper API: Single function for quick usage
+ * 2. Framework API: Customizable low-level interface
+ */
+
+#ifndef TPROMPT_H
+#define TPROMPT_H
+
+#include <stddef.h>
+#include <terse.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/* ========================================================================
+ * Type Definitions
+ * ======================================================================== */
+
+/**
+ * @brief Opaque handle for an editing session
+ *
+ * Created by tprompt_open() and destroyed by tprompt_close().
+ * Manages internal terse handle and session state.
+ */
+typedef struct tprompt_handle *tprompt_handle_t;
+
+/**
+ * @brief Forward declaration for completion callback
+ */
+typedef struct tprompt_completion_result tprompt_completion_result_t;
+
+/**
+ * @brief Completion callback function type
+ *
+ * @param text Current input text (entire buffer)
+ * @param cursor_pos Cursor position (byte offset)
+ * @param prefix_char Trigger prefix character that initiated completion
+ * @param user_data User-defined data passed to the callback
+ * @return Completion result with candidate list
+ *
+ * Memory management:
+ * - Callback allocates candidates array and each string with malloc
+ * - terse-prompt frees them using tprompt_free_completion_result()
+ */
+typedef tprompt_completion_result_t (*tprompt_completion_fn)(
+    const char *text,
+    size_t cursor_pos,
+    const char *prefix_char,
+    void *user_data
+);
+
+/**
+ * @brief Options structure for tprompt_open()
+ */
+typedef struct tprompt_options {
+    const char *prompt;                  /**< Prompt string (NULL = "> ") */
+    const char *history_file;            /**< History file path (NULL = memory only) */
+    size_t max_input_size;               /**< Max input size in bytes (0 = unlimited) */
+    size_t max_history_size;             /**< Max history entries (0 = unlimited) */
+    tprompt_completion_fn completion_callback; /**< Completion callback (NULL = disabled) */
+    void *completion_user_data;          /**< User data for completion callback */
+    const char *completion_prefixes;     /**< Completion trigger chars (e.g., "/@", NULL = disabled) */
+    terse_handle_t terse_handle;         /**< Existing terse handle (NULL = auto-create) */
+    int flags;                           /**< Behavior flags (TPROMPT_FLAG_*) */
+} tprompt_options_t;
+
+/**
+ * @brief Completion result structure
+ */
+struct tprompt_completion_result {
+    char **candidates;  /**< NULL-terminated array of candidate strings */
+    size_t count;       /**< Number of candidates */
+};
+
+/**
+ * @brief Error category enumeration
+ */
+typedef enum tprompt_error_category {
+    TPROMPT_ERROR_NONE = 0,        /**< No error */
+    TPROMPT_ERROR_INVALID_ARGS,    /**< Invalid arguments */
+    TPROMPT_ERROR_IO,              /**< I/O error (see errno) */
+    TPROMPT_ERROR_MEMORY,          /**< Memory allocation failure */
+    TPROMPT_ERROR_TERSE,           /**< terse API error */
+    TPROMPT_ERROR_HISTORY_FILE,    /**< History file read/write error */
+    TPROMPT_ERROR_ENCODING,        /**< UTF-8 encoding error */
+    TPROMPT_ERROR_SIZE_LIMIT       /**< Size limit exceeded */
+} tprompt_error_category_t;
+
+/**
+ * @brief Error information structure
+ */
+typedef struct tprompt_error_info {
+    tprompt_error_category_t category; /**< Error category */
+    int code;                          /**< Detailed error code (errno equivalent) */
+    char message[256];                 /**< Human-readable error message */
+} tprompt_error_info_t;
+
+/* ========================================================================
+ * Constants and Flags
+ * ======================================================================== */
+
+/**
+ * @brief Enable multi-line mode (default)
+ */
+#define TPROMPT_FLAG_MULTILINE        (1 << 0)
+
+/**
+ * @brief Disable history feature
+ */
+#define TPROMPT_FLAG_DISABLE_HISTORY  (1 << 1)
+
+/**
+ * @brief Disable automatic history saving on close
+ */
+#define TPROMPT_FLAG_NO_AUTO_SAVE     (1 << 2)
+
+/**
+ * @brief Default options initializer
+ */
+#define TPROMPT_OPTIONS_DEFAULT { \
+    .prompt = "> ", \
+    .history_file = NULL, \
+    .max_input_size = 1024 * 1024, \
+    .max_history_size = 100, \
+    .completion_callback = NULL, \
+    .completion_user_data = NULL, \
+    .completion_prefixes = NULL, \
+    .terse_handle = NULL, \
+    .flags = TPROMPT_FLAG_MULTILINE \
+}
+
+/* ========================================================================
+ * Simple Wrapper API
+ * ======================================================================== */
+
+/**
+ * @brief Simple one-line input function
+ *
+ * Reads a single line (or multi-line) of input with minimal setup.
+ * Creates and destroys a temporary handle internally.
+ * History is memory-only (no file persistence).
+ * Emacs-style keybindings are enabled.
+ *
+ * @param prompt_text Prompt string (NULL uses "> ")
+ * @return Allocated input string (caller must free()), or NULL on error/EOF
+ *
+ * On NULL return:
+ * - errno == 0: EOF (Ctrl+D, etc.)
+ * - errno != 0: Error occurred
+ *
+ * Example:
+ * @code
+ * char *input = tprompt("Enter command: ");
+ * if (input) {
+ *     printf("You entered: %s\n", input);
+ *     free(input);
+ * } else if (errno == 0) {
+ *     printf("EOF\n");
+ * } else {
+ *     perror("tprompt");
+ * }
+ * @endcode
+ */
+char *tprompt(const char *prompt_text);
+
+/* ========================================================================
+ * Framework API - Initialization and Cleanup
+ * ======================================================================== */
+
+/**
+ * @brief Open an editing session
+ *
+ * Creates a new editing session handle.
+ * If history_file is specified, loads history from disk.
+ * If terse_handle is NULL, creates a new terse handle internally.
+ *
+ * @param options Option structure (NULL uses default settings)
+ * @return Session handle on success, NULL on failure
+ *
+ * On failure, use tprompt_get_last_error(NULL) to retrieve error details.
+ *
+ * Example:
+ * @code
+ * tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
+ * opts.history_file = "~/.myapp_history";
+ * opts.max_history_size = 1000;
+ *
+ * tprompt_handle_t handle = tprompt_open(&opts);
+ * if (!handle) {
+ *     tprompt_error_info_t err = tprompt_get_last_error(NULL);
+ *     fprintf(stderr, "Error: %s\n", err.message);
+ *     return 1;
+ * }
+ * @endcode
+ */
+tprompt_handle_t tprompt_open(const tprompt_options_t *options);
+
+/**
+ * @brief Close an editing session
+ *
+ * Frees all resources associated with the handle.
+ * If history_file is set and TPROMPT_FLAG_NO_AUTO_SAVE is not set, saves history.
+ * If terse_handle was created internally, destroys it.
+ * If terse_handle was provided externally, does not destroy it.
+ *
+ * @param handle Session handle (NULL is safe and does nothing)
+ */
+void tprompt_close(tprompt_handle_t handle);
+
+/* ========================================================================
+ * Framework API - Editing Session
+ * ======================================================================== */
+
+/**
+ * @brief Read a line of input
+ *
+ * Reads one line (multi-line capable) of input from the user.
+ * Automatically adds the input to history.
+ *
+ * @param handle Session handle
+ * @param prompt_override Prompt string (NULL uses handle's default prompt)
+ * @return Allocated input string (caller must free()), or NULL on error/EOF
+ *
+ * On NULL return, use tprompt_get_last_error(handle) to determine:
+ * - category == TPROMPT_ERROR_NONE: EOF
+ * - category != TPROMPT_ERROR_NONE: Error occurred
+ *
+ * Example:
+ * @code
+ * while (running) {
+ *     char *line = tprompt_readline(handle, get_dynamic_prompt());
+ *     if (!line) {
+ *         tprompt_error_info_t err = tprompt_get_last_error(handle);
+ *         if (err.category == TPROMPT_ERROR_NONE) {
+ *             break; // EOF
+ *         }
+ *         fprintf(stderr, "Error: %s\n", err.message);
+ *         break;
+ *     }
+ *     process_command(line);
+ *     free(line);
+ * }
+ * @endcode
+ */
+char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override);
+
+/* ========================================================================
+ * Framework API - History Management
+ * ======================================================================== */
+
+/**
+ * @brief Add an entry to history
+ *
+ * Manually adds a history entry. Usually not needed as tprompt_readline()
+ * automatically adds entries.
+ *
+ * @param handle Session handle
+ * @param entry History entry string
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_history_add(tprompt_handle_t handle, const char *entry);
+
+/**
+ * @brief Load history from file
+ *
+ * Loads history entries from the specified file.
+ * Usually not needed as tprompt_open() automatically loads if history_file is set.
+ *
+ * @param handle Session handle
+ * @param file_path History file path
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_history_load(tprompt_handle_t handle, const char *file_path);
+
+/**
+ * @brief Save history to file
+ *
+ * Saves history entries to the specified file.
+ * Usually not needed as tprompt_close() automatically saves if history_file is set.
+ *
+ * @param handle Session handle
+ * @param file_path History file path
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_history_save(tprompt_handle_t handle, const char *file_path);
+
+/**
+ * @brief Clear all history entries
+ *
+ * Clears all history entries from memory (does not delete the history file).
+ *
+ * @param handle Session handle
+ */
+void tprompt_history_clear(tprompt_handle_t handle);
+
+/**
+ * @brief Set maximum history size
+ *
+ * Sets the maximum number of history entries to keep.
+ * When the limit is exceeded, oldest entries are removed.
+ *
+ * @param handle Session handle
+ * @param max_size Maximum history size (0 = unlimited)
+ */
+void tprompt_history_set_max_size(tprompt_handle_t handle, size_t max_size);
+
+/* ========================================================================
+ * Framework API - Completion
+ * ======================================================================== */
+
+/**
+ * @brief Set completion callback
+ *
+ * Registers a callback function for auto-completion.
+ * Set to NULL to disable completion.
+ *
+ * @param handle Session handle
+ * @param callback Completion callback function (NULL to disable)
+ * @param user_data User data passed to callback
+ */
+void tprompt_set_completion_callback(
+    tprompt_handle_t handle,
+    tprompt_completion_fn callback,
+    void *user_data
+);
+
+/**
+ * @brief Set completion trigger prefixes
+ *
+ * Sets the prefix characters that trigger completion.
+ * For example, "/@" triggers completion on '/' or '@'.
+ *
+ * @param handle Session handle
+ * @param prefixes Prefix string (NULL or empty to disable triggers)
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_set_completion_prefixes(tprompt_handle_t handle, const char *prefixes);
+
+/**
+ * @brief Free completion result
+ *
+ * Frees the memory allocated by a completion callback.
+ * This function should be called by terse-prompt internally after using
+ * the completion results.
+ *
+ * @param result Completion result to free
+ */
+void tprompt_free_completion_result(tprompt_completion_result_t *result);
+
+/* ========================================================================
+ * Framework API - Error Handling
+ * ======================================================================== */
+
+/**
+ * @brief Get last error information
+ *
+ * Retrieves the last error that occurred in the session.
+ * If handle is NULL, returns global error information (e.g., from tprompt_open() failure).
+ *
+ * @param handle Session handle (NULL for global error)
+ * @return Error information structure
+ *
+ * Example:
+ * @code
+ * tprompt_handle_t handle = tprompt_open(&opts);
+ * if (!handle) {
+ *     tprompt_error_info_t err = tprompt_get_last_error(NULL);
+ *     fprintf(stderr, "Failed to open: %s\n", err.message);
+ * }
+ * @endcode
+ */
+tprompt_error_info_t tprompt_get_last_error(tprompt_handle_t handle);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* TPROMPT_H */
