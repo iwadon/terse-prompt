@@ -533,6 +533,44 @@ bool tprompt_is_completion_trigger(tprompt_handle_t handle, char ch);
  */
 bool tprompt_buffer_has_newlines(tprompt_handle_t handle);
 
+/* ========================================================================
+ * Internal Helper Functions - Logical Line Navigation (Phase 5)
+ * ======================================================================== */
+
+/**
+ * @brief Count total number of logical lines in buffer
+ * @param handle Prompt handle
+ * @return Number of logical lines (minimum 1)
+ */
+size_t tprompt_count_logical_lines(tprompt_handle_t handle);
+
+/**
+ * @brief Get logical line number at specified byte offset
+ * @param handle Prompt handle
+ * @param byte_offset Byte offset in buffer
+ * @return Logical line number (0-based)
+ */
+size_t tprompt_get_logical_line_at_offset(tprompt_handle_t handle, size_t byte_offset);
+
+/**
+ * @brief Get start and end byte offsets of a logical line
+ * @param handle Prompt handle
+ * @param logical_line Logical line number (0-based)
+ * @param out_start Output: Start byte offset of line
+ * @param out_end Output: End byte offset of line (exclusive)
+ * @return 0 on success, -1 if line number is invalid
+ */
+int tprompt_get_logical_line_bounds(tprompt_handle_t handle, size_t logical_line,
+                                     size_t *out_start, size_t *out_end);
+
+/**
+ * @brief Get byte length of a logical line
+ * @param handle Prompt handle
+ * @param logical_line Logical line number (0-based)
+ * @return Byte length of line (excluding newline), or 0 if invalid
+ */
+size_t tprompt_get_logical_line_length(tprompt_handle_t handle, size_t logical_line);
+
 #ifdef __cplusplus
 }
 #endif

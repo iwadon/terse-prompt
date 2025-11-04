@@ -61,3 +61,19 @@ target_link_libraries(test_multiline PRIVATE
 )
 
 add_test(NAME test_multiline COMMAND test_multiline)
+
+# Phase 5 newline character support tests
+add_executable(test_newline
+    test_newline.c
+)
+
+target_include_directories(test_newline PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_link_libraries(test_newline PRIVATE
+    tprompt
+    attest
+)
+
+add_test(NAME test_newline COMMAND test_newline)
