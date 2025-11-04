@@ -425,6 +425,13 @@ int tprompt_display_update_cursor(tprompt_handle_t handle);
  */
 int tprompt_display_clear(tprompt_handle_t handle);
 
+/**
+ * @brief Render completion candidate list
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_display_render_completion(tprompt_handle_t handle);
+
 /* ========================================================================
  * Internal Helper Functions - Error Handling
  * ======================================================================== */

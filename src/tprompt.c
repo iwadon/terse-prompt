@@ -670,35 +670,159 @@ void tprompt_completion_free(tprompt_completion_state_t *state)
 
 int tprompt_completion_activate(tprompt_handle_t handle, char trigger_char, size_t trigger_offset)
 {
-    // TODO: Implement completion activation
-    return -1;
+    if (!handle) {
+        return -1;
+    }
+
+    // Set completion state
+    handle->completion_state.active = true;
+    handle->completion_state.trigger_char = trigger_char;
+    handle->completion_state.trigger_offset = trigger_offset;
+
+    // Fetch initial candidates
+    return tprompt_completion_update(handle);
 }
 
 void tprompt_completion_deactivate(tprompt_handle_t handle)
 {
-    // TODO: Implement completion deactivation
+    if (!handle) {
+        return;
+    }
+
+    // Free candidates
+    if (handle->completion_state.candidates) {
+        for (size_t i = 0; i < handle->completion_state.candidate_count; i++) {
+            free(handle->completion_state.candidates[i]);
+        }
+        free(handle->completion_state.candidates);
+    }
+
+    // Reset state
+    tprompt_completion_init(&handle->completion_state);
 }
 
 int tprompt_completion_update(tprompt_handle_t handle)
 {
-    // TODO: Implement completion update
-    return -1;
+    if (!handle || !handle->completion_state.active) {
+        return -1;
+    }
+
+    // Free previous candidates
+    if (handle->completion_state.candidates) {
+        for (size_t i = 0; i < handle->completion_state.candidate_count; i++) {
+            free(handle->completion_state.candidates[i]);
+        }
+        free(handle->completion_state.candidates);
+        handle->completion_state.candidates = NULL;
+        handle->completion_state.candidate_count = 0;
+        handle->completion_state.selected_index = 0;
+    }
+
+    // Call the completion callback
+    if (!handle->completion_callback) {
+        return -1;
+    }
+
+    // Prepare parameters for callback
+    const char *text = handle->buffer.data;
+    size_t cursor_pos = handle->buffer.cursor;
+    char prefix_str[2] = {handle->completion_state.trigger_char, '\0'};
+
+    // Invoke callback
+    tprompt_completion_result_t result = handle->completion_callback(
+        text,
+        cursor_pos,
+        prefix_str,
+        handle->completion_user_data
+    );
+
+    // Store the results
+    handle->completion_state.candidates = result.candidates;
+    handle->completion_state.candidate_count = result.count;
+    handle->completion_state.selected_index = 0;
+
+    // If no candidates, deactivate completion
+    if (result.count == 0) {
+        tprompt_completion_deactivate(handle);
+        return 0;
+    }
+
+    return 0;
 }
 
 void tprompt_completion_select_next(tprompt_completion_state_t *state)
 {
-    // TODO: Implement completion candidate selection
+    if (!state || !state->active || state->candidate_count == 0) {
+        return;
+    }
+
+    // Move to next candidate (wrap around at end)
+    state->selected_index = (state->selected_index + 1) % state->candidate_count;
 }
 
 void tprompt_completion_select_prev(tprompt_completion_state_t *state)
 {
-    // TODO: Implement completion candidate selection
+    if (!state || !state->active || state->candidate_count == 0) {
+        return;
+    }
+
+    // Move to previous candidate (wrap around at beginning)
+    if (state->selected_index == 0) {
+        state->selected_index = state->candidate_count - 1;
+    } else {
+        state->selected_index--;
+    }
 }
 
 int tprompt_completion_confirm(tprompt_handle_t handle)
 {
-    // TODO: Implement completion confirmation
-    return -1;
+    if (!handle || !handle->completion_state.active) {
+        return -1;
+    }
+
+    // Check if we have a valid selected candidate
+    if (handle->completion_state.candidate_count == 0 ||
+        handle->completion_state.selected_index >= handle->completion_state.candidate_count) {
+        return -1;
+    }
+
+    // Get the selected candidate text
+    const char *selected = handle->completion_state.candidates[handle->completion_state.selected_index];
+    if (!selected) {
+        return -1;
+    }
+
+    // Delete text from trigger position to current cursor position
+    size_t trigger_pos = handle->completion_state.trigger_offset;
+    size_t current_pos = handle->buffer.cursor;
+
+    // Safety check: ensure trigger_pos is valid
+    if (trigger_pos > current_pos || trigger_pos > handle->buffer.length) {
+        return -1;
+    }
+
+    // Move cursor to trigger position
+    handle->buffer.cursor = trigger_pos;
+
+    // Delete characters from trigger_pos to current_pos (byte-wise)
+    size_t delete_count = current_pos - trigger_pos;
+    if (delete_count > 0) {
+        // Shift remaining text left
+        memmove(handle->buffer.data + trigger_pos,
+                handle->buffer.data + current_pos,
+                handle->buffer.length - current_pos);
+
+        handle->buffer.length -= delete_count;
+        handle->buffer.data[handle->buffer.length] = '\0';
+    }
+
+    // Insert the selected candidate at trigger position
+    size_t selected_len = strlen(selected);
+    if (tprompt_buffer_insert(&handle->buffer, selected, selected_len) != 0) {
+        return -1;
+    }
+
+    return 0;
 }
 
 /* ========================================================================
@@ -791,7 +915,18 @@ int tprompt_display_render(tprompt_handle_t handle)
     }
 
     // Update cursor position
-    return tprompt_display_update_cursor(handle);
+    if (tprompt_display_update_cursor(handle) != 0) {
+        return -1;
+    }
+
+    // Render completion list if active
+    if (handle->completion_state.active) {
+        if (tprompt_display_render_completion(handle) != 0) {
+            return -1;
+        }
+    }
+
+    return 0;
 }
 
 int tprompt_display_update_cursor(tprompt_handle_t handle)
@@ -850,26 +985,225 @@ int tprompt_display_clear(tprompt_handle_t handle)
     return 0;
 }
 
+int tprompt_display_render_completion(tprompt_handle_t handle)
+{
+    if (!handle || !handle->completion_state.active) {
+        return 0;  // Not an error, just nothing to render
+    }
+
+    size_t candidate_count = handle->completion_state.candidate_count;
+    if (candidate_count == 0) {
+        return 0;  // No candidates to display
+    }
+
+    char **candidates = handle->completion_state.candidates;
+    size_t selected_index = handle->completion_state.selected_index;
+
+    // Get current cursor position (save it for later restoration)
+    terse_cursor_position_t saved_pos = terse_get_cursor_position(handle->terse);
+
+    // Move cursor to next line after input
+    if (terse_move_by(handle->terse, 1, 0) < 0) {
+        tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                         "Failed to move cursor for completion list");
+        return -1;
+    }
+
+    // Render each candidate
+    for (size_t i = 0; i < candidate_count; i++) {
+        // Clear the line first
+        if (terse_clear_line(handle->terse, TERSE_CLEAR_ALL) < 0) {
+            return -1;
+        }
+
+        // Move to start of line
+        if (terse_move_to(handle->terse, -1, 0) < 0) {
+            return -1;
+        }
+
+        // Render selection indicator and candidate text
+        char prefix[8] = "  ";
+        if (i == selected_index) {
+            snprintf(prefix, sizeof(prefix), "> ");
+        }
+
+        // Write prefix
+        if (terse_write_text(handle->terse, prefix) < 0) {
+            tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                             "Failed to write completion prefix");
+            return -1;
+        }
+
+        // Write candidate text
+        if (terse_write_text(handle->terse, candidates[i]) < 0) {
+            tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                             "Failed to write completion candidate");
+            return -1;
+        }
+
+        // Move to next line if not the last candidate
+        if (i < candidate_count - 1) {
+            if (terse_move_by(handle->terse, 1, 0) < 0) {
+                return -1;
+            }
+        }
+    }
+
+    // Restore cursor to input position
+    if (saved_pos.known) {
+        if (terse_move_to(handle->terse, saved_pos.row, saved_pos.col) < 0) {
+            return -1;
+        }
+    }
+
+    // Flush output
+    if (terse_flush(handle->terse) < 0) {
+        tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                         "Failed to flush completion display");
+        return -1;
+    }
+
+    return 0;
+}
+
 /* ========================================================================
  * Key Event Handlers - Internal Helpers
  * ======================================================================== */
 
 int tprompt_handle_char_input(tprompt_handle_t handle, const char *ch, int width)
 {
-    // TODO: Implement character input handling
-    return -1;
+    if (!handle || !ch) {
+        return -1;
+    }
+
+    // Check if this is a completion trigger character
+    if (ch[0] != '\0' && tprompt_is_completion_trigger(handle, ch[0])) {
+        // Activate completion if not already active
+        if (!handle->completion_state.active) {
+            // Insert the character first
+            size_t ch_len = strlen(ch);
+            if (tprompt_buffer_insert(&handle->buffer, ch, ch_len) != 0) {
+                return -1;
+            }
+
+            // Activate completion at the current cursor position
+            if (tprompt_completion_activate(handle, ch[0], handle->buffer.cursor - ch_len) != 0) {
+                return -1;
+            }
+
+            return 0;
+        }
+    }
+
+    // Normal character insertion
+    size_t ch_len = strlen(ch);
+    if (tprompt_buffer_insert(&handle->buffer, ch, ch_len) != 0) {
+        return -1;
+    }
+
+    // If completion is active, update candidates with new input
+    if (handle->completion_state.active) {
+        if (tprompt_completion_update(handle) != 0) {
+            return -1;
+        }
+    }
+
+    return 0;
 }
 
 int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event)
 {
-    // TODO: Implement key event handling
-    return -1;
+    if (!handle || !event) {
+        return -1;
+    }
+
+    // If completion is active, handle UP/DOWN for candidate navigation
+    if (handle->completion_state.active && handle->completion_state.candidate_count > 0) {
+        switch (event->type) {
+            case TERSE_EVENT_ARROW_UP:
+                // Navigate to previous candidate
+                tprompt_completion_select_prev(&handle->completion_state);
+                return 0;  // Continue editing (don't return input)
+
+            case TERSE_EVENT_ARROW_DOWN:
+                // Navigate to next candidate
+                tprompt_completion_select_next(&handle->completion_state);
+                return 0;  // Continue editing
+
+            case TERSE_EVENT_TAB:
+                // Confirm selected completion
+                if (tprompt_completion_confirm(handle) == 0) {
+                    tprompt_completion_deactivate(handle);
+                }
+                return 0;  // Continue editing
+
+            default:
+                break;
+        }
+    }
+
+    // Handle ESC to cancel completion (check regardless of candidate count)
+    if (handle->completion_state.active && event->type == TERSE_EVENT_CHAR) {
+        if (event->data.ch.scalar == 27) {  // ESC
+            tprompt_completion_deactivate(handle);
+            return 0;
+        }
+    }
+
+    // If completion is not active, handle history navigation with UP/DOWN
+    if (!handle->completion_state.active) {
+        switch (event->type) {
+            case TERSE_EVENT_ARROW_UP:
+                // Navigate to previous history entry
+                {
+                    const char *entry = tprompt_history_prev(&handle->history);
+                    if (entry) {
+                        tprompt_buffer_set(&handle->buffer, entry);
+                    }
+                }
+                return 0;  // Continue editing
+
+            case TERSE_EVENT_ARROW_DOWN:
+                // Navigate to next history entry
+                {
+                    const char *entry = tprompt_history_next(&handle->history);
+                    if (entry) {
+                        tprompt_buffer_set(&handle->buffer, entry);
+                    } else {
+                        // At the end of history, clear buffer (return to current input)
+                        tprompt_buffer_clear(&handle->buffer);
+                    }
+                }
+                return 0;  // Continue editing
+
+            default:
+                break;
+        }
+    }
+
+    // Handle ENTER - confirm input
+    if (event->type == TERSE_EVENT_ENTER) {
+        return 1;
+    }
+
+    // Handle Ctrl+D as EOF
+    if (event->type == TERSE_EVENT_CHAR &&
+        event->data.ch.scalar == 4 &&  // Ctrl+D
+        (event->data.ch.mods & TERSE_MOD_CTRL)) {
+        return 1;
+    }
+
+    return 0;  // Continue editing
 }
 
 bool tprompt_is_completion_trigger(tprompt_handle_t handle, char ch)
 {
-    // TODO: Implement completion trigger detection
-    return false;
+    if (!handle || !handle->completion_prefixes || !handle->completion_callback) {
+        return false;
+    }
+
+    // Check if the character is in the completion_prefixes string
+    return strchr(handle->completion_prefixes, ch) != NULL;
 }
 
 /* ========================================================================

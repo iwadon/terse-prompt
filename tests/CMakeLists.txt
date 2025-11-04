@@ -29,3 +29,19 @@ target_link_libraries(test_history PRIVATE
 )
 
 add_test(NAME test_history COMMAND test_history)
+
+# Phase 3 completion tests
+add_executable(test_completion
+    test_completion.c
+)
+
+target_include_directories(test_completion PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_link_libraries(test_completion PRIVATE
+    tprompt
+    attest
+)
+
+add_test(NAME test_completion COMMAND test_completion)
