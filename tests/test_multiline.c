@@ -22,6 +22,9 @@
  */
 static tprompt_handle_t create_test_handle(size_t term_width, size_t term_height)
 {
+    // Enable test mode to prevent terse from overwriting dimensions
+    setenv("TPROMPT_TEST_MODE", "1", 1);
+
     tprompt_options_t opts = {
         .prompt = "> ",
         .history_file = NULL,

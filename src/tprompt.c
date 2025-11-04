@@ -1164,19 +1164,32 @@ void tprompt_display_calculate_layout(tprompt_handle_t handle)
         return;
     }
 
-    // Get terminal dimensions from terse (only update if known)
-    terse_size_t size = terse_get_size(handle->terse);
-    if (size.known && size.cols > 0 && size.rows > 0) {
-        handle->display.terminal_width = (size_t)size.cols;
-        handle->display.terminal_height = (size_t)size.rows;
+    // In test mode, preserve manually-set dimensions
+    // Check for TPROMPT_TEST_MODE environment variable
+    static int test_mode = -1;  // -1 = not checked, 0 = normal, 1 = test
+    if (test_mode == -1) {
+        test_mode = getenv("TPROMPT_TEST_MODE") ? 1 : 0;
+    }
+
+    // Save current dimensions in case we're in test mode
+    size_t prev_width = handle->display.terminal_width;
+    size_t prev_height = handle->display.terminal_height;
+
+    // Get terminal dimensions from terse (skip in test mode if dimensions already set)
+    if (!test_mode || prev_width == 0 || prev_height == 0) {
+        terse_size_t size = terse_get_size(handle->terse);
+        if (size.known && size.cols > 0 && size.rows > 0) {
+            handle->display.terminal_width = (size_t)size.cols;
+            handle->display.terminal_height = (size_t)size.rows;
+        }
     }
 
     // Use fallback if terminal size still unknown
     if (handle->display.terminal_width == 0) {
-        handle->display.terminal_width = 80;
+        handle->display.terminal_width = prev_width > 0 ? prev_width : 80;
     }
     if (handle->display.terminal_height == 0) {
-        handle->display.terminal_height = 24;
+        handle->display.terminal_height = prev_height > 0 ? prev_height : 24;
     }
 
     // Calculate absolute column position at cursor (including prompt)
