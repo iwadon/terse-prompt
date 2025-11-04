@@ -32,6 +32,12 @@ tprompt_error_info_t tprompt_global_error = {
 #define DEFAULT_PROMPT "> "
 
 /* ========================================================================
+ * Forward Declarations for Static Helper Functions
+ * ======================================================================== */
+
+static size_t tprompt_calculate_cursor_col(tprompt_handle_t handle);
+
+/* ========================================================================
  * Error Handling - Internal Helpers
  * ======================================================================== */
 
@@ -258,6 +264,246 @@ size_t tprompt_cursor_move_word_forward(tprompt_buffer_t *buffer)
 size_t tprompt_cursor_move_word_backward(tprompt_buffer_t *buffer)
 {
     // TODO: Implement word boundary detection
+    return 0;
+}
+
+int tprompt_cursor_move_to_physical_line_start(tprompt_handle_t handle)
+{
+    if (!handle) {
+        return -1;
+    }
+
+    // Calculate current layout
+    tprompt_display_calculate_layout(handle);
+
+    size_t terminal_width = handle->display.terminal_width;
+    if (terminal_width == 0) {
+        terminal_width = 80;
+    }
+
+    // Calculate absolute column at cursor (including prompt)
+    size_t cursor_col = tprompt_calculate_cursor_col(handle);
+
+    // Calculate which physical line we're on
+    size_t current_physical_line = cursor_col / terminal_width;
+
+    // Calculate target column: start of current physical line
+    size_t target_col = current_physical_line * terminal_width;
+
+    // Find byte offset corresponding to target column
+    // We need to iterate through the buffer to find the position
+    size_t prompt_len = handle->prompt ? strlen(handle->prompt) : 0;
+    size_t current_col = prompt_len;
+    size_t byte_offset = 0;
+
+    // If target column is before/at prompt, move to buffer start
+    if (target_col <= prompt_len) {
+        handle->buffer.cursor = 0;
+        return 0;
+    }
+
+    // Find the byte offset where we reach target column
+    while (byte_offset < handle->buffer.length) {
+        if (current_col >= target_col) {
+            break;
+        }
+
+        size_t char_len = tprompt_utf8_char_length((unsigned char)handle->buffer.data[byte_offset]);
+        if (char_len == 0) {
+            char_len = 1; // Invalid UTF-8, skip one byte
+        }
+
+        byte_offset += char_len;
+        current_col++;
+    }
+
+    handle->buffer.cursor = byte_offset;
+    return 0;
+}
+
+int tprompt_cursor_move_to_physical_line_end(tprompt_handle_t handle)
+{
+    if (!handle) {
+        return -1;
+    }
+
+    // Calculate current layout
+    tprompt_display_calculate_layout(handle);
+
+    size_t terminal_width = handle->display.terminal_width;
+    if (terminal_width == 0) {
+        terminal_width = 80;
+    }
+
+    // Calculate absolute column at cursor (including prompt)
+    size_t cursor_col = tprompt_calculate_cursor_col(handle);
+
+    // Calculate which physical line we're on
+    size_t current_physical_line = cursor_col / terminal_width;
+
+    // Calculate target column: end of current physical line (one before next line start)
+    size_t target_col = (current_physical_line + 1) * terminal_width - 1;
+
+    // Find byte offset corresponding to target column
+    size_t prompt_len = handle->prompt ? strlen(handle->prompt) : 0;
+    size_t current_col = prompt_len;
+    size_t byte_offset = 0;
+    size_t last_valid_offset = 0;
+
+    // Find the byte offset where we reach or exceed target column
+    while (byte_offset < handle->buffer.length) {
+        if (current_col > target_col) {
+            // We've gone past target, use previous position
+            handle->buffer.cursor = last_valid_offset;
+            return 0;
+        }
+
+        if (current_col == target_col) {
+            // Exact match
+            handle->buffer.cursor = byte_offset;
+            return 0;
+        }
+
+        last_valid_offset = byte_offset;
+
+        size_t char_len = tprompt_utf8_char_length((unsigned char)handle->buffer.data[byte_offset]);
+        if (char_len == 0) {
+            char_len = 1; // Invalid UTF-8, skip one byte
+        }
+
+        byte_offset += char_len;
+        current_col++;
+    }
+
+    // If we reached end of buffer before target column, use end of buffer
+    handle->buffer.cursor = handle->buffer.length;
+    return 0;
+}
+
+int tprompt_cursor_move_up(tprompt_handle_t handle)
+{
+    if (!handle) {
+        return -1;
+    }
+
+    // Calculate current layout
+    tprompt_display_calculate_layout(handle);
+
+    size_t terminal_width = handle->display.terminal_width;
+    if (terminal_width == 0) {
+        terminal_width = 80;
+    }
+
+    // Calculate current absolute column (including prompt)
+    size_t current_col = tprompt_calculate_cursor_col(handle);
+
+    // Calculate which physical line we're currently on
+    size_t current_physical_line = current_col / terminal_width;
+
+    // If at top line, can't move up
+    if (current_physical_line == 0) {
+        return 0;
+    }
+
+    // Set goal column if not already set
+    if (!handle->input_state.has_goal_column) {
+        handle->input_state.goal_column = current_col % terminal_width;
+        handle->input_state.has_goal_column = true;
+    }
+
+    // Calculate target column: goal column on line above
+    size_t target_physical_line = current_physical_line - 1;
+    size_t target_col = target_physical_line * terminal_width + handle->input_state.goal_column;
+
+    // Find byte offset corresponding to target column
+    size_t prompt_len = handle->prompt ? strlen(handle->prompt) : 0;
+    size_t col = prompt_len;
+    size_t byte_offset = 0;
+
+    // If target column is before/at prompt, move to buffer start
+    if (target_col <= prompt_len) {
+        handle->buffer.cursor = 0;
+        return 0;
+    }
+
+    // Find the byte offset where we reach or exceed target column
+    while (byte_offset < handle->buffer.length && col < target_col) {
+        size_t char_len = tprompt_utf8_char_length((unsigned char)handle->buffer.data[byte_offset]);
+        if (char_len == 0) {
+            char_len = 1; // Invalid UTF-8, skip one byte
+        }
+
+        byte_offset += char_len;
+        col++;
+    }
+
+    // Clamp to buffer length
+    if (byte_offset > handle->buffer.length) {
+        byte_offset = handle->buffer.length;
+    }
+
+    handle->buffer.cursor = byte_offset;
+    return 0;
+}
+
+int tprompt_cursor_move_down(tprompt_handle_t handle)
+{
+    if (!handle) {
+        return -1;
+    }
+
+    // Calculate current layout
+    tprompt_display_calculate_layout(handle);
+
+    size_t terminal_width = handle->display.terminal_width;
+    if (terminal_width == 0) {
+        terminal_width = 80;
+    }
+
+    // Calculate current absolute column (including prompt)
+    size_t current_col = tprompt_calculate_cursor_col(handle);
+
+    // Calculate which physical line we're currently on
+    size_t current_physical_line = current_col / terminal_width;
+    size_t total_lines = handle->display.total_physical_lines;
+
+    // If at bottom line, can't move down
+    if (current_physical_line >= total_lines - 1) {
+        return 0;
+    }
+
+    // Set goal column if not already set
+    if (!handle->input_state.has_goal_column) {
+        handle->input_state.goal_column = current_col % terminal_width;
+        handle->input_state.has_goal_column = true;
+    }
+
+    // Calculate target column: goal column on line below
+    size_t target_physical_line = current_physical_line + 1;
+    size_t target_col = target_physical_line * terminal_width + handle->input_state.goal_column;
+
+    // Find byte offset corresponding to target column
+    size_t prompt_len = handle->prompt ? strlen(handle->prompt) : 0;
+    size_t col = prompt_len;
+    size_t byte_offset = 0;
+
+    // Find the byte offset where we reach or exceed target column
+    while (byte_offset < handle->buffer.length && col < target_col) {
+        size_t char_len = tprompt_utf8_char_length((unsigned char)handle->buffer.data[byte_offset]);
+        if (char_len == 0) {
+            char_len = 1; // Invalid UTF-8, skip one byte
+        }
+
+        byte_offset += char_len;
+        col++;
+    }
+
+    // Clamp to buffer length
+    if (byte_offset > handle->buffer.length) {
+        byte_offset = handle->buffer.length;
+    }
+
+    handle->buffer.cursor = byte_offset;
     return 0;
 }
 
@@ -830,26 +1076,86 @@ int tprompt_completion_confirm(tprompt_handle_t handle)
  * ======================================================================== */
 
 /**
+ * @brief Calculate absolute column position from byte offset
+ * @param handle Prompt handle
+ * @param byte_offset Byte offset in buffer
+ * @param include_prompt Whether to include prompt width
+ * @return Absolute column position (0-based)
+ */
+static size_t tprompt_calculate_column_at_offset(tprompt_handle_t handle, size_t byte_offset, bool include_prompt)
+{
+    if (!handle) {
+        return 0;
+    }
+
+    // Start with prompt length if requested
+    size_t col = 0;
+    if (include_prompt && handle->prompt) {
+        col = strlen(handle->prompt);
+    }
+
+    // Add character widths from buffer start to given offset
+    size_t char_count = tprompt_utf8_char_count(handle->buffer.data, byte_offset);
+    col += char_count;
+
+    return col;
+}
+
+/**
  * @brief Calculate cursor column position including prompt width
  * @param handle Prompt handle
  * @return Physical column position (0-based)
  */
 static size_t tprompt_calculate_cursor_col(tprompt_handle_t handle)
 {
-    if (!handle) {
-        return 0;
+    return tprompt_calculate_column_at_offset(handle, handle->buffer.cursor, true);
+}
+
+/**
+ * @brief Calculate physical line and column from absolute column position
+ * @param absolute_col Absolute column position (including prompt)
+ * @param terminal_width Terminal width in columns
+ * @param out_physical_line Output: physical line number (0-based)
+ * @param out_physical_col Output: physical column within line (0-based)
+ */
+static void tprompt_calculate_physical_position(size_t absolute_col, size_t terminal_width,
+                                                 size_t *out_physical_line, size_t *out_physical_col)
+{
+    if (terminal_width == 0) {
+        terminal_width = 80; // Fallback default
     }
 
-    // Start with prompt length (assuming single-width characters)
-    size_t prompt_len = handle->prompt ? strlen(handle->prompt) : 0;
-    size_t col = prompt_len;
+    *out_physical_line = absolute_col / terminal_width;
+    *out_physical_col = absolute_col % terminal_width;
+}
 
-    // Add character widths from buffer start to cursor position
-    // For now, assume 1 column per character (will be enhanced with terse width info)
-    size_t char_count = tprompt_utf8_char_count(handle->buffer.data, handle->buffer.cursor);
-    col += char_count;
+/**
+ * @brief Calculate total physical lines needed for buffer content
+ * @param handle Prompt handle
+ * @return Total number of physical lines
+ */
+static size_t tprompt_calculate_total_physical_lines(tprompt_handle_t handle)
+{
+    if (!handle) {
+        return 1;
+    }
 
-    return col;
+    size_t terminal_width = handle->display.terminal_width;
+    if (terminal_width == 0) {
+        terminal_width = 80; // Fallback default
+    }
+
+    // Calculate absolute column at end of buffer
+    size_t end_col = tprompt_calculate_column_at_offset(handle, handle->buffer.length, true);
+
+    // Calculate how many physical lines are needed
+    // If end_col is 0, we need 1 line
+    // If end_col > 0 and divides evenly, we're at the end of a line (don't add extra)
+    // If end_col > 0 and has remainder, we need the quotient + 1
+    if (end_col == 0) {
+        return 1;
+    }
+    return ((end_col - 1) / terminal_width) + 1;
 }
 
 void tprompt_display_calculate_layout(tprompt_handle_t handle)
@@ -865,15 +1171,24 @@ void tprompt_display_calculate_layout(tprompt_handle_t handle)
         handle->display.terminal_height = (size_t)size.rows;
     }
 
-    // Calculate cursor column position
+    // Use fallback if terminal size unknown
+    if (handle->display.terminal_width == 0) {
+        handle->display.terminal_width = 80;
+    }
+    if (handle->display.terminal_height == 0) {
+        handle->display.terminal_height = 24;
+    }
+
+    // Calculate absolute column position at cursor (including prompt)
     size_t cursor_col = tprompt_calculate_cursor_col(handle);
 
-    // For single-line mode (current implementation), physical line is always 0
-    handle->display.physical_line = 0;
-    handle->display.physical_column = cursor_col;
-    handle->display.total_physical_lines = 1;
+    // Calculate physical line and column from absolute position
+    tprompt_calculate_physical_position(cursor_col, handle->display.terminal_width,
+                                        &handle->display.physical_line,
+                                        &handle->display.physical_column);
 
-    // Future: Multi-line wrapping logic will be added here
+    // Calculate total number of physical lines needed
+    handle->display.total_physical_lines = tprompt_calculate_total_physical_lines(handle);
 }
 
 int tprompt_display_render(tprompt_handle_t handle)
@@ -882,39 +1197,91 @@ int tprompt_display_render(tprompt_handle_t handle)
         return -1;
     }
 
-    // Clear current line first
-    if (terse_clear_line(handle->terse, TERSE_CLEAR_ALL) < 0) {
+    // Calculate layout first to know how many physical lines we need
+    tprompt_display_calculate_layout(handle);
+
+    // Get current cursor position to know where we started
+    terse_cursor_position_t start_pos = terse_get_cursor_position(handle->terse);
+    handle->display.start_row = start_pos.known ? start_pos.row : 0;
+
+    // Clear all physical lines used by the input
+    for (size_t i = 0; i < handle->display.total_physical_lines; i++) {
+        if (terse_move_to(handle->terse, handle->display.start_row + (int)i, 0) < 0) {
+            tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                             "Failed to move cursor");
+            return -1;
+        }
+        if (terse_clear_line(handle->terse, TERSE_CLEAR_ALL) < 0) {
+            tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                             "Failed to clear line");
+            return -1;
+        }
+    }
+
+    // Move back to start position
+    if (terse_move_to(handle->terse, handle->display.start_row, 0) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                         "Failed to clear line");
+                         "Failed to move cursor to start");
         return -1;
     }
 
-    // Move cursor to start of line
-    if (terse_move_to(handle->terse, -1, 0) < 0) {
-        tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                         "Failed to move cursor to line start");
-        return -1;
-    }
+    // Render text with wrapping
+    size_t current_col = 0;
+    size_t terminal_width = handle->display.terminal_width;
 
-    // Write prompt
+    // Write prompt on first line
     if (handle->prompt) {
+        size_t prompt_len = strlen(handle->prompt);
         if (terse_write_text(handle->terse, handle->prompt) < 0) {
             tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
                              "Failed to write prompt");
             return -1;
         }
+        current_col += prompt_len;
     }
 
-    // Write buffer contents
-    if (handle->buffer.length > 0) {
-        if (terse_write_text(handle->terse, handle->buffer.data) < 0) {
-            tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                             "Failed to write buffer");
-            return -1;
+    // Write buffer contents character by character, wrapping at terminal width
+    size_t i = 0;
+    while (i < handle->buffer.length) {
+        // Check if we need to wrap to next line
+        if (current_col >= terminal_width) {
+            // Move to next physical line
+            if (terse_write_text(handle->terse, "\n") < 0) {
+                tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                                 "Failed to write newline");
+                return -1;
+            }
+            current_col = 0;
         }
+
+        // Get current character length
+        size_t char_len = tprompt_utf8_char_length((unsigned char)handle->buffer.data[i]);
+        if (char_len == 0) {
+            // Invalid byte, skip it
+            i++;
+            continue;
+        }
+
+        // Write the character
+        char temp[5] = {0};
+        if (char_len <= 4) {
+            memcpy(temp, &handle->buffer.data[i], char_len);
+            temp[char_len] = '\0';
+
+            if (terse_write_text(handle->terse, temp) < 0) {
+                tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                                 "Failed to write character");
+                return -1;
+            }
+
+            // Assume each character takes 1 column (could be enhanced with width tracking)
+            current_col++;
+        }
+
+        i += char_len;
     }
 
-    // Update cursor position
+    // Update cursor position to where the cursor should be
     if (tprompt_display_update_cursor(handle) != 0) {
         return -1;
     }
@@ -938,8 +1305,11 @@ int tprompt_display_update_cursor(tprompt_handle_t handle)
     // Calculate cursor position
     tprompt_display_calculate_layout(handle);
 
-    // Move cursor to calculated position
-    if (terse_move_to(handle->terse, -1, (int)handle->display.physical_column) < 0) {
+    // Calculate target row (start_row + physical_line offset)
+    int target_row = handle->display.start_row + (int)handle->display.physical_line;
+
+    // Move cursor to calculated position (row and column)
+    if (terse_move_to(handle->terse, target_row, (int)handle->display.physical_column) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
                          "Failed to update cursor position");
         return -1;
@@ -1150,12 +1520,20 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
         }
     }
 
-    // If completion is not active, handle history navigation with UP/DOWN
+    // If completion is not active, handle UP/DOWN for either line navigation or history
     if (!handle->completion_state.active) {
+        // Decide between multi-line navigation and history navigation
+        // Use line navigation if: buffer has newlines OR multi-line flag is set
+        bool use_line_navigation = tprompt_buffer_has_newlines(handle) ||
+                                   (handle->options.flags & TPROMPT_FLAG_MULTILINE);
+
         switch (event->type) {
             case TERSE_EVENT_ARROW_UP:
-                // Navigate to previous history entry
-                {
+                if (use_line_navigation) {
+                    // Navigate up one physical line
+                    tprompt_cursor_move_up(handle);
+                } else {
+                    // Navigate to previous history entry
                     const char *entry = tprompt_history_prev(&handle->history);
                     if (entry) {
                         tprompt_buffer_set(&handle->buffer, entry);
@@ -1164,8 +1542,11 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
                 return 0;  // Continue editing
 
             case TERSE_EVENT_ARROW_DOWN:
-                // Navigate to next history entry
-                {
+                if (use_line_navigation) {
+                    // Navigate down one physical line
+                    tprompt_cursor_move_down(handle);
+                } else {
+                    // Navigate to next history entry
                     const char *entry = tprompt_history_next(&handle->history);
                     if (entry) {
                         tprompt_buffer_set(&handle->buffer, entry);
@@ -1181,6 +1562,46 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
         }
     }
 
+    // Handle Home key - staged movement
+    if (event->type == TERSE_EVENT_HOME) {
+        // Check if this is a consecutive Home press
+        bool is_consecutive = (handle->input_state.last_key_type == TERSE_EVENT_HOME &&
+                              handle->input_state.last_cursor_pos == handle->buffer.cursor);
+
+        if (is_consecutive || handle->buffer.cursor == 0) {
+            // Second press OR already at start: move to logical line start
+            tprompt_cursor_move_to_start(&handle->buffer);
+        } else {
+            // First press: move to physical line start
+            tprompt_cursor_move_to_physical_line_start(handle);
+        }
+
+        // Update input state for next key press
+        handle->input_state.last_key_type = event->type;
+        handle->input_state.last_cursor_pos = handle->buffer.cursor;
+        return 0;  // Continue editing
+    }
+
+    // Handle End key - staged movement
+    if (event->type == TERSE_EVENT_END) {
+        // Check if this is a consecutive End press
+        bool is_consecutive = (handle->input_state.last_key_type == TERSE_EVENT_END &&
+                              handle->input_state.last_cursor_pos == handle->buffer.cursor);
+
+        if (is_consecutive || handle->buffer.cursor == handle->buffer.length) {
+            // Second press OR already at end: move to logical line end
+            tprompt_cursor_move_to_end(&handle->buffer);
+        } else {
+            // First press: move to physical line end
+            tprompt_cursor_move_to_physical_line_end(handle);
+        }
+
+        // Update input state for next key press
+        handle->input_state.last_key_type = event->type;
+        handle->input_state.last_cursor_pos = handle->buffer.cursor;
+        return 0;  // Continue editing
+    }
+
     // Handle ENTER - confirm input
     if (event->type == TERSE_EVENT_ENTER) {
         return 1;
@@ -1193,6 +1614,13 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
         return 1;
     }
 
+    // For any other key, clear the last key tracking and goal column
+    handle->input_state.last_key_type = event->type;
+    handle->input_state.last_cursor_pos = handle->buffer.cursor;
+
+    // Clear goal column on non-vertical movements
+    handle->input_state.has_goal_column = false;
+
     return 0;  // Continue editing
 }
 
@@ -1204,6 +1632,16 @@ bool tprompt_is_completion_trigger(tprompt_handle_t handle, char ch)
 
     // Check if the character is in the completion_prefixes string
     return strchr(handle->completion_prefixes, ch) != NULL;
+}
+
+bool tprompt_buffer_has_newlines(tprompt_handle_t handle)
+{
+    if (!handle || !handle->buffer.data) {
+        return false;
+    }
+
+    // Check if buffer contains any newline characters
+    return memchr(handle->buffer.data, '\n', handle->buffer.length) != NULL;
 }
 
 /* ========================================================================
@@ -1357,6 +1795,13 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
     handle->display.total_physical_lines = 0;
     handle->display.terminal_width = 80;  // Will be updated from terse
     handle->display.terminal_height = 24;
+    handle->display.start_row = 0;
+
+    // Initialize input state
+    handle->input_state.last_key_type = 0;
+    handle->input_state.last_cursor_pos = 0;
+    handle->input_state.goal_column = 0;
+    handle->input_state.has_goal_column = false;
 
     // Store prompt
     handle->prompt = strdup(options->prompt);

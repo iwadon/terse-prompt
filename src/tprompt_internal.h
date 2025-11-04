@@ -75,7 +75,18 @@ typedef struct tprompt_display_state {
     size_t total_physical_lines; /**< Total number of physical lines */
     size_t terminal_width;      /**< Terminal width in columns */
     size_t terminal_height;     /**< Terminal height in rows */
+    int start_row;              /**< Starting row for rendering (absolute terminal row) */
 } tprompt_display_state_t;
+
+/**
+ * @brief Input state for tracking key sequences
+ */
+typedef struct tprompt_input_state {
+    int last_key_type;          /**< Last key event type (TERSE_EVENT_*) */
+    size_t last_cursor_pos;     /**< Cursor position at last key press */
+    size_t goal_column;         /**< Goal column for vertical navigation (0 = not set) */
+    bool has_goal_column;       /**< Whether goal column is currently active */
+} tprompt_input_state_t;
 
 /**
  * @brief Main handle structure (opaque pointer implementation)
@@ -101,6 +112,9 @@ struct tprompt_handle {
     /* Display */
     tprompt_display_state_t display;  /**< Display state for rendering */
     char *prompt;                     /**< Current prompt string */
+
+    /* Input state */
+    tprompt_input_state_t input_state; /**< Input state for key sequence tracking */
 
     /* Configuration */
     tprompt_options_t options;   /**< Copy of options */
@@ -231,6 +245,34 @@ size_t tprompt_cursor_move_word_forward(tprompt_buffer_t *buffer);
  * @return Number of bytes moved
  */
 size_t tprompt_cursor_move_word_backward(tprompt_buffer_t *buffer);
+
+/**
+ * @brief Move cursor to start of current physical line
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_cursor_move_to_physical_line_start(tprompt_handle_t handle);
+
+/**
+ * @brief Move cursor to end of current physical line
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_cursor_move_to_physical_line_end(tprompt_handle_t handle);
+
+/**
+ * @brief Move cursor up by one physical line
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_cursor_move_up(tprompt_handle_t handle);
+
+/**
+ * @brief Move cursor down by one physical line
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_cursor_move_down(tprompt_handle_t handle);
 
 /* ========================================================================
  * Internal Helper Functions - History Management
@@ -483,6 +525,13 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
  * @return true if trigger, false otherwise
  */
 bool tprompt_is_completion_trigger(tprompt_handle_t handle, char ch);
+
+/**
+ * @brief Check if buffer contains newline characters
+ * @param handle Prompt handle
+ * @return true if buffer contains newlines, false otherwise
+ */
+bool tprompt_buffer_has_newlines(tprompt_handle_t handle);
 
 #ifdef __cplusplus
 }

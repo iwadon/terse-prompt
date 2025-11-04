@@ -45,3 +45,19 @@ target_link_libraries(test_completion PRIVATE
 )
 
 add_test(NAME test_completion COMMAND test_completion)
+
+# Phase 4 multi-line editing tests
+add_executable(test_multiline
+    test_multiline.c
+)
+
+target_include_directories(test_multiline PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_link_libraries(test_multiline PRIVATE
+    tprompt
+    attest
+)
+
+add_test(NAME test_multiline COMMAND test_multiline)
