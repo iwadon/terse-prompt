@@ -173,7 +173,7 @@ TEST(MultilineCursor, HomeKey_FirstPress_PhysicalLineStart)
     handle->buffer.cursor = 27;  // In "CCCCCCCCCC" line
 
     // Home press: move to start of current logical line
-    int result = tprompt_cursor_move_to_physical_line_start(handle);
+    int result = tprompt_cursor_move_to_logical_line_start(handle);
     EXPECT_EQ(result, 0);
 
     // Should move to start of "CCCCCCCCCC" line (after 2nd newline)
@@ -191,7 +191,7 @@ TEST(MultilineCursor, HomeKey_SecondPress_LogicalLineStart)
     tprompt_buffer_insert(&handle->buffer, "Hello World", 11);
 
     // First Home: move to physical line start (byte 0)
-    tprompt_cursor_move_to_physical_line_start(handle);
+    tprompt_cursor_move_to_logical_line_start(handle);
     EXPECT_EQ(handle->buffer.cursor, 0);
 
     // Second Home: should stay at logical line start (already there)
@@ -213,7 +213,7 @@ TEST(MultilineCursor, EndKey_FirstPress_PhysicalLineEnd)
     handle->buffer.cursor = 11;  // Start of "BBBBBBBBBB"
 
     // End press: move to end of current logical line
-    int result = tprompt_cursor_move_to_physical_line_end(handle);
+    int result = tprompt_cursor_move_to_logical_line_end(handle);
     EXPECT_EQ(result, 0);
 
     // Should be at end of "BBBBBBBBBB" line (before 2nd newline)
@@ -232,7 +232,7 @@ TEST(MultilineCursor, EndKey_SecondPress_LogicalLineEnd)
     handle->buffer.cursor = 0;
 
     // First End: move to physical line end (same as logical in this case)
-    tprompt_cursor_move_to_physical_line_end(handle);
+    tprompt_cursor_move_to_logical_line_end(handle);
     EXPECT_EQ(handle->buffer.cursor, 11);
 
     // Second End: should stay at logical line end (already there)
@@ -436,10 +436,10 @@ TEST(MultilineEdgeCases, EmptyBuffer_HomeEnd)
     ASSERT_NE(handle, NULL);
 
     // Empty buffer
-    tprompt_cursor_move_to_physical_line_start(handle);
+    tprompt_cursor_move_to_logical_line_start(handle);
     EXPECT_EQ(handle->buffer.cursor, 0);
 
-    tprompt_cursor_move_to_physical_line_end(handle);
+    tprompt_cursor_move_to_logical_line_end(handle);
     EXPECT_EQ(handle->buffer.cursor, 0);
 
     tprompt_close(handle);
@@ -492,12 +492,12 @@ TEST(MultilineEdgeCases, CursorAtBufferBoundaries)
 
     // Cursor at start
     handle->buffer.cursor = 0;
-    tprompt_cursor_move_to_physical_line_start(handle);
+    tprompt_cursor_move_to_logical_line_start(handle);
     EXPECT_EQ(handle->buffer.cursor, 0);
 
     // Cursor at end
     handle->buffer.cursor = 4;
-    tprompt_cursor_move_to_physical_line_end(handle);
+    tprompt_cursor_move_to_logical_line_end(handle);
     EXPECT_EQ(handle->buffer.cursor, 4);
 
     tprompt_close(handle);

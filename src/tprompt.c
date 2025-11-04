@@ -332,7 +332,7 @@ size_t tprompt_cursor_move_word_backward(tprompt_buffer_t *buffer)
     return 0;
 }
 
-int tprompt_cursor_move_to_physical_line_start(tprompt_handle_t handle)
+int tprompt_cursor_move_to_logical_line_start(tprompt_handle_t handle)
 {
     if (!handle) {
         return -1;
@@ -351,7 +351,7 @@ int tprompt_cursor_move_to_physical_line_start(tprompt_handle_t handle)
     return 0;
 }
 
-int tprompt_cursor_move_to_physical_line_end(tprompt_handle_t handle)
+int tprompt_cursor_move_to_logical_line_end(tprompt_handle_t handle)
 {
     if (!handle) {
         return -1;
@@ -370,6 +370,23 @@ int tprompt_cursor_move_to_physical_line_end(tprompt_handle_t handle)
     return 0;
 }
 
+/**
+ * @brief Move cursor up one logical line
+ *
+ * Implements vertical cursor movement with goal column tracking:
+ * - Maintains horizontal column position across multiple up/down movements
+ * - If target line is shorter, cursor moves to end of that line
+ * - Goal column persists until a horizontal movement occurs
+ *
+ * Algorithm:
+ * 1. Determine current logical line and column position
+ * 2. Set or retrieve goal column (persists across vertical movements)
+ * 3. Find previous logical line boundaries
+ * 4. Move to goal column in previous line (or end if line is shorter)
+ *
+ * @param handle Prompt handle
+ * @return 0 on success (may do nothing if at first line), -1 on error
+ */
 int tprompt_cursor_move_up(tprompt_handle_t handle)
 {
     if (!handle) {
@@ -432,6 +449,15 @@ int tprompt_cursor_move_up(tprompt_handle_t handle)
     return 0;
 }
 
+/**
+ * @brief Move cursor down one logical line
+ *
+ * Implements vertical cursor movement with goal column tracking.
+ * Behavior is symmetric to tprompt_cursor_move_up().
+ *
+ * @param handle Prompt handle
+ * @return 0 on success (may do nothing if at last line), -1 on error
+ */
 int tprompt_cursor_move_down(tprompt_handle_t handle)
 {
     if (!handle) {
@@ -1101,11 +1127,22 @@ static size_t tprompt_calculate_cursor_col(tprompt_handle_t handle)
 
 /**
  * @brief Calculate physical line and column from byte offset
+ *
+ * This function determines the physical screen position (row and column) for a given
+ * byte offset in the buffer, accounting for both terminal wrapping and explicit newlines.
+ *
+ * Algorithm:
+ * 1. Start with prompt width on first line (if include_prompt is true)
+ * 2. Iterate through buffer character-by-character up to byte_offset
+ * 3. For each explicit newline (\n): move to next physical line, reset column to 0
+ * 4. For auto-wrap (column >= terminal_width): move to next physical line, reset column
+ * 5. For regular character: increment column by 1 (assumes single-width characters)
+ *
  * @param handle Prompt handle
- * @param byte_offset Byte offset in buffer
- * @param include_prompt Whether to include prompt in calculation
- * @param out_physical_line Output: physical line number (0-based)
- * @param out_physical_col Output: physical column within line (0-based)
+ * @param byte_offset Byte offset in buffer (will be clamped to buffer length)
+ * @param include_prompt Whether to include prompt width in first line calculation
+ * @param out_physical_line Output: physical line number (0-based from start of input)
+ * @param out_physical_col Output: physical column within current line (0-based)
  */
 static void tprompt_calculate_physical_position(tprompt_handle_t handle, size_t byte_offset,
                                                  bool include_prompt,
@@ -1170,8 +1207,16 @@ static void tprompt_calculate_physical_position(tprompt_handle_t handle, size_t 
 
 /**
  * @brief Calculate total physical lines needed for buffer content
+ *
+ * Determines how many screen lines are required to display the entire buffer,
+ * accounting for prompt width, terminal wrapping, and explicit newlines.
+ * Used to know which screen lines need to be cleared before re-rendering.
+ *
+ * Algorithm is identical to tprompt_calculate_physical_position but iterates
+ * through the entire buffer instead of stopping at a specific offset.
+ *
  * @param handle Prompt handle
- * @return Total number of physical lines
+ * @return Total number of physical lines (minimum 1)
  */
 static size_t tprompt_calculate_total_physical_lines(tprompt_handle_t handle)
 {
@@ -1268,6 +1313,29 @@ void tprompt_display_calculate_layout(tprompt_handle_t handle)
     handle->display.total_physical_lines = tprompt_calculate_total_physical_lines(handle);
 }
 
+/**
+ * @brief Render the complete input display
+ *
+ * Main rendering function that redraws the entire input area including:
+ * - Prompt text
+ * - Buffer contents with proper line wrapping
+ * - Cursor positioning
+ * - Completion list (if active)
+ *
+ * Algorithm:
+ * 1. Calculate layout (physical line count, cursor position)
+ * 2. Clear all physical lines used by previous render
+ * 3. Write prompt on first line
+ * 4. Write buffer contents character-by-character:
+ *    - Handle explicit newlines (\n)
+ *    - Handle auto-wrapping at terminal width
+ *    - Skip invalid UTF-8 bytes
+ * 5. Position cursor at correct location
+ * 6. Render completion list if active
+ *
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on error (error details in handle->last_error)
+ */
 int tprompt_display_render(tprompt_handle_t handle)
 {
     if (!handle) {
@@ -1285,12 +1353,12 @@ int tprompt_display_render(tprompt_handle_t handle)
     for (size_t i = 0; i < handle->display.total_physical_lines; i++) {
         if (terse_move_to(handle->terse, handle->display.start_row + (int)i, 0) < 0) {
             tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                             "Failed to move cursor");
+                             "Failed to move cursor to clear line %zu", i);
             return -1;
         }
         if (terse_clear_line(handle->terse, TERSE_CLEAR_ALL) < 0) {
             tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                             "Failed to clear line");
+                             "Failed to clear physical line %zu", i);
             return -1;
         }
     }
@@ -1298,7 +1366,7 @@ int tprompt_display_render(tprompt_handle_t handle)
     // Move back to start position
     if (terse_move_to(handle->terse, handle->display.start_row, 0) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                         "Failed to move cursor to start");
+                         "Failed to move cursor to start position (row %d)", handle->display.start_row);
         return -1;
     }
 
@@ -1312,7 +1380,7 @@ int tprompt_display_render(tprompt_handle_t handle)
         size_t prompt_len = strlen(handle->prompt);
         if (terse_write_text(handle->terse, handle->prompt) < 0) {
             tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                             "Failed to write prompt");
+                             "Failed to write prompt text to terminal");
             return -1;
         }
         current_col += prompt_len;
@@ -1326,7 +1394,7 @@ int tprompt_display_render(tprompt_handle_t handle)
             // Explicit newline: move to next physical line
             if (terse_write_text(handle->terse, "\n") < 0) {
                 tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                                 "Failed to write newline");
+                                 "Failed to write newline character at byte offset %zu", i);
                 return -1;
             }
             current_col = 0;
@@ -1340,7 +1408,7 @@ int tprompt_display_render(tprompt_handle_t handle)
             // Move to next physical line
             if (terse_write_text(handle->terse, "\n") < 0) {
                 tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                                 "Failed to write newline");
+                                 "Failed to write auto-wrap newline at column %zu", current_col);
                 return -1;
             }
             current_col = 0;
@@ -1362,7 +1430,7 @@ int tprompt_display_render(tprompt_handle_t handle)
 
             if (terse_write_text(handle->terse, temp) < 0) {
                 tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                                 "Failed to write character");
+                                 "Failed to write character at byte offset %zu", i);
                 return -1;
             }
 
@@ -1403,14 +1471,15 @@ int tprompt_display_update_cursor(tprompt_handle_t handle)
     // Move cursor to calculated position (row and column)
     if (terse_move_to(handle->terse, target_row, (int)handle->display.physical_column) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                         "Failed to update cursor position");
+                         "Failed to move cursor to position (row=%d, col=%zu)",
+                         target_row, handle->display.physical_column);
         return -1;
     }
 
     // Flush to ensure cursor is visible
     if (terse_flush(handle->terse) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                         "Failed to flush output");
+                         "Failed to flush output after cursor update");
         return -1;
     }
 
@@ -1426,21 +1495,21 @@ int tprompt_display_clear(tprompt_handle_t handle)
     // Clear the current line
     if (terse_clear_line(handle->terse, TERSE_CLEAR_ALL) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                         "Failed to clear display");
+                         "Failed to clear current display line");
         return -1;
     }
 
     // Move cursor to start of line
     if (terse_move_to(handle->terse, -1, 0) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                         "Failed to move cursor");
+                         "Failed to move cursor to line start");
         return -1;
     }
 
     // Flush
     if (terse_flush(handle->terse) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                         "Failed to flush output");
+                         "Failed to flush output after display clear");
         return -1;
     }
 
@@ -1467,7 +1536,7 @@ int tprompt_display_render_completion(tprompt_handle_t handle)
     // Move cursor to next line after input
     if (terse_move_by(handle->terse, 1, 0) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                         "Failed to move cursor for completion list");
+                         "Failed to move cursor down to render completion list");
         return -1;
     }
 
@@ -1492,14 +1561,14 @@ int tprompt_display_render_completion(tprompt_handle_t handle)
         // Write prefix
         if (terse_write_text(handle->terse, prefix) < 0) {
             tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                             "Failed to write completion prefix");
+                             "Failed to write completion prefix for candidate %zu", i);
             return -1;
         }
 
         // Write candidate text
         if (terse_write_text(handle->terse, candidates[i]) < 0) {
             tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                             "Failed to write completion candidate");
+                             "Failed to write completion candidate %zu: '%s'", i, candidates[i]);
             return -1;
         }
 
@@ -1521,7 +1590,7 @@ int tprompt_display_render_completion(tprompt_handle_t handle)
     // Flush output
     if (terse_flush(handle->terse) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                         "Failed to flush completion display");
+                         "Failed to flush output after rendering %zu completion candidates", candidate_count);
         return -1;
     }
 
@@ -1573,6 +1642,22 @@ int tprompt_handle_char_input(tprompt_handle_t handle, const char *ch, int width
     return 0;
 }
 
+/**
+ * @brief Handle keyboard events during editing
+ *
+ * Main event handler that processes all keyboard input. This is called
+ * by tprompt_readline() for each key event.
+ *
+ * Key behavior priorities:
+ * 1. Completion navigation (if active): UP/DOWN navigate candidates, TAB confirms, ESC cancels
+ * 2. Multi-line navigation vs. history: UP/DOWN behavior depends on whether buffer has newlines
+ * 3. Home/End staged movement: First press moves to logical line boundary, second press to buffer boundary
+ * 4. Enter key mode: Single-line submits, multi-line inserts newline (Ctrl/Alt+Enter always submits)
+ *
+ * @param handle Prompt handle
+ * @param event Terse event to process
+ * @return 1 to submit input, 0 to continue editing, -1 on error
+ */
 int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event)
 {
     if (!handle || !event) {
@@ -1622,7 +1707,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
         switch (event->type) {
             case TERSE_EVENT_ARROW_UP:
                 if (use_line_navigation) {
-                    // Navigate up one physical line
+                    // Navigate up one logical line
                     tprompt_cursor_move_up(handle);
                 } else {
                     // Navigate to previous history entry
@@ -1635,7 +1720,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 
             case TERSE_EVENT_ARROW_DOWN:
                 if (use_line_navigation) {
-                    // Navigate down one physical line
+                    // Navigate down one logical line
                     tprompt_cursor_move_down(handle);
                 } else {
                     // Navigate to next history entry
@@ -1654,18 +1739,19 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
         }
     }
 
-    // Handle Home key - staged movement
+    // Handle Home key - staged movement (Claude Code style)
+    // First press: move to logical line start, second press: move to buffer start
     if (event->type == TERSE_EVENT_HOME) {
         // Check if this is a consecutive Home press
         bool is_consecutive = (handle->input_state.last_key_type == TERSE_EVENT_HOME &&
                               handle->input_state.last_cursor_pos == handle->buffer.cursor);
 
         if (is_consecutive || handle->buffer.cursor == 0) {
-            // Second press OR already at start: move to logical line start
+            // Second press OR already at start: move to buffer start
             tprompt_cursor_move_to_start(&handle->buffer);
         } else {
-            // First press: move to physical line start
-            tprompt_cursor_move_to_physical_line_start(handle);
+            // First press: move to logical line start
+            tprompt_cursor_move_to_logical_line_start(handle);
         }
 
         // Update input state for next key press
@@ -1674,18 +1760,19 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
         return 0;  // Continue editing
     }
 
-    // Handle End key - staged movement
+    // Handle End key - staged movement (Claude Code style)
+    // First press: move to logical line end, second press: move to buffer end
     if (event->type == TERSE_EVENT_END) {
         // Check if this is a consecutive End press
         bool is_consecutive = (handle->input_state.last_key_type == TERSE_EVENT_END &&
                               handle->input_state.last_cursor_pos == handle->buffer.cursor);
 
         if (is_consecutive || handle->buffer.cursor == handle->buffer.length) {
-            // Second press OR already at end: move to logical line end
+            // Second press OR already at end: move to buffer end
             tprompt_cursor_move_to_end(&handle->buffer);
         } else {
-            // First press: move to physical line end
-            tprompt_cursor_move_to_physical_line_end(handle);
+            // First press: move to logical line end
+            tprompt_cursor_move_to_logical_line_end(handle);
         }
 
         // Update input state for next key press
@@ -1708,7 +1795,8 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
         if (is_multiline) {
             if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
                 tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-                                 "Failed to insert newline character");
+                                 "Failed to insert newline: buffer at %zu/%zu bytes",
+                                 handle->buffer.length, handle->buffer.size);
                 return -1;
             }
             return 0;  // Continue editing
@@ -1794,6 +1882,15 @@ bool tprompt_buffer_has_newlines(tprompt_handle_t handle)
  * Logical Line Navigation - Internal Helpers (Phase 5)
  * ======================================================================== */
 
+/**
+ * @brief Count total number of logical lines in buffer
+ *
+ * A logical line is delimited by explicit newline characters (\n).
+ * Empty buffer has 1 logical line.
+ *
+ * @param handle Prompt handle
+ * @return Number of logical lines (minimum 1)
+ */
 size_t tprompt_count_logical_lines(tprompt_handle_t handle)
 {
     if (!handle || !handle->buffer.data) {
@@ -1814,6 +1911,15 @@ size_t tprompt_count_logical_lines(tprompt_handle_t handle)
     return line_count;
 }
 
+/**
+ * @brief Get logical line number containing given byte offset
+ *
+ * Lines are 0-indexed. Counts number of newlines before the offset.
+ *
+ * @param handle Prompt handle
+ * @param byte_offset Byte offset in buffer (clamped to buffer length)
+ * @return Logical line number (0-based)
+ */
 size_t tprompt_get_logical_line_at_offset(tprompt_handle_t handle, size_t byte_offset)
 {
     if (!handle || !handle->buffer.data) {
@@ -1838,6 +1944,24 @@ size_t tprompt_get_logical_line_at_offset(tprompt_handle_t handle, size_t byte_o
     return line_number;
 }
 
+/**
+ * @brief Get byte range (start and end offsets) for a logical line
+ *
+ * Finds the start and end byte offsets of the specified logical line.
+ * The end offset is exclusive (points to the newline or end of buffer).
+ *
+ * Algorithm:
+ * 1. Iterate through buffer counting newlines until we reach the target line
+ * 2. Record the start offset (byte after previous newline, or 0 for first line)
+ * 3. Continue iterating until next newline or end of buffer
+ * 4. Record the end offset (byte at newline or end of buffer)
+ *
+ * @param handle Prompt handle
+ * @param logical_line Logical line number (0-based)
+ * @param out_start Output: byte offset of line start (inclusive)
+ * @param out_end Output: byte offset of line end (exclusive, at \n or buffer end)
+ * @return 0 on success, -1 if line number is out of range
+ */
 int tprompt_get_logical_line_bounds(tprompt_handle_t handle, size_t logical_line,
                                      size_t *out_start, size_t *out_end)
 {
@@ -2177,7 +2301,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 
             if (tprompt_buffer_insert(&handle->buffer, utf8_buf, len) != 0) {
                 tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-                                 "Failed to insert character");
+                                 "Failed to insert character (scalar=0x%X) into buffer", scalar);
                 return NULL;
             }
         } else if (event.type == TERSE_EVENT_ENTER) {
@@ -2190,7 +2314,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
                 // Otherwise insert newline
                 if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
                     tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-                                     "Failed to insert newline");
+                                     "Failed to insert newline in multiline mode");
                     return NULL;
                 }
             } else {
@@ -2227,7 +2351,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
             // For now, just insert tab character
             if (tprompt_buffer_insert(&handle->buffer, "\t", 1) != 0) {
                 tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-                                 "Failed to insert tab");
+                                 "Failed to insert tab character into buffer");
                 return NULL;
             }
         }

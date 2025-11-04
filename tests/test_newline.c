@@ -471,11 +471,11 @@ TEST(NewlineNavigation, HomeEnd_LogicalLineBoundaries)
     EXPECT_EQ(tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor), 1);
 
     // Home should move to start of Line2 (byte 6)
-    tprompt_cursor_move_to_physical_line_start(handle);
+    tprompt_cursor_move_to_logical_line_start(handle);
     EXPECT_EQ(handle->buffer.cursor, 6);
 
     // End should move to end of Line2 (byte 11 = before '\n')
-    tprompt_cursor_move_to_physical_line_end(handle);
+    tprompt_cursor_move_to_logical_line_end(handle);
     EXPECT_EQ(handle->buffer.cursor, 11);
 
     tprompt_close(handle);

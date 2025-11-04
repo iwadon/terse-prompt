@@ -247,18 +247,18 @@ size_t tprompt_cursor_move_word_forward(tprompt_buffer_t *buffer);
 size_t tprompt_cursor_move_word_backward(tprompt_buffer_t *buffer);
 
 /**
- * @brief Move cursor to start of current physical line
+ * @brief Move cursor to start of current logical line
  * @param handle Prompt handle
  * @return 0 on success, -1 on failure
  */
-int tprompt_cursor_move_to_physical_line_start(tprompt_handle_t handle);
+int tprompt_cursor_move_to_logical_line_start(tprompt_handle_t handle);
 
 /**
- * @brief Move cursor to end of current physical line
+ * @brief Move cursor to end of current logical line
  * @param handle Prompt handle
  * @return 0 on success, -1 on failure
  */
-int tprompt_cursor_move_to_physical_line_end(tprompt_handle_t handle);
+int tprompt_cursor_move_to_logical_line_end(tprompt_handle_t handle);
 
 /**
  * @brief Move cursor up by one physical line
