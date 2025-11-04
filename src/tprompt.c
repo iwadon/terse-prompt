@@ -1164,14 +1164,14 @@ void tprompt_display_calculate_layout(tprompt_handle_t handle)
         return;
     }
 
-    // Get terminal dimensions from terse
+    // Get terminal dimensions from terse (only update if known)
     terse_size_t size = terse_get_size(handle->terse);
-    if (size.known) {
+    if (size.known && size.cols > 0 && size.rows > 0) {
         handle->display.terminal_width = (size_t)size.cols;
         handle->display.terminal_height = (size_t)size.rows;
     }
 
-    // Use fallback if terminal size unknown
+    // Use fallback if terminal size still unknown
     if (handle->display.terminal_width == 0) {
         handle->display.terminal_width = 80;
     }
