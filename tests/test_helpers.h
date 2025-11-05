@@ -1,0 +1,171 @@
+/**
+ * @file test_helpers.h
+ * @brief Test helper functions for terse-prompt tests
+ *
+ * Provides utilities for creating mock terse handles in test mode,
+ * making tests TTY-independent.
+ */
+
+#ifndef TEST_HELPERS_H
+#define TEST_HELPERS_H
+
+#include <terse.h>
+
+#ifdef TERSE_ENABLE_TEST_MODE
+#include <terse_test.h>
+#endif
+
+/**
+ * @brief Create a terse handle for testing
+ *
+ * In test mode (TERSE_ENABLE_TEST_MODE), creates a mock terse handle with:
+ * - 80x24 terminal size
+ * - P1 profile (basic colors, no mouse)
+ * - Recording disabled initially
+ *
+ * In normal mode, creates a regular terse handle with P0 profile
+ * (works in non-TTY environments).
+ *
+ * @return terse handle, or NULL on failure
+ */
+static inline terse_handle_t test_create_terse_handle(void)
+{
+    terse_handle_t handle = terse_open(TERSE_PROFILE_AUTO, NULL);
+    if (!handle) {
+        return NULL;
+    }
+
+#ifdef TERSE_ENABLE_TEST_MODE
+    // Mock standard terminal size
+    terse_test_mock_size(handle, 24, 80);
+
+    // Mock P1 capabilities (basic colors, no advanced features)
+    terse_capabilities_t mock_caps = {
+        .profile = TERSE_P1,
+        .has_basic_output = 1,
+        .has_cursor_visibility = 1,
+        .has_move_absolute = 1,
+        .has_move_relative = 1,
+        .has_clear_line = 1,
+        .has_clear_screen = 1,
+        .has_size = 1,
+        .has_sgr_basic = 1,
+        .has_sgr_extended = 0,
+        .has_truecolor = 0,
+        .has_text_styles = 1,
+        .mouse = TERSE_MOUSE_NONE,
+        .has_bracketed_paste = 0,
+        .has_title = 0,
+        .has_hyperlinks = 0,
+        .has_cursor_shape = 0,
+        .colors = TERSE_COLOR_BASIC16,
+        .effects = 0,
+        .has_clipboard_write = 0,
+        .images = TERSE_IMAGE_NONE,
+        .notifications = 0,
+        .keyboard_features = 0
+    };
+    terse_test_mock_capabilities(handle, &mock_caps);
+#endif
+
+    return handle;
+}
+
+/**
+ * @brief Start recording terse API calls (test mode only)
+ *
+ * @param handle terse handle
+ */
+static inline void test_start_recording(terse_handle_t handle)
+{
+#ifdef TERSE_ENABLE_TEST_MODE
+    terse_test_start_recording(handle);
+#else
+    (void)handle;
+#endif
+}
+
+/**
+ * @brief Stop recording terse API calls (test mode only)
+ *
+ * @param handle terse handle
+ */
+static inline void test_stop_recording(terse_handle_t handle)
+{
+#ifdef TERSE_ENABLE_TEST_MODE
+    terse_test_stop_recording(handle);
+#else
+    (void)handle;
+#endif
+}
+
+/**
+ * @brief Get recorded API calls (test mode only)
+ *
+ * @param handle terse handle
+ * @param out_count pointer to store call count
+ * @return pointer to call records, or NULL if not in test mode
+ */
+#ifdef TERSE_ENABLE_TEST_MODE
+static inline const terse_call_record_t *test_get_calls(terse_handle_t handle, int *out_count)
+{
+    return terse_test_get_calls(handle, out_count);
+}
+#else
+static inline const void *test_get_calls(terse_handle_t handle, int *out_count)
+{
+    (void)handle;
+    if (out_count) *out_count = 0;
+    return NULL;
+}
+#endif
+
+/**
+ * @brief Clear recorded API calls (test mode only)
+ *
+ * @param handle terse handle
+ */
+static inline void test_clear_calls(terse_handle_t handle)
+{
+#ifdef TERSE_ENABLE_TEST_MODE
+    terse_test_clear_calls(handle);
+#else
+    (void)handle;
+#endif
+}
+
+/**
+ * @brief Mock input events (test mode only)
+ *
+ * @param handle terse handle
+ * @param events array of events to inject
+ * @param count number of events
+ */
+static inline void test_mock_events(terse_handle_t handle,
+                                   const terse_event_t *events,
+                                   int count)
+{
+#ifdef TERSE_ENABLE_TEST_MODE
+    terse_test_mock_events(handle, events, count);
+#else
+    (void)handle;
+    (void)events;
+    (void)count;
+#endif
+}
+
+/**
+ * @brief Reset all mocks (test mode only)
+ *
+ * @param handle terse handle
+ */
+static inline void test_reset_mocks(terse_handle_t handle)
+{
+#ifdef TERSE_ENABLE_TEST_MODE
+    terse_test_reset_mocks(handle);
+#else
+    (void)handle;
+#endif
+}
+
+#endif /* TEST_HELPERS_H */

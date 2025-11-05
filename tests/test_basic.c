@@ -9,6 +9,7 @@
  */
 
 #include "tprompt_internal.h"
+#include "test_helpers.h"
 #include <attest/attest.h>
 #include <string.h>
 #include <stdlib.h>
@@ -300,6 +301,14 @@ TEST(HandleManagement, Open_DefaultOptions)
     EXPECT_NE(handle->buffer.data, NULL);
     EXPECT_NE(handle->prompt, NULL);
 
+#ifdef TERSE_ENABLE_TEST_MODE
+    // In test mode, verify mocked terminal size
+    terse_size_t size = terse_get_size(handle->terse);
+    EXPECT_EQ(size.rows, 24);
+    EXPECT_EQ(size.cols, 80);
+    EXPECT_TRUE(size.known);
+#endif
+
     tprompt_close(handle);
 }
 
@@ -324,6 +333,34 @@ TEST(HandleManagement, Open_CustomOptions)
     EXPECT_EQ(handle->history.max_size, 50);
 
     tprompt_close(handle);
+}
+
+TEST(HandleManagement, Open_WithMockTerseHandle)
+{
+#ifdef TERSE_ENABLE_TEST_MODE
+    // Create mock terse handle
+    terse_handle_t terse_h = test_create_terse_handle();
+    ASSERT_NE(terse_h, NULL);
+
+    // Pass to tprompt
+    tprompt_options_t opts = {
+        .prompt = "mock> ",
+        .terse_handle = terse_h
+    };
+
+    tprompt_handle_t handle = tprompt_open(&opts);
+    ASSERT_NE(handle, NULL);
+    EXPECT_EQ(handle->terse, terse_h);
+    EXPECT_FALSE(handle->owns_terse);  // External handle
+
+    // Verify mock settings are active
+    terse_size_t size = terse_get_size(terse_h);
+    EXPECT_EQ(size.rows, 24);
+    EXPECT_EQ(size.cols, 80);
+
+    tprompt_close(handle);
+    terse_close(terse_h);
+#endif
 }
 
 TEST(HandleManagement, Close_NullHandle)

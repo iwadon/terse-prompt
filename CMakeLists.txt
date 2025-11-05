@@ -16,6 +16,14 @@ else()
 	option(TPROMPT_BUILD_EXAMPLES "Build terse-prompt examples" OFF)
 endif()
 
+# テストモード: terseのモック機能を有効化
+option(TPROMPT_USE_TERSE_TEST_MODE "Enable terse test mode for TTY-independent testing" ${TPROMPT_BUILD_TESTING})
+
+# terseのテストモードを有効化
+if(TPROMPT_USE_TERSE_TEST_MODE)
+	set(TERSE_ENABLE_TEST_MODE ON CACHE BOOL "Enable terse test mode" FORCE)
+endif()
+
 # 既存のサブモジュールを追加
 add_subdirectory(external/terse)
 
