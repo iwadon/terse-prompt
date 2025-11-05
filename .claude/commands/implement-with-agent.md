@@ -3,191 +3,191 @@ description: Implement feature using subagent to minimize context consumption
 argument-hint: <implementation request>
 ---
 
-## ユーザー要求
+## User Request
 
 $ARGUMENTS
 
 ---
 
-**重要**: 上記のユーザー要求が空の場合は、以下を実行してください:
-- ユーザーに「どのような機能を実装したいですか? 具体的な要求内容を教えてください」と質問する
-- 実装の詳細(対象ファイル、機能の概要など)を確認してから作業を開始する
-- この時点では**タスク分析を行わず、実行手順にも進まない**こと
+**IMPORTANT**: If the user request is empty:
+- Ask the user: "What feature would you like to implement? Please provide specific requirements."
+- Confirm implementation details (target files, feature overview, etc.) before starting
+- Do NOT proceed to task analysis or execution at this point
 
 ---
 
-あなたは**アーキテクト**として振る舞い、実装の詳細はsubagentに委譲してください:
+You act as an **Architect** and delegate implementation details to subagents:
 
-## 実行手順
+## Execution Steps
 
-1. **タスク分析**(親Claudeが実行):
-   - 上記のユーザー要求を理解
-   - 高レベルのアプローチを決定
-   - 必要なファイル/関数を特定
-   - 実装を複数の独立したサブタスクに分割
+1. **Task Analysis** (Parent Claude):
+   - Understand the user request above
+   - Decide high-level approach
+   - Identify required files/functions
+   - Split implementation into independent subtasks
 
-2. **Subagentに委譲**(コンテキスト分離):
-   - 各サブタスクの性質に応じて、**適切なサブエージェントを選択**:
-     - **リファクタリング** (複数ファイル、関数/型名変更) → `refactoring` (Sonnet)
-     - **新機能実装** (Phase実装、複雑なアルゴリズム) → `implementation` (Sonnet)
-     - **小規模修正** (コメント追加、エラーメッセージ、1-3ファイル) → `quick-fix` (Haiku)
-     - **コード調査** (既存実装の理解、パターン検索) → `research` (Haiku)
-     - **その他** → `general-purpose`
-   - 各サブエージェントには詳細な実装指示を与える
-   - サブエージェントが自律的に作業(ファイル読取、検索、実装)
-   - 複数のサブタスクは順次実行(並列実行が必要な場合は明示的に指示)
+2. **Delegate to Subagents** (Context isolation):
+   - **Select appropriate subagent** based on subtask nature:
+     - **Refactoring** (multi-file, function/type rename) → `refactoring` (Sonnet)
+     - **New features** (Phase implementation, complex algorithms) → `implementation` (Sonnet)
+     - **Small fixes** (add comments, error messages, 1-3 files) → `quick-fix` (Haiku)
+     - **Code research** (understand existing code, pattern search) → `research` (Haiku)
+     - **Other** → `general-purpose`
+   - Provide detailed implementation instructions to each subagent
+   - Subagents work autonomously (read files, search, implement)
+   - Execute subtasks sequentially (or in parallel if explicitly needed)
 
-3. **結果レビュー**(親Claudeが実行):
-   - 各サブエージェントからの簡潔なサマリーを受取
-   - 必要に応じて追加指示
-   - 全体を統合してユーザーに報告
+3. **Review Results** (Parent Claude):
+   - Receive concise summaries from each subagent
+   - Provide additional instructions if needed
+   - Integrate and report to user
 
-## Subagentへの委譲方法
+## Delegation Method
 
-各サブタスクについて、**タスクの性質に応じて適切なサブエージェントを選択**し、以下の形式で呼び出してください:
+For each subtask, **select the appropriate subagent** based on task nature, then invoke using this format:
 
-### タスク分類の指針
+### Task Classification Guide
 
-1. **`refactoring`エージェント (Sonnet)** を使用すべき場合:
-   - 複数ファイルにわたる関数/型/変数の名前変更
-   - テストファイルを含む広範な変更
-   - 構造的な再編成 (ファイル分割、関数移動など)
-   - API変更に伴う全ての呼び出し箇所の更新
+1. **Use `refactoring` agent (Sonnet)** when:
+   - Renaming functions/types/variables across multiple files
+   - Wide-reaching changes including test files
+   - Structural reorganization (file splits, function moves, etc.)
+   - Updating all call sites after API changes
 
-2. **`implementation`エージェント (Sonnet)** を使用すべき場合:
-   - Phase実装など新機能の追加
-   - 複雑なアルゴリズムの実装
-   - 複数コンポーネント間の統合
-   - テスト作成を伴う実装
+2. **Use `implementation` agent (Sonnet)** when:
+   - Adding new features (Phase implementations, etc.)
+   - Implementing complex algorithms
+   - Integrating multiple components
+   - Implementation with test creation
 
-3. **`quick-fix`エージェント (Haiku)** を使用すべき場合:
-   - コメントやドキュメントの追加
-   - エラーメッセージの改善
-   - 1-3ファイル内の小規模な修正
-   - タイポや書式の修正
+3. **Use `quick-fix` agent (Haiku)** when:
+   - Adding comments or documentation
+   - Improving error messages
+   - Small fixes within 1-3 files
+   - Fixing typos or formatting
 
-4. **`research`エージェント (Haiku)** を使用すべき場合:
-   - 既存実装の調査・理解
-   - パターンや使用例の検索
-   - コードベースの構造分析
-   - 実装前の情報収集
+4. **Use `research` agent (Haiku)** when:
+   - Investigating/understanding existing implementation
+   - Searching for patterns or usage examples
+   - Analyzing codebase structure
+   - Gathering information before implementation
 
-5. **`general-purpose`エージェント** を使用すべき場合:
-   - 上記カテゴリに当てはまらない汎用的なタスク
+5. **Use `general-purpose` agent** when:
+   - Task doesn't fit the above categories
 
-### 委譲フォーマット
-
-```
-`[適切なエージェント名]`サブエージェントを使用して、以下のタスクを実行してください:
-
-**ユーザーからの元の要求**: [ユーザー要求を要約]
-
-**このサブタスクの目的**: [具体的な実装内容]
-
-**要件**:
-- [要件1]
-- [要件2]
-
-**実装場所**: [ファイルパス、関数名など]
-
-**参考情報**: [既存の類似コード、関連ファイル]
-
-**期待する結果**:
-- 実装の概要サマリー(500文字以内)
-- 変更したファイルのリスト
-- テスト結果(成功/失敗)
-- 発生した問題や注意点
-
-**重要**: 詳細なコードやファイル内容全体は返さないこと。サマリーのみ返すこと。
-```
-
-## 利点
-
-- ✅ 親セッションのコンテキスト消費を最小化
-- ✅ 各subagentが独立したコンテキストウィンドウで作業
-- ✅ 大規模な実装でもセッションが持続
-- ✅ 複数の独立タスクを段階的に実行可能
-- ✅ 失敗したタスクを再実行しても親セッションに影響なし
-
-## 注意事項
-
-- 以下のサブエージェントが`.claude/agents/`に定義されている必要があります:
-  - `research.md` - コード調査 (Haiku)
-  - `quick-fix.md` - 小規模修正 (Haiku)
-  - `implementation.md` - 新機能実装 (Sonnet)
-  - `refactoring.md` - 大規模リファクタリング (Sonnet)
-  - `general-purpose.md` - 汎用タスク
-- サブエージェントが存在しない場合、このコマンドは失敗します
-- **適切なエージェント選択が重要**: コストと品質のバランスを考慮してください
-  - Haiku (`research`, `quick-fix`): 高速・低コスト、シンプルなタスクに最適
-  - Sonnet (`implementation`, `refactoring`): 高品質・高コスト、複雑なタスクに必須
-
-## 使用例
-
-### 例1: 新機能実装 (implementation エージェント)
+### Delegation Format
 
 ```
-/implement-with-agent Phase 7の実装: Ctrl+Y (yank), Ctrl+T (transpose)を追加
+Use the `[agent-name]` subagent to execute the following task:
 
-親Claude: タスク分析の結果、implementationエージェントを使用します。
+**Original user request**: [Summarize user request]
 
-`implementation`サブエージェントを使用して、以下のタスクを実行してください:
+**Subtask objective**: [Specific implementation details]
 
-**このサブタスクの目的**: Phase 7 - yank/transpose機能の実装
+**Requirements**:
+- [Requirement 1]
+- [Requirement 2]
 
-**要件**:
-- Ctrl+Y (yank): 最後に削除したテキストを挿入
-- Ctrl+T (transpose): カーソル前後の文字を入れ替え
-- 既存のkey bindingsパターンに従う
-- テストケースを追加
+**Implementation location**: [File paths, function names, etc.]
 
-**実装場所**: src/tprompt.c, tests/test_keybindings.c
+**Reference info**: [Similar existing code, related files]
 
-[サブエージェントが実装、テスト、レポート]
+**Expected results**:
+- Implementation summary (max 500 chars)
+- List of modified files
+- Test results (pass/fail)
+- Issues or notes
+
+**IMPORTANT**: Return only summary, not detailed code or full file contents.
 ```
 
-### 例2: リファクタリング (refactoring エージェント)
+## Benefits
+
+- ✅ Minimize parent session context consumption
+- ✅ Each subagent works in independent context window
+- ✅ Session persists even with large implementations
+- ✅ Execute multiple independent tasks incrementally
+- ✅ Retry failed tasks without affecting parent session
+
+## Important Notes
+
+- These subagents must be defined in `.claude/agents/`:
+  - `research.md` - Code investigation (Haiku)
+  - `quick-fix.md` - Small fixes (Haiku)
+  - `implementation.md` - New features (Sonnet)
+  - `refactoring.md` - Large-scale refactoring (Sonnet)
+  - `general-purpose.md` - General tasks
+- Command fails if subagents don't exist
+- **Proper agent selection is critical** for cost/quality balance:
+  - Haiku (`research`, `quick-fix`): Fast, low-cost, ideal for simple tasks
+  - Sonnet (`implementation`, `refactoring`): High-quality, high-cost, required for complex tasks
+
+## Usage Examples
+
+### Example 1: New Feature (implementation agent)
 
 ```
-/implement-with-agent tprompt_cursor_move_foo を tprompt_cursor_foo にリネーム
+/implement-with-agent Implement Phase 7: Add Ctrl+Y (yank), Ctrl+T (transpose)
 
-親Claude: タスク分析の結果、複数ファイルにわたる変更のためrefactoringエージェントを使用します。
+Parent Claude: Using implementation agent based on task analysis.
 
-`refactoring`サブエージェントを使用して、以下のタスクを実行してください:
+Use the `implementation` subagent to execute the following task:
 
-**このサブタスクの目的**: 関数名の一貫性向上
+**Subtask objective**: Phase 7 - yank/transpose functionality
 
-**要件**:
-- src/tprompt_internal.h の宣言を更新
-- src/tprompt.c の定義と全呼び出し箇所を更新
-- tests/ 以下の全テストファイルを更新
-- ビルドとテストが全て成功することを確認
+**Requirements**:
+- Ctrl+Y (yank): Insert last deleted text
+- Ctrl+T (transpose): Swap characters before/after cursor
+- Follow existing key binding patterns
+- Add test cases
 
-[サブエージェントが徹底的に検索、更新、検証]
+**Implementation location**: src/tprompt.c, tests/test_keybindings.c
+
+[Subagent implements, tests, reports]
 ```
 
-### 例3: コード調査 + 小規模修正 (research + quick-fix)
+### Example 2: Refactoring (refactoring agent)
 
 ```
-/implement-with-agent 全てのTODOコメントを見つけて優先順位をつけ、簡単なものから片付ける
+/implement-with-agent Rename tprompt_cursor_move_foo to tprompt_cursor_foo
 
-親Claude: タスクを2段階に分割します。
+Parent Claude: Using refactoring agent for multi-file changes.
 
-**ステップ1**: `research`サブエージェントでTODOを調査
-**ステップ2**: 簡単なものを`quick-fix`サブエージェントで修正
+Use the `refactoring` subagent to execute the following task:
 
-[各エージェントが順次実行]
+**Subtask objective**: Improve function name consistency
+
+**Requirements**:
+- Update declaration in src/tprompt_internal.h
+- Update definition and all call sites in src/tprompt.c
+- Update all test files in tests/
+- Verify build and all tests pass
+
+[Subagent searches thoroughly, updates, verifies]
 ```
 
-## エージェント選択のチートシート
+### Example 3: Research + Quick Fix (research + quick-fix)
 
-| タスクの種類 | 使用するエージェント | モデル | 理由 |
-|------------|-------------------|--------|------|
-| 関数名変更 (複数ファイル) | `refactoring` | Sonnet | 徹底的な検索と更新が必要 |
-| 新Phase実装 | `implementation` | Sonnet | 複雑な統合とテストが必要 |
-| コメント追加 | `quick-fix` | Haiku | シンプルで高速 |
-| エラーメッセージ改善 | `quick-fix` | Haiku | 低リスク、高速処理 |
-| TODOコメント調査 | `research` | Haiku | 情報収集のみ、低コスト |
-| コードベース理解 | `research` | Haiku | 探索に特化 |
-| 複雑なアルゴリズム | `implementation` | Sonnet | 慎重な設計が必要 |
-| API変更と移行 | `refactoring` | Sonnet | 全呼び出し箇所の更新 |
+```
+/implement-with-agent Find all TODO comments, prioritize, and fix simple ones
+
+Parent Claude: Splitting into 2 phases.
+
+**Step 1**: Use `research` subagent to investigate TODOs
+**Step 2**: Use `quick-fix` subagent to fix simple ones
+
+[Each agent executes sequentially]
+```
+
+## Agent Selection Cheat Sheet
+
+| Task Type | Agent | Model | Reason |
+|-----------|-------|-------|--------|
+| Function rename (multi-file) | `refactoring` | Sonnet | Thorough search & update needed |
+| New Phase implementation | `implementation` | Sonnet | Complex integration & testing |
+| Add comments | `quick-fix` | Haiku | Simple & fast |
+| Improve error messages | `quick-fix` | Haiku | Low risk, fast |
+| TODO investigation | `research` | Haiku | Info gathering only, low cost |
+| Understand codebase | `research` | Haiku | Specialized for exploration |
+| Complex algorithm | `implementation` | Sonnet | Careful design needed |
+| API migration | `refactoring` | Sonnet | Update all call sites |

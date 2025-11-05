@@ -2,27 +2,27 @@
 description: Update CLAUDE.md with a principles-focused approach that avoids time-sensitive details
 ---
 
-**戦略**: このタスクは`implementation`サブエージェント (Sonnet) を使用して、慎重かつ高品質なCLAUDE.md作成を行います。
+**Strategy**: Use `implementation` subagent (Sonnet) for careful, high-quality CLAUDE.md creation.
 
-`implementation`サブエージェントを使用して、以下のタスクを実行してください:
+Use the `implementation` subagent to execute the following task:
 
-**タスクの目的**: コードベースを分析し、principles-focusedなCLAUDE.mdを作成/更新
+**Task objective**: Analyze codebase and create/update principles-focused CLAUDE.md
 
-**要件**:
-1. コードベース全体を調査 (src/, tests/, docs/ など)
-2. アーキテクチャ原則と設計判断を抽出
-3. Time-sensitive content (数値、リスト) を排除
-4. 6ヶ月後も正確なドキュメントを作成
-5. 適切なドキュメント参照を含める
+**Requirements**:
+1. Investigate entire codebase (src/, tests/, docs/, etc.)
+2. Extract architectural principles and design decisions
+3. Eliminate time-sensitive content (numbers, lists)
+4. Create documentation that remains accurate after 6 months
+5. Include appropriate doc references
 
-**期待する結果**:
-- 更新されたCLAUDE.md
-- 変更内容のサマリー (500文字以内)
-- 抽出した主要な設計原則のリスト
+**Expected results**:
+- Updated CLAUDE.md
+- Summary of changes (max 500 chars)
+- List of extracted key design principles
 
 ---
 
-以下は、サブエージェントが使用する詳細なガイドラインです:
+Below are detailed guidelines for the subagent:
 
 ## Core Philosophy
 
