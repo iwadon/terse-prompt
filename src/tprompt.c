@@ -322,14 +322,67 @@ void tprompt_cursor_move_to_offset(tprompt_buffer_t *buffer, size_t offset)
 
 size_t tprompt_cursor_move_word_forward(tprompt_buffer_t *buffer)
 {
-    // TODO: Implement word boundary detection
-    return 0;
+    if (!buffer || buffer->cursor >= buffer->length) {
+        return 0;
+    }
+
+    size_t bytes_moved = 0;
+    const char *data = buffer->data;
+    size_t pos = buffer->cursor;
+
+    // Skip any whitespace at current position
+    while (pos < buffer->length && (data[pos] == ' ' || data[pos] == '\t' || data[pos] == '\n')) {
+        size_t char_len = tprompt_utf8_char_length((unsigned char)data[pos]);
+        if (char_len == 0) char_len = 1;
+        pos += char_len;
+        bytes_moved += char_len;
+    }
+
+    // Move forward until we hit whitespace or end
+    while (pos < buffer->length && data[pos] != ' ' && data[pos] != '\t' && data[pos] != '\n') {
+        size_t char_len = tprompt_utf8_char_length((unsigned char)data[pos]);
+        if (char_len == 0) char_len = 1;
+        pos += char_len;
+        bytes_moved += char_len;
+    }
+
+    buffer->cursor = pos;
+    return bytes_moved;
 }
 
 size_t tprompt_cursor_move_word_backward(tprompt_buffer_t *buffer)
 {
-    // TODO: Implement word boundary detection
-    return 0;
+    if (!buffer || buffer->cursor == 0) {
+        return 0;
+    }
+
+    size_t bytes_moved = 0;
+    const char *data = buffer->data;
+    size_t pos = buffer->cursor;
+
+    // Move back one character first to get onto the previous word
+    pos = tprompt_utf8_prev_char(data, pos);
+    bytes_moved += (buffer->cursor - pos);
+
+    // Skip any whitespace backwards
+    while (pos > 0 && (data[pos] == ' ' || data[pos] == '\t' || data[pos] == '\n')) {
+        size_t prev_pos = tprompt_utf8_prev_char(data, pos);
+        bytes_moved += (pos - prev_pos);
+        pos = prev_pos;
+    }
+
+    // Move backward until we hit whitespace or start
+    while (pos > 0) {
+        size_t prev_pos = tprompt_utf8_prev_char(data, pos);
+        if (data[prev_pos] == ' ' || data[prev_pos] == '\t' || data[prev_pos] == '\n') {
+            break;
+        }
+        bytes_moved += (pos - prev_pos);
+        pos = prev_pos;
+    }
+
+    buffer->cursor = pos;
+    return bytes_moved;
 }
 
 int tprompt_cursor_move_to_logical_line_start(tprompt_handle_t handle)
@@ -2276,33 +2329,57 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 
         // Handle different event types
         if (event.type == TERSE_EVENT_CHAR) {
-            // Regular character input - convert scalar to UTF-8
-            char utf8_buf[5];
-            int len = 0;
             unsigned int scalar = event.data.ch.scalar;
+            int mods = event.data.ch.mods;
 
-            // Simple UTF-8 encoding
-            if (scalar < 0x80) {
-                utf8_buf[len++] = (char)scalar;
-            } else if (scalar < 0x800) {
-                utf8_buf[len++] = (char)(0xC0 | (scalar >> 6));
-                utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
-            } else if (scalar < 0x10000) {
-                utf8_buf[len++] = (char)(0xE0 | (scalar >> 12));
-                utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
-                utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
-            } else if (scalar < 0x110000) {
-                utf8_buf[len++] = (char)(0xF0 | (scalar >> 18));
-                utf8_buf[len++] = (char)(0x80 | ((scalar >> 12) & 0x3F));
-                utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
-                utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+            // Handle Ctrl+W - delete word backward
+            if (scalar == 23 && (mods & TERSE_MOD_CTRL)) {  // Ctrl+W
+                tprompt_key_handle_ctrl_w(handle);
             }
-            utf8_buf[len] = '\0';
+            // Handle Ctrl+K - delete to end of line
+            else if (scalar == 11 && (mods & TERSE_MOD_CTRL)) {  // Ctrl+K
+                tprompt_key_handle_ctrl_k(handle);
+            }
+            // Handle Ctrl+U - delete to start of line
+            else if (scalar == 21 && (mods & TERSE_MOD_CTRL)) {  // Ctrl+U
+                tprompt_key_handle_ctrl_u(handle);
+            }
+            // Handle Ctrl+A - move to start of line
+            else if (scalar == 1 && (mods & TERSE_MOD_CTRL)) {  // Ctrl+A
+                tprompt_key_handle_ctrl_a(handle);
+            }
+            // Handle Ctrl+E - move to end of line
+            else if (scalar == 5 && (mods & TERSE_MOD_CTRL)) {  // Ctrl+E
+                tprompt_key_handle_ctrl_e(handle);
+            }
+            // Regular character input - convert scalar to UTF-8
+            else {
+                char utf8_buf[5];
+                int len = 0;
 
-            if (tprompt_buffer_insert(&handle->buffer, utf8_buf, len) != 0) {
-                tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-                                 "Failed to insert character (scalar=0x%X) into buffer", scalar);
-                return NULL;
+                // Simple UTF-8 encoding
+                if (scalar < 0x80) {
+                    utf8_buf[len++] = (char)scalar;
+                } else if (scalar < 0x800) {
+                    utf8_buf[len++] = (char)(0xC0 | (scalar >> 6));
+                    utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+                } else if (scalar < 0x10000) {
+                    utf8_buf[len++] = (char)(0xE0 | (scalar >> 12));
+                    utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
+                    utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+                } else if (scalar < 0x110000) {
+                    utf8_buf[len++] = (char)(0xF0 | (scalar >> 18));
+                    utf8_buf[len++] = (char)(0x80 | ((scalar >> 12) & 0x3F));
+                    utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
+                    utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+                }
+                utf8_buf[len] = '\0';
+
+                if (tprompt_buffer_insert(&handle->buffer, utf8_buf, len) != 0) {
+                    tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+                                     "Failed to insert character (scalar=0x%X) into buffer", scalar);
+                    return NULL;
+                }
             }
         } else if (event.type == TERSE_EVENT_ENTER) {
             // Enter key pressed - confirm input (or insert newline in multiline mode)
@@ -2511,4 +2588,176 @@ tprompt_error_info_t tprompt_get_last_error(tprompt_handle_t handle)
         return handle->last_error;
     }
     return tprompt_global_error;
+}
+
+/* ========================================================================
+ * Phase 6 Keybinding Handlers
+ * ======================================================================== */
+
+int tprompt_key_handle_ctrl_w(tprompt_handle_t handle)
+{
+    if (!handle || handle->buffer.cursor == 0) {
+        return 0;  // Nothing to delete
+    }
+
+    const char *data = handle->buffer.data;
+    size_t pos = handle->buffer.cursor;
+
+    // Move back one character first
+    size_t prev_pos = tprompt_utf8_prev_char(data, pos);
+
+    // Skip trailing whitespace backwards
+    while (prev_pos > 0 && (data[prev_pos] == ' ' || data[prev_pos] == '\t')) {
+        pos = prev_pos;
+        prev_pos = tprompt_utf8_prev_char(data, pos);
+    }
+
+    // If we're now at the start or hit a newline, delete from here
+    if (prev_pos == 0 || data[prev_pos] == '\n') {
+        if (prev_pos > 0 && data[prev_pos] == '\n') {
+            pos = prev_pos + 1;  // Don't delete the newline
+        }
+        size_t delete_len = handle->buffer.cursor - pos;
+        handle->buffer.cursor = pos;
+        if (delete_len > 0) {
+            tprompt_buffer_delete_at(&handle->buffer, delete_len);
+        }
+        return 0;
+    }
+
+    // Delete backwards until whitespace, newline, or start
+    while (pos > 0) {
+        prev_pos = tprompt_utf8_prev_char(data, pos);
+        if (data[prev_pos] == ' ' || data[prev_pos] == '\t' || data[prev_pos] == '\n') {
+            break;
+        }
+        pos = prev_pos;
+    }
+
+    // Delete from pos to cursor
+    size_t delete_len = handle->buffer.cursor - pos;
+    handle->buffer.cursor = pos;
+    if (delete_len > 0) {
+        tprompt_buffer_delete_at(&handle->buffer, delete_len);
+    }
+
+    return 0;
+}
+
+int tprompt_key_handle_ctrl_k(tprompt_handle_t handle)
+{
+    if (!handle) {
+        return -1;
+    }
+
+    // Get current logical line boundaries
+    size_t current_logical_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+    size_t line_start, line_end;
+
+    if (tprompt_get_logical_line_bounds(handle, current_logical_line, &line_start, &line_end) != 0) {
+        return -1;
+    }
+
+    // If cursor is already at end of logical line, do nothing
+    if (handle->buffer.cursor >= line_end) {
+        return 0;
+    }
+
+    // Delete from cursor to end of logical line
+    size_t delete_len = line_end - handle->buffer.cursor;
+    tprompt_buffer_delete_at(&handle->buffer, delete_len);
+
+    return 0;
+}
+
+int tprompt_key_handle_ctrl_u(tprompt_handle_t handle)
+{
+    if (!handle) {
+        return -1;
+    }
+
+    // Get current logical line boundaries
+    size_t current_logical_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+    size_t line_start, line_end;
+
+    if (tprompt_get_logical_line_bounds(handle, current_logical_line, &line_start, &line_end) != 0) {
+        return -1;
+    }
+
+    // If cursor is at the start of a logical line (not the first line),
+    // delete the previous logical line and its newline
+    if (handle->buffer.cursor == line_start && current_logical_line > 0) {
+        size_t prev_line_start, prev_line_end;
+        if (tprompt_get_logical_line_bounds(handle, current_logical_line - 1, &prev_line_start, &prev_line_end) != 0) {
+            return -1;
+        }
+        // Delete from start of previous line to cursor (including the newline)
+        size_t delete_len = handle->buffer.cursor - prev_line_start;
+        handle->buffer.cursor = prev_line_start;
+        tprompt_buffer_delete_at(&handle->buffer, delete_len);
+        return 0;
+    }
+
+    // If cursor is already at start of first logical line, do nothing
+    if (handle->buffer.cursor <= line_start) {
+        return 0;
+    }
+
+    // Delete from start of logical line to cursor
+    size_t delete_len = handle->buffer.cursor - line_start;
+    handle->buffer.cursor = line_start;
+    tprompt_buffer_delete_at(&handle->buffer, delete_len);
+
+    return 0;
+}
+
+int tprompt_key_handle_ctrl_a(tprompt_handle_t handle)
+{
+    if (!handle) {
+        return -1;
+    }
+
+    // Get current logical line boundaries
+    size_t current_logical_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+    size_t line_start, line_end;
+
+    if (tprompt_get_logical_line_bounds(handle, current_logical_line, &line_start, &line_end) != 0) {
+        return -1;
+    }
+
+    // If cursor is already at the start of a logical line (not the first line),
+    // move to the start of the previous logical line
+    if (handle->buffer.cursor == line_start && current_logical_line > 0) {
+        size_t prev_line_start, prev_line_end;
+        if (tprompt_get_logical_line_bounds(handle, current_logical_line - 1, &prev_line_start, &prev_line_end) != 0) {
+            return -1;
+        }
+        handle->buffer.cursor = prev_line_start;
+        return 0;
+    }
+
+    // Move cursor to start of logical line
+    handle->buffer.cursor = line_start;
+
+    return 0;
+}
+
+int tprompt_key_handle_ctrl_e(tprompt_handle_t handle)
+{
+    if (!handle) {
+        return -1;
+    }
+
+    // Get current logical line boundaries
+    size_t current_logical_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+    size_t line_start, line_end;
+
+    if (tprompt_get_logical_line_bounds(handle, current_logical_line, &line_start, &line_end) != 0) {
+        return -1;
+    }
+
+    // Move cursor to end of logical line
+    handle->buffer.cursor = line_end;
+
+    return 0;
 }

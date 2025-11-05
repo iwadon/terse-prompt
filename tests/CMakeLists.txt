@@ -77,3 +77,19 @@ target_link_libraries(test_newline PRIVATE
 )
 
 add_test(NAME test_newline COMMAND test_newline)
+
+# Phase 6 keybindings tests (Ctrl+W, Ctrl+K, Ctrl+U, Ctrl+A, Ctrl+E)
+add_executable(test_keybindings
+    test_keybindings.c
+)
+
+target_include_directories(test_keybindings PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_link_libraries(test_keybindings PRIVATE
+    tprompt
+    attest
+)
+
+add_test(NAME test_keybindings COMMAND test_keybindings)

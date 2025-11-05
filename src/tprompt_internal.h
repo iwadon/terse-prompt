@@ -534,6 +534,45 @@ bool tprompt_is_completion_trigger(tprompt_handle_t handle, char ch);
 bool tprompt_buffer_has_newlines(tprompt_handle_t handle);
 
 /* ========================================================================
+ * Internal Helper Functions - Phase 6 Keybinding Handlers
+ * ======================================================================== */
+
+/**
+ * @brief Handle Ctrl+W - delete word before cursor
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on error
+ */
+int tprompt_key_handle_ctrl_w(tprompt_handle_t handle);
+
+/**
+ * @brief Handle Ctrl+K - delete from cursor to end of logical line
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on error
+ */
+int tprompt_key_handle_ctrl_k(tprompt_handle_t handle);
+
+/**
+ * @brief Handle Ctrl+U - delete from start of logical line to cursor
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on error
+ */
+int tprompt_key_handle_ctrl_u(tprompt_handle_t handle);
+
+/**
+ * @brief Handle Ctrl+A - move cursor to start of logical line
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on error
+ */
+int tprompt_key_handle_ctrl_a(tprompt_handle_t handle);
+
+/**
+ * @brief Handle Ctrl+E - move cursor to end of logical line
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on error
+ */
+int tprompt_key_handle_ctrl_e(tprompt_handle_t handle);
+
+/* ========================================================================
  * Internal Helper Functions - Logical Line Navigation (Phase 5)
  * ======================================================================== */
 
