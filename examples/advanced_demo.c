@@ -38,7 +38,7 @@ int main(void) {
         .completion_user_data = NULL,
         .completion_prefixes = NULL,
         .terse_handle = NULL,  // Let tprompt create its own
-        .flags = TPROMPT_FLAG_MULTILINE
+        .flags = 0  // Single-line mode (Enter submits input)
     };
 
     // Open tprompt handle
