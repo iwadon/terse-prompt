@@ -2,7 +2,25 @@
 description: Validate that CLAUDE.md follows principles-focused guidelines and identify time-sensitive content
 ---
 
-Review CLAUDE.md and check if it follows principles-focused guidelines.
+**戦略**: このタスクは`research`サブエージェント (Haiku) を使用して、高速かつ低コストで分析します。
+
+`research`サブエージェントを使用して、以下の分析タスクを実行してください:
+
+**タスクの目的**: CLAUDE.mdがprinciples-focusedガイドラインに従っているか検証
+
+**分析項目**:
+1. Time-sensitive content (特定の数値、カウント、網羅的リスト) の検出
+2. Principles-focused content (アーキテクチャ原則、設計判断) の評価
+3. 問題箇所の特定と改善提案
+
+**期待する結果**:
+- 問題箇所のリスト (引用、問題理由、推奨修正)
+- 全体的な評価 (High/Medium/Low)
+- 実行可能な改善提案
+
+---
+
+以下は、サブエージェントが使用する詳細な検証基準です:
 
 ## Validation Criteria
 
