@@ -16,6 +16,10 @@
 #include <stddef.h>
 #include <terse.h>
 
+#if defined(__unix__) || defined(__APPLE__)
+#include <termios.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -95,6 +99,12 @@ struct tprompt_handle {
     /* Core dependencies */
     terse_handle_t terse;        /**< terse handle for terminal control */
     bool owns_terse;             /**< Whether this handle owns the terse handle */
+
+    /* Terminal raw mode */
+#if defined(__unix__) || defined(__APPLE__)
+    struct termios original_termios;  /**< Original terminal settings */
+    bool raw_mode_active;             /**< Whether raw mode is currently active */
+#endif
 
     /* Input buffer */
     tprompt_buffer_t buffer;     /**< Dynamic input buffer */

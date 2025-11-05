@@ -13,6 +13,10 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <errno.h>
+#if defined(__unix__) || defined(__APPLE__)
+#include <unistd.h>
+#include <termios.h>
+#endif
 
 /* ========================================================================
  * Global Error Information
@@ -823,6 +827,133 @@ size_t tprompt_utf8_char_length(unsigned char byte)
     return 0; // Invalid
 }
 
+/**
+ * @brief Decode UTF-8 bytes to Unicode scalar value
+ */
+static unsigned int tprompt_utf8_decode(const unsigned char *bytes, size_t len)
+{
+    if (len == 0) return 0;
+
+    if (len == 1) {
+        return bytes[0];
+    } else if (len == 2) {
+        return ((bytes[0] & 0x1F) << 6) | (bytes[1] & 0x3F);
+    } else if (len == 3) {
+        return ((bytes[0] & 0x0F) << 12) | ((bytes[1] & 0x3F) << 6) | (bytes[2] & 0x3F);
+    } else if (len == 4) {
+        return ((bytes[0] & 0x07) << 18) | ((bytes[1] & 0x3F) << 12) |
+               ((bytes[2] & 0x3F) << 6) | (bytes[3] & 0x3F);
+    }
+    return 0;
+}
+
+/**
+ * @brief Get display width of a UTF-8 character
+ *
+ * Returns the number of columns the character occupies on screen.
+ * Based on Unicode East Asian Width property, similar to terse's compute_cell_width().
+ * Note: This is a simplified implementation. Ideally, terse would expose its
+ * compute_cell_width() function as a public API for perfect consistency.
+ *
+ * @param scalar Unicode scalar value
+ * @return Display width (0 for control/combining, 1 for narrow, 2 for wide)
+ */
+static int tprompt_get_char_width(unsigned int scalar)
+{
+    // NULL and control characters
+    if (scalar == 0 || scalar < 0x20 || (scalar >= 0x7F && scalar < 0xA0)) {
+        return 0;
+    }
+
+    // Combining marks (zero width) - most common ranges
+    if ((scalar >= 0x0300 && scalar <= 0x036F) ||   // Combining Diacritical Marks
+        (scalar >= 0x0483 && scalar <= 0x0489) ||   // Cyrillic combining
+        (scalar >= 0x0591 && scalar <= 0x05BD) ||   // Hebrew combining
+        (scalar >= 0x0610 && scalar <= 0x061A) ||   // Arabic combining
+        (scalar >= 0x064B && scalar <= 0x065F) ||   // Arabic combining
+        (scalar >= 0x0670 && scalar <= 0x0670) ||   // Arabic letter superscript alef
+        (scalar >= 0x06D6 && scalar <= 0x06ED) ||   // Arabic combining
+        (scalar >= 0x0711 && scalar <= 0x0711) ||   // Syriac combining
+        (scalar >= 0x0730 && scalar <= 0x074A) ||   // Syriac combining
+        (scalar >= 0x07A6 && scalar <= 0x07B0) ||   // Thaana combining
+        (scalar >= 0x07EB && scalar <= 0x07F3) ||   // NKo combining
+        (scalar >= 0x0816 && scalar <= 0x082D) ||   // Samaritan combining
+        (scalar >= 0x0859 && scalar <= 0x085B) ||   // Mandaic combining
+        (scalar >= 0x08D4 && scalar <= 0x08E1) ||   // Arabic extended combining
+        (scalar >= 0x08E3 && scalar <= 0x0902) ||   // Arabic/Devanagari combining
+        (scalar >= 0x093A && scalar <= 0x093C) ||   // Devanagari combining
+        (scalar >= 0x0941 && scalar <= 0x0948) ||   // Devanagari combining
+        (scalar >= 0x094D && scalar <= 0x094D) ||   // Devanagari virama
+        (scalar >= 0x0951 && scalar <= 0x0957) ||   // Devanagari combining
+        (scalar >= 0x0962 && scalar <= 0x0963) ||   // Devanagari combining
+        (scalar >= 0x1AB0 && scalar <= 0x1ACE) ||   // Combining Diacritical Marks Extended
+        (scalar >= 0x1DC0 && scalar <= 0x1DFF) ||   // Combining Diacritical Marks Supplement
+        (scalar >= 0x20D0 && scalar <= 0x20F0) ||   // Combining Diacritical Marks for Symbols
+        (scalar >= 0xFE20 && scalar <= 0xFE2F)) {   // Combining Half Marks
+        return 0;
+    }
+
+    // Wide characters (East Asian Wide and Fullwidth) = 2 columns
+    // Based on Unicode East Asian Width property
+    if ((scalar >= 0x1100 && scalar <= 0x115F) ||   // Hangul Jamo
+        (scalar >= 0x2329 && scalar <= 0x232A) ||   // Left/Right-Pointing Angle Bracket
+        (scalar >= 0x2E80 && scalar <= 0x2FFB) ||   // CJK Radicals Supplement + Kangxi Radicals + Ideographic Description
+        (scalar >= 0x3000 && scalar <= 0x303E) ||   // CJK Symbols and Punctuation
+        (scalar >= 0x3041 && scalar <= 0x33FF) ||   // Hiragana + Katakana + Bopomofo + Hangul Compat + Kanbun + etc
+        (scalar >= 0x3400 && scalar <= 0x4DBF) ||   // CJK Unified Ideographs Extension A
+        (scalar >= 0x4E00 && scalar <= 0xA4C6) ||   // CJK Unified Ideographs + Yi + etc
+        (scalar >= 0xA960 && scalar <= 0xA97C) ||   // Hangul Jamo Extended-A
+        (scalar >= 0xAC00 && scalar <= 0xD7A3) ||   // Hangul Syllables
+        (scalar >= 0xF900 && scalar <= 0xFAFF) ||   // CJK Compatibility Ideographs
+        (scalar >= 0xFE10 && scalar <= 0xFE19) ||   // Vertical Forms
+        (scalar >= 0xFE30 && scalar <= 0xFE6B) ||   // CJK Compatibility Forms
+        (scalar >= 0xFF01 && scalar <= 0xFF60) ||   // Fullwidth ASCII variants
+        (scalar >= 0xFFE0 && scalar <= 0xFFE6) ||   // Fullwidth symbol variants
+        (scalar >= 0x16FE0 && scalar <= 0x16FE4) || // Tangut symbols
+        (scalar >= 0x17000 && scalar <= 0x187F7) || // Tangut + Tangut Components
+        (scalar >= 0x18800 && scalar <= 0x18AFF) || // Tangut Supplement
+        (scalar >= 0x1B000 && scalar <= 0x1B122) || // Kana Supplement + Kana Extended-A
+        (scalar >= 0x1B150 && scalar <= 0x1B152) || // Small Kana Extension
+        (scalar >= 0x1B164 && scalar <= 0x1B167) || // Small Kana Extension
+        (scalar >= 0x1B170 && scalar <= 0x1B2FB) || // Nushu
+        (scalar >= 0x1F004 && scalar <= 0x1F004) || // Mahjong Tile Red Dragon
+        (scalar >= 0x1F0CF && scalar <= 0x1F0CF) || // Playing Card Black Joker
+        (scalar >= 0x1F100 && scalar <= 0x1F10A) || // Enclosed Alphanumeric Supplement
+        (scalar >= 0x1F110 && scalar <= 0x1F12D) || // Enclosed Alphanumeric Supplement
+        (scalar >= 0x1F130 && scalar <= 0x1F169) || // Enclosed Alphanumeric Supplement
+        (scalar >= 0x1F170 && scalar <= 0x1F18D) || // Enclosed Alphanumeric Supplement
+        (scalar >= 0x1F18F && scalar <= 0x1F190) || // Squared symbols
+        (scalar >= 0x1F19B && scalar <= 0x1F1AC) || // Squared symbols
+        (scalar >= 0x1F200 && scalar <= 0x1F266) || // Enclosed Ideographic Supplement
+        (scalar >= 0x1F300 && scalar <= 0x1F6D7) || // Misc Symbols and Pictographs + Emoticons + Transport
+        (scalar >= 0x1F6DC && scalar <= 0x1F6EC) || // Transport and Map Symbols
+        (scalar >= 0x1F6F0 && scalar <= 0x1F6FC) || // Transport and Map Symbols
+        (scalar >= 0x1F700 && scalar <= 0x1F776) || // Alchemical Symbols
+        (scalar >= 0x1F77B && scalar <= 0x1F7D9) || // Geometric Shapes Extended
+        (scalar >= 0x1F7E0 && scalar <= 0x1F7EB) || // Geometric Shapes Extended
+        (scalar >= 0x1F7F0 && scalar <= 0x1F7F0) || // Heavy Equals Sign
+        (scalar >= 0x1F800 && scalar <= 0x1F80B) || // Supplemental Arrows-C
+        (scalar >= 0x1F810 && scalar <= 0x1F847) || // Supplemental Arrows-C
+        (scalar >= 0x1F850 && scalar <= 0x1F859) || // Supplemental Arrows-C
+        (scalar >= 0x1F860 && scalar <= 0x1F882) || // Supplemental Symbols and Pictographs
+        (scalar >= 0x1F890 && scalar <= 0x1F8AD) || // Supplemental Symbols and Pictographs
+        (scalar >= 0x1F8B0 && scalar <= 0x1F8B1) || // Supplemental Symbols and Pictographs
+        (scalar >= 0x1F900 && scalar <= 0x1FA53) || // Supplemental Symbols and Pictographs + Symbols and Pictographs Extended-A
+        (scalar >= 0x1FA60 && scalar <= 0x1FA6D) || // Symbols and Pictographs Extended-A
+        (scalar >= 0x1FA70 && scalar <= 0x1FA7C) || // Symbols and Pictographs Extended-A
+        (scalar >= 0x1FA80 && scalar <= 0x1FA88) || // Symbols and Pictographs Extended-A
+        (scalar >= 0x1FA90 && scalar <= 0x1FAE7) || // Symbols and Pictographs Extended-A
+        (scalar >= 0x1FAF0 && scalar <= 0x1FAF6) || // Symbols and Pictographs Extended-A
+        (scalar >= 0x1FB00 && scalar <= 0x1FBCA) || // Symbols for Legacy Computing
+        (scalar >= 0x20000 && scalar <= 0x2FFFD) || // CJK Unified Ideographs Extensions B-F + Supplement
+        (scalar >= 0x30000 && scalar <= 0x3FFFD)) { // CJK Unified Ideographs Extension G
+        return 2;
+    }
+
+    // Default to width 1 for all other characters (including ambiguous width)
+    return 1;
+}
+
 size_t tprompt_utf8_prev_char(const char *text, size_t offset)
 {
     if (!text || offset == 0) {
@@ -1244,14 +1375,19 @@ static void tprompt_calculate_physical_position(tprompt_handle_t handle, size_t 
             current_col = 0;
         }
 
-        // Get character length and advance
+        // Get character length and display width
         size_t char_len = tprompt_utf8_char_length((unsigned char)data[i]);
         if (char_len == 0) {
             char_len = 1; // Invalid UTF-8, skip one byte
+            i++;
+            current_col++;
+        } else {
+            // Decode UTF-8 character and get its display width
+            unsigned int scalar = tprompt_utf8_decode((const unsigned char*)&data[i], char_len);
+            int char_width = tprompt_get_char_width(scalar);
+            i += char_len;
+            current_col += char_width;
         }
-
-        i += char_len;
-        current_col++;
     }
 
     *out_physical_line = current_physical_line;
@@ -1310,14 +1446,19 @@ static size_t tprompt_calculate_total_physical_lines(tprompt_handle_t handle)
             current_col = 0;
         }
 
-        // Get character length and advance
+        // Get character length and display width
         size_t char_len = tprompt_utf8_char_length((unsigned char)data[i]);
         if (char_len == 0) {
             char_len = 1; // Invalid UTF-8, skip one byte
+            i++;
+            current_col++;
+        } else {
+            // Decode UTF-8 character and get its display width
+            unsigned int scalar = tprompt_utf8_decode((const unsigned char*)&data[i], char_len);
+            int char_width = tprompt_get_char_width(scalar);
+            i += char_len;
+            current_col += char_width;
         }
-
-        i += char_len;
-        current_col++;
     }
 
     return total_physical_lines;
@@ -1398,9 +1539,14 @@ int tprompt_display_render(tprompt_handle_t handle)
     // Calculate layout first to know how many physical lines we need
     tprompt_display_calculate_layout(handle);
 
-    // Get current cursor position to know where we started
-    terse_cursor_position_t start_pos = terse_get_cursor_position(handle->terse);
-    handle->display.start_row = start_pos.known ? start_pos.row : 0;
+    // Get current cursor position ONLY if we haven't set it yet (first render)
+    // Once set, start_row should remain constant for the entire readline session
+    if (handle->display.start_row == 0) {
+        terse_cursor_position_t start_pos = terse_get_cursor_position(handle->terse);
+        if (start_pos.known) {
+            handle->display.start_row = start_pos.row;
+        }
+    }
 
     // Clear all physical lines used by the input
     for (size_t i = 0; i < handle->display.total_physical_lines; i++) {
@@ -1487,8 +1633,10 @@ int tprompt_display_render(tprompt_handle_t handle)
                 return -1;
             }
 
-            // Assume each character takes 1 column (could be enhanced with width tracking)
-            current_col++;
+            // Get character display width
+            unsigned int scalar = tprompt_utf8_decode((const unsigned char*)temp, char_len);
+            int char_width = tprompt_get_char_width(scalar);
+            current_col += char_width;
         }
 
         i += char_len;
@@ -1522,7 +1670,9 @@ int tprompt_display_update_cursor(tprompt_handle_t handle)
     int target_row = handle->display.start_row + (int)handle->display.physical_line;
 
     // Move cursor to calculated position (row and column)
-    if (terse_move_to(handle->terse, target_row, (int)handle->display.physical_column) < 0) {
+    // Note: terse uses 1-based coordinates, but our calculation is 0-based, so add 1
+    int target_col = (int)handle->display.physical_column + 1;
+    if (terse_move_to(handle->terse, target_row, target_col) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
                          "Failed to move cursor to position (row=%d, col=%zu)",
                          target_row, handle->display.physical_column);
@@ -1785,6 +1935,16 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
                         tprompt_buffer_clear(&handle->buffer);
                     }
                 }
+                return 0;  // Continue editing
+
+            case TERSE_EVENT_ARROW_LEFT:
+                // Move cursor left by one character
+                tprompt_cursor_move_left(&handle->buffer, 1);
+                return 0;  // Continue editing
+
+            case TERSE_EVENT_ARROW_RIGHT:
+                // Move cursor right by one character
+                tprompt_cursor_move_right(&handle->buffer, 1);
                 return 0;  // Continue editing
 
             default:
@@ -2163,6 +2323,20 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
         handle->owns_terse = true;
     }
 
+    // Initialize raw mode flag
+#if defined(__unix__) || defined(__APPLE__)
+    handle->raw_mode_active = false;
+#endif
+
+    // Enable enhanced keyboard features if supported
+    unsigned int keyboard_supported = terse_keyboard_get_supported(handle->terse);
+    if (keyboard_supported & TERSE_KEYBOARD_FEATURE_MODIFY_OTHER_KEYS) {
+        terse_keyboard_enable(handle->terse, TERSE_KEYBOARD_FEATURE_MODIFY_OTHER_KEYS);
+    }
+    if (keyboard_supported & TERSE_KEYBOARD_FEATURE_KITTY_PROTOCOL) {
+        terse_keyboard_enable(handle->terse, TERSE_KEYBOARD_FEATURE_KITTY_PROTOCOL);
+    }
+
     // Initialize buffer
     if (tprompt_buffer_init(&handle->buffer, DEFAULT_BUFFER_SIZE) != 0) {
         tprompt_set_error(&tprompt_global_error, TPROMPT_ERROR_MEMORY, errno,
@@ -2300,6 +2474,9 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
     // Reset history navigation
     tprompt_history_reset_position(&handle->history);
 
+    // Reset display state for new readline session
+    handle->display.start_row = 0;  // Will be set on first render
+
     // Update prompt if override is provided
     if (prompt_override) {
         free(handle->prompt);
@@ -2311,8 +2488,31 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
         }
     }
 
+    // Enable raw mode
+#if defined(__unix__) || defined(__APPLE__)
+    if (tcgetattr(STDIN_FILENO, &handle->original_termios) == 0) {
+        struct termios raw = handle->original_termios;
+        raw.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+        raw.c_oflag &= ~(OPOST);
+        raw.c_cflag |= CS8;
+        raw.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+        raw.c_cc[VMIN] = 1;
+        raw.c_cc[VTIME] = 0;
+        if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) == 0) {
+            handle->raw_mode_active = true;
+        }
+    }
+#endif
+
     // Initial render
     if (tprompt_display_render(handle) != 0) {
+        // Restore terminal on error
+#if defined(__unix__) || defined(__APPLE__)
+        if (handle->raw_mode_active) {
+            tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
+            handle->raw_mode_active = false;
+        }
+#endif
         return NULL;
     }
 
@@ -2333,27 +2533,42 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
             int mods = event.data.ch.mods;
 
             // Handle Ctrl+W - delete word backward
-            if (scalar == 23 && (mods & TERSE_MOD_CTRL)) {  // Ctrl+W
+            if (scalar == 'w' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+W
                 tprompt_key_handle_ctrl_w(handle);
             }
             // Handle Ctrl+K - delete to end of line
-            else if (scalar == 11 && (mods & TERSE_MOD_CTRL)) {  // Ctrl+K
+            else if (scalar == 'k' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+K
                 tprompt_key_handle_ctrl_k(handle);
             }
             // Handle Ctrl+U - delete to start of line
-            else if (scalar == 21 && (mods & TERSE_MOD_CTRL)) {  // Ctrl+U
+            else if (scalar == 'u' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+U
                 tprompt_key_handle_ctrl_u(handle);
             }
             // Handle Ctrl+A - move to start of line
-            else if (scalar == 1 && (mods & TERSE_MOD_CTRL)) {  // Ctrl+A
+            else if (scalar == 'a' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+A
                 tprompt_key_handle_ctrl_a(handle);
             }
             // Handle Ctrl+E - move to end of line
-            else if (scalar == 5 && (mods & TERSE_MOD_CTRL)) {  // Ctrl+E
+            else if (scalar == 'e' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+E
                 tprompt_key_handle_ctrl_e(handle);
             }
+            // Handle Ctrl+D (EOF-like behavior)
+            else if (scalar == 'd' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+D
+                if (handle->buffer.length == 0) {
+                    tprompt_clear_error(&handle->last_error);  // EOF is not an error
+                    // Restore terminal before returning
+#if defined(__unix__) || defined(__APPLE__)
+                    if (handle->raw_mode_active) {
+                        tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
+                        handle->raw_mode_active = false;
+                    }
+#endif
+                    return NULL;
+                }
+                // If buffer is not empty, ignore Ctrl+D
+            }
             // Regular character input - convert scalar to UTF-8
-            else {
+            else if (!(mods & TERSE_MOD_CTRL)) {  // Ignore unhandled Ctrl combinations
                 char utf8_buf[5];
                 int len = 0;
 
@@ -2432,24 +2647,31 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
                 return NULL;
             }
         }
-        // Handle Ctrl+D (EOF-like behavior) via CHAR event
-        else if (event.type == TERSE_EVENT_CHAR && event.data.ch.scalar == 4 &&
-                 (event.data.ch.mods & TERSE_MOD_CTRL)) {
-            // Ctrl+D: if buffer empty, return NULL; otherwise ignore
-            if (handle->buffer.length == 0) {
-                tprompt_clear_error(&handle->last_error);  // EOF is not an error
-                return NULL;
-            }
-        }
 
         // Re-render display after each event
         if (tprompt_display_render(handle) != 0) {
+            // Restore terminal on error
+#if defined(__unix__) || defined(__APPLE__)
+            if (handle->raw_mode_active) {
+                tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
+                handle->raw_mode_active = false;
+            }
+#endif
             return NULL;
         }
     }
 
+    // Restore terminal mode before returning
+#if defined(__unix__) || defined(__APPLE__)
+    if (handle->raw_mode_active) {
+        tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
+        handle->raw_mode_active = false;
+    }
+#endif
+
     // Move to new line after input is confirmed
-    terse_write_text(handle->terse, "\n");
+    // In raw mode, we need \r\n to move to the beginning of the next line
+    terse_write_text(handle->terse, "\r\n");
     terse_flush(handle->terse);
 
     // Add to history if not empty
