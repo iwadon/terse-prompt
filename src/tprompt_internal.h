@@ -79,7 +79,8 @@ typedef struct tprompt_display_state {
     size_t total_physical_lines; /**< Total number of physical lines */
     size_t terminal_width;      /**< Terminal width in columns */
     size_t terminal_height;     /**< Terminal height in rows */
-    int start_row;              /**< Starting row for rendering (absolute terminal row) */
+    int start_row;              /**< Starting row for rendering (0-based absolute terminal row) */
+    bool start_row_known;       /**< Whether start_row has been initialized */
 } tprompt_display_state_t;
 
 /**

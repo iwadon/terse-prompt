@@ -1539,18 +1539,22 @@ int tprompt_display_render(tprompt_handle_t handle)
     // Calculate layout first to know how many physical lines we need
     tprompt_display_calculate_layout(handle);
 
-    // Get current cursor position ONLY if we haven't set it yet (first render)
-    // Once set, start_row should remain constant for the entire readline session
-    if (handle->display.start_row == 0) {
+    // Capture the starting row (0-based) if we have not done so yet
+    int base_row = handle->display.start_row;
+    if (!handle->display.start_row_known) {
         terse_cursor_position_t start_pos = terse_get_cursor_position(handle->terse);
         if (start_pos.known) {
             handle->display.start_row = start_pos.row;
+            handle->display.start_row_known = true;
+            base_row = start_pos.row;
+        } else {
+            base_row = 0;
         }
     }
 
     // Clear all physical lines used by the input
     for (size_t i = 0; i < handle->display.total_physical_lines; i++) {
-        if (terse_move_to(handle->terse, handle->display.start_row + (int)i, 0) < 0) {
+        if (terse_move_to(handle->terse, base_row + (int)i, 0) < 0) {
             tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
                              "Failed to move cursor to clear line %zu", i);
             return -1;
@@ -1563,9 +1567,9 @@ int tprompt_display_render(tprompt_handle_t handle)
     }
 
     // Move back to start position
-    if (terse_move_to(handle->terse, handle->display.start_row, 0) < 0) {
+    if (terse_move_to(handle->terse, base_row, 0) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-                         "Failed to move cursor to start position (row %d)", handle->display.start_row);
+                         "Failed to move cursor to start position (row %d)", base_row);
         return -1;
     }
 
@@ -1666,12 +1670,23 @@ int tprompt_display_update_cursor(tprompt_handle_t handle)
     // Calculate cursor position
     tprompt_display_calculate_layout(handle);
 
-    // Calculate target row (start_row + physical_line offset)
-    int target_row = handle->display.start_row + (int)handle->display.physical_line;
+    int base_row = handle->display.start_row;
+    if (!handle->display.start_row_known) {
+        terse_cursor_position_t pos = terse_get_cursor_position(handle->terse);
+        if (pos.known) {
+            handle->display.start_row = pos.row;
+            handle->display.start_row_known = true;
+            base_row = pos.row;
+        } else {
+            base_row = 0;
+        }
+    }
 
-    // Move cursor to calculated position (row and column)
-    // Note: terse uses 1-based coordinates, but our calculation is 0-based, so add 1
-    int target_col = (int)handle->display.physical_column + 1;
+    // Calculate target row (start_row + physical_line offset)
+    int target_row = base_row + (int)handle->display.physical_line;
+
+    // Move cursor to calculated position using 0-based coordinates
+    int target_col = (int)handle->display.physical_column;
     if (terse_move_to(handle->terse, target_row, target_col) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
                          "Failed to move cursor to position (row=%d, col=%zu)",
@@ -1703,7 +1718,9 @@ int tprompt_display_clear(tprompt_handle_t handle)
     }
 
     // Move cursor to start of line
-    if (terse_move_to(handle->terse, -1, 0) < 0) {
+    terse_cursor_position_t pos = terse_get_cursor_position(handle->terse);
+    int row = pos.known ? pos.row : 0;
+    if (terse_move_to(handle->terse, row, 0) < 0) {
         tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
                          "Failed to move cursor to line start");
         return -1;
@@ -1751,7 +1768,14 @@ int tprompt_display_render_completion(tprompt_handle_t handle)
         }
 
         // Move to start of line
-        if (terse_move_to(handle->terse, -1, 0) < 0) {
+        terse_cursor_position_t line_pos = terse_get_cursor_position(handle->terse);
+        int row = 0;
+        if (line_pos.known) {
+            row = line_pos.row;
+        } else if (saved_pos.known) {
+            row = saved_pos.row + 1 + (int)i;
+        }
+        if (terse_move_to(handle->terse, row, 0) < 0) {
             return -1;
         }
 
@@ -2396,6 +2420,7 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
     handle->display.terminal_width = 80;  // Will be updated from terse
     handle->display.terminal_height = 24;
     handle->display.start_row = 0;
+    handle->display.start_row_known = false;
 
     // Initialize input state
     handle->input_state.last_key_type = 0;
@@ -2476,6 +2501,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 
     // Reset display state for new readline session
     handle->display.start_row = 0;  // Will be set on first render
+    handle->display.start_row_known = false;
 
     // Update prompt if override is provided
     if (prompt_override) {
