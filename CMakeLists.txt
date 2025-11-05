@@ -10,8 +10,10 @@ include(CTest)
 # テストのデフォルト: トップレベルプロジェクトならON、サブプロジェクトならOFF
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 	option(TPROMPT_BUILD_TESTING "Build terse-prompt tests" ON)
+	option(TPROMPT_BUILD_EXAMPLES "Build terse-prompt examples" ON)
 else()
 	option(TPROMPT_BUILD_TESTING "Build terse-prompt tests" OFF)
+	option(TPROMPT_BUILD_EXAMPLES "Build terse-prompt examples" OFF)
 endif()
 
 # 既存のサブモジュールを追加
@@ -41,4 +43,9 @@ target_link_libraries(tprompt
 # テストの追加
 if(TPROMPT_BUILD_TESTING)
 	add_subdirectory(tests)
+endif()
+
+# Examples の追加
+if(TPROMPT_BUILD_EXAMPLES)
+	add_subdirectory(examples)
 endif()
