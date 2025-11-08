@@ -1,8 +1,8 @@
 ---
 name: general-purpose
 description: Fallback agent for tasks that don't clearly fit other specialized agents (uses Sonnet for safety)
+tools: Read, Write, Edit, Grep, Glob, Bash
 model: sonnet
-tools: [Read, Write, Edit, Grep, Glob, Bash]
 ---
 
 # General Purpose Agent (Sonnet)
