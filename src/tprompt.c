@@ -1614,7 +1614,11 @@ int tprompt_display_render(tprompt_handle_t handle)
     }
 
     // Clear all physical lines used by the input (including debug line)
-    for (size_t i = 0; i <= handle->display.total_physical_lines; i++) {
+    // Use the maximum of current and previous line counts to ensure orphaned lines are cleared
+    size_t lines_to_clear = handle->display.total_physical_lines > handle->display.prev_total_physical_lines
+                                ? handle->display.total_physical_lines
+                                : handle->display.prev_total_physical_lines;
+    for (size_t i = 0; i <= lines_to_clear; i++) {
         if (terse_move_to(handle->terse, base_row + (int)i, 0) < 0) {
             tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
                              "Failed to move cursor to clear line %zu", i);
@@ -1770,6 +1774,9 @@ int tprompt_display_render(tprompt_handle_t handle)
         terse_move_to(handle->terse, target_row, target_col);
         terse_flush(handle->terse);
     }
+
+    // Update previous line count for next redraw
+    handle->display.prev_total_physical_lines = handle->display.total_physical_lines;
 
     return 0;
 }
@@ -2681,6 +2688,7 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
     handle->display.physical_line = 0;
     handle->display.physical_column = 0;
     handle->display.total_physical_lines = 0;
+    handle->display.prev_total_physical_lines = 0;
     handle->display.terminal_width = 80;  // Will be updated from terse
     handle->display.terminal_height = 24;
     handle->display.start_row = 0;
