@@ -483,6 +483,19 @@ int tprompt_display_update_cursor(tprompt_handle_t handle);
 int tprompt_display_clear(tprompt_handle_t handle);
 
 /**
+ * @brief Get the width (in columns) of the continuation line marker
+ *
+ * The continuation marker is displayed on lines after the first logical line.
+ * Format: (prompt_width - 2) spaces + '|' + space
+ * The '|' aligns with the second-to-last character of the prompt.
+ * Example: "tprompt> " (9 chars) -> "       | " (7 spaces + | + space)
+ *
+ * @param handle Prompt handle
+ * @return Width of continuation marker in columns (same as prompt width, 0 if no prompt)
+ */
+size_t tprompt_get_continuation_marker_width(tprompt_handle_t handle);
+
+/**
  * @brief Render completion candidate list
  * @param handle Prompt handle
  * @return 0 on success, -1 on failure

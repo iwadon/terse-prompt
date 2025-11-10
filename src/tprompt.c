@@ -1365,6 +1365,11 @@ static void tprompt_calculate_physical_position(tprompt_handle_t handle, size_t 
             // Newline forces move to next physical line
             current_physical_line++;
             current_col = 0;
+
+            // Add continuation marker width
+            size_t marker_width = tprompt_get_continuation_marker_width(handle);
+            current_col += marker_width;
+
             i++;
             continue;
         }
@@ -1436,6 +1441,11 @@ static size_t tprompt_calculate_total_physical_lines(tprompt_handle_t handle)
             // Newline forces move to next physical line
             total_physical_lines++;
             current_col = 0;
+
+            // Add continuation marker width
+            size_t marker_width = tprompt_get_continuation_marker_width(handle);
+            current_col += marker_width;
+
             i++;
             continue;
         }
@@ -1462,6 +1472,26 @@ static size_t tprompt_calculate_total_physical_lines(tprompt_handle_t handle)
     }
 
     return total_physical_lines;
+}
+
+/**
+ * @brief Get the width of the continuation line marker
+ *
+ * Returns the width (in columns) of the continuation marker that should be
+ * displayed at the start of continuation lines (lines after the first logical line).
+ * The marker format is: spaces for (prompt_width - 2) + '|' + space
+ * For example, if prompt is "tprompt> " (9 chars), marker is "       | " (7 spaces + | + space)
+ * This aligns the '|' with the '>' in the prompt.
+ *
+ * @param handle Prompt handle
+ * @return Width in columns (same as prompt width), or 0 if no prompt
+ */
+size_t tprompt_get_continuation_marker_width(tprompt_handle_t handle)
+{
+    if (!handle || !handle->prompt) {
+        return 0;
+    }
+    return strlen(handle->prompt);
 }
 
 void tprompt_display_calculate_layout(tprompt_handle_t handle)
@@ -1594,22 +1624,47 @@ int tprompt_display_render(tprompt_handle_t handle)
     while (i < handle->buffer.length) {
         // Check for explicit newline character
         if (handle->buffer.data[i] == '\n') {
-            // Explicit newline: move to next physical line
-            if (terse_write_text(handle->terse, "\n") < 0) {
+            // Explicit newline: move to next physical line and return to column 0
+            if (terse_write_text(handle->terse, "\r\n") < 0) {
                 tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
                                  "Failed to write newline character at byte offset %zu", i);
                 return -1;
             }
             current_col = 0;
             first_logical_line = false;
+
+            // Write continuation marker on the new line
+            size_t marker_width = tprompt_get_continuation_marker_width(handle);
+            if (marker_width > 0) {
+                // Build continuation marker: spaces + '|' + space
+                // The '|' should align with the second-to-last character of the prompt
+                // Example: "tprompt> " (9 chars) -> "       | " (7 spaces + | + space)
+                char marker[256];
+                size_t spaces_before = marker_width >= 2 ? marker_width - 2 : 0;
+                if (spaces_before + 2 >= sizeof(marker)) {
+                    spaces_before = sizeof(marker) - 3;
+                }
+                memset(marker, ' ', spaces_before);
+                marker[spaces_before] = '|';
+                marker[spaces_before + 1] = ' ';
+                marker[spaces_before + 2] = '\0';
+
+                if (terse_write_text(handle->terse, marker) < 0) {
+                    tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                                     "Failed to write continuation marker");
+                    return -1;
+                }
+                current_col += marker_width;
+            }
+
             i++;
             continue;
         }
 
         // Check if we need to wrap to next line (auto-wrap)
         if (current_col >= terminal_width) {
-            // Move to next physical line
-            if (terse_write_text(handle->terse, "\n") < 0) {
+            // Move to next physical line and return to column 0
+            if (terse_write_text(handle->terse, "\r\n") < 0) {
                 tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
                                  "Failed to write auto-wrap newline at column %zu", current_col);
                 return -1;

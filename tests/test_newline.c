@@ -409,9 +409,10 @@ TEST(NewlinePhysicalLine, Layout_CursorAfterNewline)
     handle->buffer.cursor = 6;
     tprompt_display_calculate_layout(handle);
 
-    // Cursor should be at start of physical line 1
+    // Cursor should be at start of physical line 1, after continuation marker
+    // Continuation marker width = prompt width = 2 ("> ")
     EXPECT_EQ(handle->display.physical_line, 1);
-    EXPECT_EQ(handle->display.physical_column, 0);
+    EXPECT_EQ(handle->display.physical_column, 2);
 
     tprompt_close(handle);
 }

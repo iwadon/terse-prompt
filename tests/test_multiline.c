@@ -146,12 +146,12 @@ TEST(MultilineDisplay, CalculateLayout_UTF8Text)
     tprompt_handle_t handle = create_test_handle(80, 24);
     ASSERT_NE(handle, NULL);
 
-    // Insert UTF-8: "日本語" (3 chars, 9 bytes)
+    // Insert UTF-8: "日本語" (3 chars, 9 bytes, width 6 as full-width characters)
     tprompt_buffer_insert(&handle->buffer, "日本語", 9);
     tprompt_display_calculate_layout(handle);
 
-    // Should count as 3 character positions, not 9
-    EXPECT_EQ(handle->display.physical_column, 5);  // 2 (prompt) + 3 (chars)
+    // CJK characters are full-width (2 columns each): 3 chars × 2 width = 6 columns
+    EXPECT_EQ(handle->display.physical_column, 8);  // 2 (prompt) + 6 (char width)
 
     tprompt_close(handle);
 }
