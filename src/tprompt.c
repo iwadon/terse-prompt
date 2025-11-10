@@ -2018,7 +2018,32 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
         return 0;  // Continue editing
     }
 
-    // Handle Enter key behavior based on mode and modifiers
+    // Check custom keybindings first (takes precedence over default behavior)
+    int custom_action = tprompt_find_keybinding_action(handle, event);
+    if (custom_action != TPROMPT_ACTION_NONE) {
+        switch (custom_action) {
+            case TPROMPT_ACTION_CONFIRM_INPUT:
+                // Confirm input and return to caller
+                return 1;
+
+            case TPROMPT_ACTION_INSERT_NEWLINE:
+                // Insert newline at cursor position
+                if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
+                    tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+                                     "Failed to insert newline: buffer at %zu/%zu bytes",
+                                     handle->buffer.length, handle->buffer.size);
+                    return -1;
+                }
+                return 0;  // Continue editing
+
+            // Future actions can be added here
+            default:
+                // Unknown action, fall through to default behavior
+                break;
+        }
+    }
+
+    // Handle Enter key behavior based on mode and modifiers (default behavior)
     if (event->type == TERSE_EVENT_ENTER) {
         int mods = event->data.key.mods;
         bool is_multiline = (handle->options.flags & TPROMPT_FLAG_MULTILINE) != 0;
@@ -2113,6 +2138,126 @@ bool tprompt_buffer_has_newlines(tprompt_handle_t handle)
 
     // Check if buffer contains any newline characters
     return memchr(handle->buffer.data, '\n', handle->buffer.length) != NULL;
+}
+
+/* ========================================================================
+ * Custom Keybindings - Internal Helpers
+ * ======================================================================== */
+
+int tprompt_find_keybinding_action(tprompt_handle_t handle, const terse_event_t *event)
+{
+    if (!handle || !event || !handle->keybindings) {
+        return TPROMPT_ACTION_NONE;
+    }
+
+    for (size_t i = 0; i < handle->keybinding_count; i++) {
+        const tprompt_keybinding_t *kb = &handle->keybindings[i];
+
+        // Check key type match
+        if (kb->key != event->type) {
+            continue;
+        }
+
+        // Extract modifiers from event based on type
+        int event_mods = 0;
+        if (event->type == TERSE_EVENT_CHAR) {
+            event_mods = event->data.ch.mods;
+        } else if (event->type == TERSE_EVENT_FUNCTION) {
+            event_mods = event->data.function.mods;
+        } else {
+            // For other key types (ENTER, BACKSPACE, arrows, etc.)
+            event_mods = event->data.key.mods;
+        }
+
+        // Check modifier match
+        if (kb->modifiers != event_mods) {
+            continue;
+        }
+
+        // Event-type-specific matching
+        if (event->type == TERSE_EVENT_CHAR) {
+            // For character events, also match the scalar value
+            if (kb->data.scalar != event->data.ch.scalar) {
+                continue;
+            }
+        } else if (event->type == TERSE_EVENT_FUNCTION) {
+            // For function keys, match the function number
+            if (kb->data.function_num != event->data.function.number) {
+                continue;
+            }
+        }
+
+        // Match found!
+        return kb->action;
+    }
+
+    return TPROMPT_ACTION_NONE;
+}
+
+int tprompt_validate_keybindings(const tprompt_keybinding_t *bindings,
+                                 size_t count,
+                                 tprompt_error_info_t *error)
+{
+    // NULL bindings with count > 0 is a critical error
+    if (!bindings && count > 0) {
+        tprompt_set_error(error, TPROMPT_ERROR_INVALID_ARGS, 0,
+                         "NULL keybindings array with count > 0");
+        return -1;
+    }
+
+    // NULL or count == 0 is valid (means no custom bindings)
+    if (!bindings || count == 0) {
+        return 0;
+    }
+
+    int warning_count = 0;
+    char warning_msg[256] = {0};
+
+    for (size_t i = 0; i < count; i++) {
+        // Check for unknown/invalid action values
+        if (bindings[i].action < 0 || bindings[i].action > TPROMPT_ACTION_INSERT_NEWLINE) {
+            warning_count++;
+            snprintf(warning_msg, sizeof(warning_msg),
+                    "Warning: keybinding %zu has unknown action %d (will be ignored)",
+                    i, bindings[i].action);
+            // Just record warning, don't fail
+        }
+
+        // Check for duplicates
+        for (size_t j = i + 1; j < count; j++) {
+            if (bindings[i].key != bindings[j].key) {
+                continue;
+            }
+            if (bindings[i].modifiers != bindings[j].modifiers) {
+                continue;
+            }
+
+            // For CHAR and FUNCTION events, also check data field
+            bool is_duplicate = false;
+            if (bindings[i].key == TERSE_EVENT_CHAR) {
+                is_duplicate = (bindings[i].data.scalar == bindings[j].data.scalar);
+            } else if (bindings[i].key == TERSE_EVENT_FUNCTION) {
+                is_duplicate = (bindings[i].data.function_num == bindings[j].data.function_num);
+            } else {
+                // For other key types, key+modifiers is enough to determine duplicate
+                is_duplicate = true;
+            }
+
+            if (is_duplicate) {
+                warning_count++;
+                snprintf(warning_msg, sizeof(warning_msg),
+                        "Warning: duplicate keybinding at indices %zu and %zu", i, j);
+            }
+        }
+    }
+
+    // Record warnings in error info if any
+    if (warning_count > 0 && error) {
+        tprompt_set_error(error, TPROMPT_ERROR_NONE, 0,
+                         "%s (total %d warnings)", warning_msg, warning_count);
+    }
+
+    return 0;  // Success (warnings don't cause failure)
 }
 
 /* ========================================================================
@@ -2314,7 +2459,9 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
         .completion_user_data = NULL,
         .completion_prefixes = NULL,
         .terse_handle = NULL,
-        .flags = TPROMPT_FLAG_MULTILINE
+        .flags = TPROMPT_FLAG_MULTILINE,
+        .custom_keybindings = NULL,
+        .keybinding_count = 0
     };
 
     if (!options) {
@@ -2445,8 +2592,62 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
         return NULL;
     }
 
-    // Clear error
-    tprompt_clear_error(&handle->last_error);
+    // Copy and validate custom keybindings
+    handle->keybindings = NULL;
+    handle->keybinding_count = 0;
+    if (options->custom_keybindings && options->keybinding_count > 0) {
+        // Validate keybindings first
+        tprompt_error_info_t validation_error = {0};
+        if (tprompt_validate_keybindings(options->custom_keybindings,
+                                        options->keybinding_count,
+                                        &validation_error) != 0) {
+            // Critical validation error
+            tprompt_set_error(&tprompt_global_error, validation_error.category,
+                             validation_error.code, "%s", validation_error.message);
+            free(handle->prompt);
+            free(handle->completion_prefixes);
+            tprompt_completion_free(&handle->completion_state);
+            free(handle->history_file_path);
+            tprompt_history_free(&handle->history);
+            tprompt_buffer_free(&handle->buffer);
+            if (handle->owns_terse) {
+                terse_close(handle->terse);
+            }
+            free(handle);
+            return NULL;
+        }
+
+        // Copy keybindings array
+        size_t bindings_size = sizeof(tprompt_keybinding_t) * options->keybinding_count;
+        handle->keybindings = malloc(bindings_size);
+        if (!handle->keybindings) {
+            tprompt_set_error(&tprompt_global_error, TPROMPT_ERROR_MEMORY, errno,
+                             "Failed to allocate keybindings array");
+            free(handle->prompt);
+            free(handle->completion_prefixes);
+            tprompt_completion_free(&handle->completion_state);
+            free(handle->history_file_path);
+            tprompt_history_free(&handle->history);
+            tprompt_buffer_free(&handle->buffer);
+            if (handle->owns_terse) {
+                terse_close(handle->terse);
+            }
+            free(handle);
+            return NULL;
+        }
+        memcpy(handle->keybindings, options->custom_keybindings, bindings_size);
+        handle->keybinding_count = options->keybinding_count;
+
+        // Record any validation warnings in handle error info (non-fatal)
+        if (validation_error.category != TPROMPT_ERROR_NONE) {
+            handle->last_error = validation_error;
+        }
+    }
+
+    // Clear error if no warnings
+    if (handle->last_error.category == TPROMPT_ERROR_NONE) {
+        tprompt_clear_error(&handle->last_error);
+    }
 
     return handle;
 }
@@ -2467,6 +2668,7 @@ void tprompt_close(tprompt_handle_t handle)
     free(handle->history_file_path);
     free(handle->prompt);
     free(handle->completion_prefixes);
+    free(handle->keybindings);
 
     tprompt_completion_free(&handle->completion_state);
     tprompt_history_free(&handle->history);
@@ -2623,21 +2825,14 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
                 }
             }
         } else if (event.type == TERSE_EVENT_ENTER) {
-            // Enter key pressed - confirm input (or insert newline in multiline mode)
-            if (handle->options.flags & TPROMPT_FLAG_MULTILINE) {
-                // Check for Ctrl+Enter or Alt+Enter to submit
-                if (event.data.key.mods & (TERSE_MOD_CTRL | TERSE_MOD_ALT)) {
-                    break;  // Submit input
-                }
-                // Otherwise insert newline
-                if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
-                    tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-                                     "Failed to insert newline in multiline mode");
-                    return NULL;
-                }
-            } else {
-                break;  // Single-line mode: Enter always submits
+            // Handle Enter key through tprompt_handle_key_event (supports custom keybindings)
+            int key_result = tprompt_handle_key_event(handle, &event);
+            if (key_result == 1) {
+                break;  // Confirm input
+            } else if (key_result == -1) {
+                return NULL;  // Error
             }
+            // key_result == 0: continue editing (newline was inserted)
         } else if (event.type == TERSE_EVENT_BACKSPACE) {
             tprompt_buffer_delete_before(&handle->buffer, 1);
         } else if (event.type == TERSE_EVENT_DELETE) {
@@ -2824,6 +3019,52 @@ void tprompt_free_completion_result(tprompt_completion_result_t *result)
     }
 
     result->count = 0;
+}
+
+/* ========================================================================
+ * Public API - Framework: Keybindings
+ * ======================================================================== */
+
+int tprompt_set_keybindings(tprompt_handle_t handle,
+                           const tprompt_keybinding_t *bindings,
+                           size_t count)
+{
+    if (!handle) {
+        return -1;
+    }
+
+    // Clear error
+    tprompt_clear_error(&handle->last_error);
+
+    // Validate keybindings
+    if (tprompt_validate_keybindings(bindings, count, &handle->last_error) != 0) {
+        // Critical validation error
+        return -1;
+    }
+
+    // Free existing keybindings
+    free(handle->keybindings);
+    handle->keybindings = NULL;
+    handle->keybinding_count = 0;
+
+    // If NULL or count == 0, we're done (cleared custom bindings)
+    if (!bindings || count == 0) {
+        return 0;
+    }
+
+    // Allocate and copy new keybindings
+    size_t bindings_size = sizeof(tprompt_keybinding_t) * count;
+    handle->keybindings = malloc(bindings_size);
+    if (!handle->keybindings) {
+        tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+                         "Failed to allocate keybindings array");
+        return -1;
+    }
+
+    memcpy(handle->keybindings, bindings, bindings_size);
+    handle->keybinding_count = count;
+
+    return 0;
 }
 
 /* ========================================================================

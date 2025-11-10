@@ -15,11 +15,15 @@
 static void print_usage(void) {
     printf("terse-prompt Advanced Demo\n");
     printf("===========================\n");
-    printf("This demo uses the tprompt framework API with history.\n\n");
+    printf("This demo uses the tprompt framework API with custom keybindings.\n\n");
     printf("Commands:\n");
     printf("  help   - Show this help\n");
     printf("  clear  - Clear screen (placeholder)\n");
     printf("  quit   - Exit the demo\n");
+    printf("\nKeybindings:\n");
+    printf("  Enter        - Confirm input and submit\n");
+    printf("  Shift+Enter  - Insert newline\n");
+    printf("  Ctrl+J       - Insert newline\n");
     printf("\nHistory:\n");
     printf("  Use Up/Down arrows to navigate history\n");
     printf("  History is saved to 'demo_history.txt'\n\n");
@@ -27,6 +31,14 @@ static void print_usage(void) {
 
 int main(void) {
     print_usage();
+
+    // Define custom keybindings
+    // Enter to confirm, Shift+Enter to insert newline, Ctrl+J also inserts newline
+    tprompt_keybinding_t custom_bindings[] = {
+        TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
+        TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, TERSE_MOD_SHIFT, TPROMPT_ACTION_INSERT_NEWLINE),
+        TPROMPT_BIND_CHAR('J', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),
+    };
 
     // Configure tprompt with custom options
     tprompt_options_t options = {
@@ -38,7 +50,9 @@ int main(void) {
         .completion_user_data = NULL,
         .completion_prefixes = NULL,
         .terse_handle = NULL,  // Let tprompt create its own
-        .flags = 0  // Single-line mode (Enter submits input)
+        .flags = TPROMPT_FLAG_MULTILINE,  // Multi-line mode
+        .custom_keybindings = custom_bindings,
+        .keybinding_count = 3
     };
 
     // Open tprompt handle

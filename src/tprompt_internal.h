@@ -127,6 +127,10 @@ struct tprompt_handle {
     /* Input state */
     tprompt_input_state_t input_state; /**< Input state for key sequence tracking */
 
+    /* Keybindings */
+    tprompt_keybinding_t *keybindings;  /**< Custom keybindings array (dynamically allocated) */
+    size_t keybinding_count;            /**< Number of custom keybindings */
+
     /* Configuration */
     tprompt_options_t options;   /**< Copy of options */
 
@@ -543,6 +547,41 @@ bool tprompt_is_completion_trigger(tprompt_handle_t handle, char ch);
  * @return true if buffer contains newlines, false otherwise
  */
 bool tprompt_buffer_has_newlines(tprompt_handle_t handle);
+
+/* ========================================================================
+ * Internal Helper Functions - Custom Keybindings
+ * ======================================================================== */
+
+/**
+ * @brief Find keybinding action for a given event
+ *
+ * Searches the custom keybindings array for a matching event.
+ * Returns the action if found, or TPROMPT_ACTION_NONE if not found.
+ *
+ * @param handle Prompt handle
+ * @param event Terse event to match
+ * @return Action code (TPROMPT_ACTION_*) or TPROMPT_ACTION_NONE
+ */
+int tprompt_find_keybinding_action(tprompt_handle_t handle, const terse_event_t *event);
+
+/**
+ * @brief Validate keybindings array
+ *
+ * Checks for:
+ * - NULL bindings with count > 0 (error)
+ * - Duplicate bindings (warning)
+ * - Unknown action values (warning)
+ *
+ * Warnings are recorded in error info but do not cause failure.
+ *
+ * @param bindings Keybindings array to validate
+ * @param count Number of keybindings
+ * @param error Error info structure to populate
+ * @return 0 on success, -1 on critical error (NULL bindings with count > 0)
+ */
+int tprompt_validate_keybindings(const tprompt_keybinding_t *bindings,
+                                 size_t count,
+                                 tprompt_error_info_t *error);
 
 /* ========================================================================
  * Internal Helper Functions - Phase 6 Keybinding Handlers

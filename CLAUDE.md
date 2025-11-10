@@ -145,6 +145,42 @@ terse-prompt delegates terminal control to the terse library:
 
 **Display Strategy**: Calculate layout based on terminal width, render with wrapping.
 
+### Custom Keybindings
+
+**Architecture**: Flexible keybinding system for customizing input confirmation and newline insertion
+- **Default behavior**: Multiline mode uses Enter for newline, Ctrl/Alt+Enter for confirmation
+- **Custom bindings**: Override with `tprompt_keybinding_t` array in `tprompt_options_t`
+- **Runtime modification**: `tprompt_set_keybindings()` allows dynamic changes
+
+**Key Features**:
+- **Partial override**: Custom bindings only override specified keys, others use defaults
+- **Event matching**: Supports special keys (Enter, Tab, etc.), character keys (with Ctrl/Alt), and function keys
+- **Helper macros**: `TPROMPT_BIND_KEY()`, `TPROMPT_BIND_CHAR()`, `TPROMPT_BIND_FUNCTION()` for easy initialization
+- **Validation**: Duplicate bindings and unknown actions trigger warnings but don't fail
+
+**Actions**:
+- `TPROMPT_ACTION_CONFIRM_INPUT`: Submit input and return to caller
+- `TPROMPT_ACTION_INSERT_NEWLINE`: Insert newline at cursor
+- Future: Completion, cancellation, history navigation
+
+**Example**:
+```c
+tprompt_keybinding_t bindings[] = {
+    TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),           // Enter = confirm
+    TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, TERSE_MOD_SHIFT, TPROMPT_ACTION_INSERT_NEWLINE),  // Shift+Enter = newline
+    TPROMPT_BIND_CHAR('J', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),          // Ctrl+J = newline
+};
+
+tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
+opts.custom_keybindings = bindings;
+opts.keybinding_count = 3;
+```
+
+**Implementation Details**:
+- **Search order**: Custom bindings checked before default behavior in `tprompt_handle_key_event()`
+- **Matching logic**: Key type + modifiers + (scalar for CHAR, function number for FUNCTION)
+- **Memory management**: Array deep-copied in `tprompt_open()`, freed in `tprompt_close()`
+
 ### Error Handling
 
 **Two-Level Error Reporting**:

@@ -37,6 +37,11 @@ typedef struct tprompt_handle *tprompt_handle_t;
 typedef struct tprompt_completion_result tprompt_completion_result_t;
 
 /**
+ * @brief Forward declaration for keybinding structure
+ */
+typedef struct tprompt_keybinding tprompt_keybinding_t;
+
+/**
  * @brief Completion callback function type
  *
  * @param text Current input text (entire buffer)
@@ -57,6 +62,32 @@ typedef tprompt_completion_result_t (*tprompt_completion_fn)(
 );
 
 /**
+ * @brief Keybinding structure for custom key actions
+ *
+ * Allows customization of key behavior such as input confirmation and newline insertion.
+ * Use helper macros (TPROMPT_BIND_KEY, TPROMPT_BIND_CHAR, TPROMPT_BIND_FUNCTION) for
+ * easier initialization.
+ *
+ * Example:
+ * @code
+ * tprompt_keybinding_t bindings[] = {
+ *     TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
+ *     TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, TERSE_MOD_SHIFT, TPROMPT_ACTION_INSERT_NEWLINE),
+ *     TPROMPT_BIND_CHAR('J', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),
+ * };
+ * @endcode
+ */
+struct tprompt_keybinding {
+    terse_event_type_t key;    /**< Key type (TERSE_EVENT_ENTER, TERSE_EVENT_CHAR, etc.) */
+    int modifiers;             /**< Modifier keys (TERSE_MOD_SHIFT, TERSE_MOD_CTRL, etc., 0 = none) */
+    union {
+        unsigned int scalar;   /**< For TERSE_EVENT_CHAR: Unicode code point (e.g., 'J' = 0x4A) */
+        int function_num;      /**< For TERSE_EVENT_FUNCTION: Function key number (F1=1, F2=2, etc.) */
+    } data;
+    int action;                /**< Action to perform (TPROMPT_ACTION_*) */
+};
+
+/**
  * @brief Options structure for tprompt_open()
  */
 typedef struct tprompt_options {
@@ -69,6 +100,8 @@ typedef struct tprompt_options {
     const char *completion_prefixes;     /**< Completion trigger chars (e.g., "/@", NULL = disabled) */
     terse_handle_t terse_handle;         /**< Existing terse handle (NULL = auto-create) */
     int flags;                           /**< Behavior flags (TPROMPT_FLAG_*) */
+    const tprompt_keybinding_t *custom_keybindings; /**< Custom keybindings array (NULL = use defaults) */
+    size_t keybinding_count;             /**< Number of custom keybindings */
 } tprompt_options_t;
 
 /**
@@ -121,6 +154,58 @@ typedef struct tprompt_error_info {
  */
 #define TPROMPT_FLAG_NO_AUTO_SAVE     (1 << 2)
 
+/* ========================================================================
+ * Keybinding Actions
+ * ======================================================================== */
+
+/**
+ * @brief No action (use default behavior)
+ */
+#define TPROMPT_ACTION_NONE           0
+
+/**
+ * @brief Confirm input and return to caller
+ */
+#define TPROMPT_ACTION_CONFIRM_INPUT  1
+
+/**
+ * @brief Insert newline at cursor position
+ */
+#define TPROMPT_ACTION_INSERT_NEWLINE 2
+
+/* Future expansion: TPROMPT_ACTION_CANCEL, TPROMPT_ACTION_COMPLETE, etc. */
+
+/* ========================================================================
+ * Keybinding Helper Macros
+ * ======================================================================== */
+
+/**
+ * @brief Helper macro to bind a special key (Enter, Tab, arrows, etc.)
+ * @param event Key event type (e.g., TERSE_EVENT_ENTER)
+ * @param mods Modifier keys (e.g., TERSE_MOD_SHIFT, 0 for none)
+ * @param act Action to perform (e.g., TPROMPT_ACTION_CONFIRM_INPUT)
+ */
+#define TPROMPT_BIND_KEY(event, mods, act) \
+    { (event), (mods), { .scalar = 0 }, (act) }
+
+/**
+ * @brief Helper macro to bind a character key
+ * @param ch Character code point (e.g., 'J', 'a')
+ * @param mods Modifier keys (e.g., TERSE_MOD_CTRL)
+ * @param act Action to perform (e.g., TPROMPT_ACTION_INSERT_NEWLINE)
+ */
+#define TPROMPT_BIND_CHAR(ch, mods, act) \
+    { TERSE_EVENT_CHAR, (mods), { .scalar = (ch) }, (act) }
+
+/**
+ * @brief Helper macro to bind a function key (F1-F12)
+ * @param num Function key number (1 for F1, 2 for F2, etc.)
+ * @param mods Modifier keys (e.g., TERSE_MOD_CTRL)
+ * @param act Action to perform
+ */
+#define TPROMPT_BIND_FUNCTION(num, mods, act) \
+    { TERSE_EVENT_FUNCTION, (mods), { .function_num = (num) }, (act) }
+
 /**
  * @brief Default options initializer
  */
@@ -133,7 +218,9 @@ typedef struct tprompt_error_info {
     .completion_user_data = NULL, \
     .completion_prefixes = NULL, \
     .terse_handle = NULL, \
-    .flags = TPROMPT_FLAG_MULTILINE \
+    .flags = TPROMPT_FLAG_MULTILINE, \
+    .custom_keybindings = NULL, \
+    .keybinding_count = 0 \
 }
 
 /* ========================================================================
@@ -353,6 +440,41 @@ int tprompt_set_completion_prefixes(tprompt_handle_t handle, const char *prefixe
  * @param result Completion result to free
  */
 void tprompt_free_completion_result(tprompt_completion_result_t *result);
+
+/* ========================================================================
+ * Framework API - Keybindings
+ * ======================================================================== */
+
+/**
+ * @brief Set custom keybindings at runtime
+ *
+ * Updates the custom keybindings for the session. This allows dynamic
+ * modification of key behavior during runtime.
+ *
+ * The keybindings array is copied internally, so the caller may free
+ * the original array after this call.
+ *
+ * If validation warnings occur (duplicate bindings, unknown actions),
+ * they are recorded in the error info but the function still succeeds.
+ * Invalid bindings are simply ignored.
+ *
+ * @param handle Session handle
+ * @param bindings Array of keybindings (NULL to clear custom bindings)
+ * @param count Number of keybindings (0 with NULL bindings clears)
+ * @return 0 on success, -1 on failure (NULL handle or NULL bindings with count > 0)
+ *
+ * Example:
+ * @code
+ * tprompt_keybinding_t new_bindings[] = {
+ *     TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
+ *     TPROMPT_BIND_CHAR('J', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),
+ * };
+ * tprompt_set_keybindings(handle, new_bindings, 2);
+ * @endcode
+ */
+int tprompt_set_keybindings(tprompt_handle_t handle,
+                           const tprompt_keybinding_t *bindings,
+                           size_t count);
 
 /* ========================================================================
  * Framework API - Error Handling
