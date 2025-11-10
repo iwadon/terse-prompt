@@ -1585,7 +1585,8 @@ int tprompt_display_render(tprompt_handle_t handle)
     // Check if rendering would exceed terminal boundaries
     // If so, we need to scroll the terminal to make room
     size_t terminal_height = handle->display.terminal_height;
-    size_t lines_needed = handle->display.total_physical_lines;
+    // Account for debug line: total_physical_lines + 1
+    size_t lines_needed = handle->display.total_physical_lines + 1;
     int last_row = base_row + (int)lines_needed - 1;
 
     if (last_row >= (int)terminal_height) {
@@ -1612,8 +1613,8 @@ int tprompt_display_render(tprompt_handle_t handle)
         base_row = handle->display.start_row;
     }
 
-    // Clear all physical lines used by the input
-    for (size_t i = 0; i < handle->display.total_physical_lines; i++) {
+    // Clear all physical lines used by the input (including debug line)
+    for (size_t i = 0; i <= handle->display.total_physical_lines; i++) {
         if (terse_move_to(handle->terse, base_row + (int)i, 0) < 0) {
             tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
                              "Failed to move cursor to clear line %zu", i);
@@ -1741,6 +1742,27 @@ int tprompt_display_render(tprompt_handle_t handle)
         if (tprompt_display_render_completion(handle) != 0) {
             return -1;
         }
+    }
+
+    // DEBUG: Display cursor position
+    // Move to debug line (one line below the last input line)
+    int debug_row = base_row + (int)handle->display.total_physical_lines;
+    if (terse_move_to(handle->terse, debug_row, 0) < 0) {
+        // If we can't move to debug line, skip debug output
+    } else {
+        // Clear the debug line
+        terse_clear_line(handle->terse, TERSE_CLEAR_ALL);
+
+        // Write debug info
+        char debug_info[128];
+        int target_col = (int)handle->display.physical_column;
+        snprintf(debug_info, sizeof(debug_info), "x=%d y=%d", target_col, (int)handle->display.physical_line);
+        terse_write_text(handle->terse, debug_info);
+
+        // Return cursor to target position
+        int target_row = base_row + (int)handle->display.physical_line;
+        terse_move_to(handle->terse, target_row, target_col);
+        terse_flush(handle->terse);
     }
 
     return 0;
