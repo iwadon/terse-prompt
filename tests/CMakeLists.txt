@@ -7,6 +7,10 @@ target_include_directories(test_basic PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
+target_compile_definitions(test_basic PRIVATE
+    _POSIX_C_SOURCE=200809L
+)
+
 target_link_libraries(test_basic PRIVATE
     tprompt
     attest
@@ -21,6 +25,10 @@ add_executable(test_history
 
 target_include_directories(test_history PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(test_history PRIVATE
+    _POSIX_C_SOURCE=200809L
 )
 
 target_link_libraries(test_history PRIVATE
@@ -39,6 +47,10 @@ target_include_directories(test_completion PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
+target_compile_definitions(test_completion PRIVATE
+    _POSIX_C_SOURCE=200809L
+)
+
 target_link_libraries(test_completion PRIVATE
     tprompt
     attest
@@ -53,6 +65,10 @@ add_executable(test_multiline
 
 target_include_directories(test_multiline PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(test_multiline PRIVATE
+    _POSIX_C_SOURCE=200809L
 )
 
 target_link_libraries(test_multiline PRIVATE
@@ -71,6 +87,10 @@ target_include_directories(test_newline PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
+target_compile_definitions(test_newline PRIVATE
+    _POSIX_C_SOURCE=200809L
+)
+
 target_link_libraries(test_newline PRIVATE
     tprompt
     attest
@@ -85,6 +105,10 @@ add_executable(test_keybindings
 
 target_include_directories(test_keybindings PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(test_keybindings PRIVATE
+    _POSIX_C_SOURCE=200809L
 )
 
 target_link_libraries(test_keybindings PRIVATE
