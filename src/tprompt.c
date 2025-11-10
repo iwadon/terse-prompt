@@ -1582,6 +1582,36 @@ int tprompt_display_render(tprompt_handle_t handle)
         }
     }
 
+    // Check if rendering would exceed terminal boundaries
+    // If so, we need to scroll the terminal to make room
+    size_t terminal_height = handle->display.terminal_height;
+    size_t lines_needed = handle->display.total_physical_lines;
+    int last_row = base_row + (int)lines_needed - 1;
+
+    if (last_row >= (int)terminal_height) {
+        // Calculate how many lines we need to scroll
+        int scroll_count = last_row - (int)terminal_height + 1;
+
+        // Move to bottom of terminal and write newlines to force scrolling
+        if (terse_move_to(handle->terse, (int)terminal_height - 1, 0) < 0) {
+            tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                             "Failed to move cursor to bottom for scrolling");
+            return -1;
+        }
+
+        for (int i = 0; i < scroll_count; i++) {
+            if (terse_write_text(handle->terse, "\r\n") < 0) {
+                tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+                                 "Failed to write newline for scrolling");
+                return -1;
+            }
+        }
+
+        // Adjust start_row to account for the scroll
+        handle->display.start_row -= scroll_count;
+        base_row = handle->display.start_row;
+    }
+
     // Clear all physical lines used by the input
     for (size_t i = 0; i < handle->display.total_physical_lines; i++) {
         if (terse_move_to(handle->terse, base_row + (int)i, 0) < 0) {
