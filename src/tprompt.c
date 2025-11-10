@@ -40,6 +40,8 @@ tprompt_error_info_t tprompt_global_error = {
  * ======================================================================== */
 
 static size_t tprompt_calculate_cursor_col(tprompt_handle_t handle);
+static void tprompt_calculate_physical_position(tprompt_handle_t handle, size_t byte_offset,
+	bool include_prompt, size_t *out_physical_line, size_t *out_physical_col);
 
 /* ========================================================================
  * Error Handling - Internal Helpers
@@ -574,6 +576,137 @@ int tprompt_cursor_move_down(tprompt_handle_t handle)
 		}
 		target_offset += char_len;
 		current_col++;
+	}
+
+	handle->buffer.cursor = target_offset;
+	return 0;
+}
+
+/**
+ * @brief Move cursor to start of current physical line
+ *
+ * Finds the byte offset where the current physical (screen) line starts,
+ * accounting for both terminal wrapping and explicit newlines.
+ *
+ * Algorithm:
+ * 1. Calculate current physical line and column position
+ * 2. Walk backward through buffer to find start of physical line:
+ *    - Stop at explicit newline (next char is start of physical line)
+ *    - Stop when column reaches 0 (wrapped to this line)
+ * 3. Move cursor to that position
+ *
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_cursor_move_to_physical_line_start(tprompt_handle_t handle)
+{
+	if (!handle) {
+		return -1;
+	}
+
+	// Get current physical position
+	size_t current_phys_line, current_phys_col;
+	tprompt_calculate_physical_position(handle, handle->buffer.cursor, true,
+		&current_phys_line, &current_phys_col);
+
+	// If already at column 0, we're at the start of the physical line
+	if (current_phys_col == 0) {
+		return 0;
+	}
+
+	// Walk backward through buffer to find where this physical line starts
+	size_t terminal_width = handle->display.terminal_width;
+	if (terminal_width == 0) {
+		terminal_width = 80;
+	}
+
+	const char *data = handle->buffer.data;
+	size_t target_offset = handle->buffer.cursor;
+
+	// Move backward character by character, recalculating position each time
+	while (target_offset > 0) {
+		size_t prev_offset = tprompt_utf8_prev_char(data, target_offset);
+
+		// Check physical position at prev_offset
+		size_t phys_line, phys_col;
+		tprompt_calculate_physical_position(handle, prev_offset, true,
+			&phys_line, &phys_col);
+
+		// If we moved to a different physical line, stop
+		if (phys_line < current_phys_line) {
+			break;
+		}
+
+		target_offset = prev_offset;
+	}
+
+	handle->buffer.cursor = target_offset;
+	return 0;
+}
+
+/**
+ * @brief Move cursor to end of current physical line
+ *
+ * Finds the byte offset where the current physical (screen) line ends,
+ * accounting for both terminal wrapping and explicit newlines.
+ *
+ * Algorithm:
+ * 1. Calculate current physical line position
+ * 2. Walk forward through buffer until:
+ *    - Hit explicit newline (end of physical line)
+ *    - Column reaches terminal width (end before wrap)
+ *    - Reach end of buffer
+ * 3. Move cursor to that position
+ *
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_cursor_move_to_physical_line_end(tprompt_handle_t handle)
+{
+	if (!handle) {
+		return -1;
+	}
+
+	// Get current physical position
+	size_t current_phys_line, current_phys_col;
+	tprompt_calculate_physical_position(handle, handle->buffer.cursor, true,
+		&current_phys_line, &current_phys_col);
+
+	// Walk forward through buffer to find where this physical line ends
+	size_t terminal_width = handle->display.terminal_width;
+	if (terminal_width == 0) {
+		terminal_width = 80;
+	}
+
+	const char *data = handle->buffer.data;
+	size_t target_offset = handle->buffer.cursor;
+	size_t buffer_length = handle->buffer.length;
+
+	// Move forward character by character
+	while (target_offset < buffer_length) {
+		// Check if next character is newline (end of physical line)
+		if (data[target_offset] == '\n') {
+			break;
+		}
+
+		// Move to next character
+		size_t char_len = tprompt_utf8_char_length((unsigned char)data[target_offset]);
+		if (char_len == 0) {
+			char_len = 1;
+		}
+		size_t next_offset = target_offset + char_len;
+
+		// Check physical position at next_offset
+		size_t phys_line, phys_col;
+		tprompt_calculate_physical_position(handle, next_offset, true,
+			&phys_line, &phys_col);
+
+		// If we moved to a different physical line, stop (don't include wrap point)
+		if (phys_line > current_phys_line) {
+			break;
+		}
+
+		target_offset = next_offset;
 	}
 
 	handle->buffer.cursor = target_offset;
@@ -2098,17 +2231,17 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 	}
 
 	// Handle Home key - staged movement (Claude Code style)
-	// First press: move to logical line start, second press: move to buffer start
+	// First press: move to physical line start, second press: move to logical line start
 	if (event->type == TERSE_EVENT_HOME) {
 		// Check if this is a consecutive Home press
 		bool is_consecutive = (handle->input_state.last_key_type == TERSE_EVENT_HOME && handle->input_state.last_cursor_pos == handle->buffer.cursor);
 
-		if (is_consecutive || handle->buffer.cursor == 0) {
-			// Second press OR already at start: move to buffer start
-			tprompt_cursor_move_to_start(&handle->buffer);
-		} else {
-			// First press: move to logical line start
+		if (is_consecutive) {
+			// Second press: move to logical line start
 			tprompt_cursor_move_to_logical_line_start(handle);
+		} else {
+			// First press: move to physical line start
+			tprompt_cursor_move_to_physical_line_start(handle);
 		}
 
 		// Update input state for next key press
@@ -2119,17 +2252,17 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 	}
 
 	// Handle End key - staged movement (Claude Code style)
-	// First press: move to logical line end, second press: move to buffer end
+	// First press: move to physical line end, second press: move to logical line end
 	if (event->type == TERSE_EVENT_END) {
 		// Check if this is a consecutive End press
 		bool is_consecutive = (handle->input_state.last_key_type == TERSE_EVENT_END && handle->input_state.last_cursor_pos == handle->buffer.cursor);
 
-		if (is_consecutive || handle->buffer.cursor == handle->buffer.length) {
-			// Second press OR already at end: move to buffer end
-			tprompt_cursor_move_to_end(&handle->buffer);
-		} else {
-			// First press: move to logical line end
+		if (is_consecutive) {
+			// Second press: move to logical line end
 			tprompt_cursor_move_to_logical_line_end(handle);
+		} else {
+			// First press: move to physical line end
+			tprompt_cursor_move_to_physical_line_end(handle);
 		}
 
 		// Update input state for next key press
@@ -2224,6 +2357,21 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 	// Handle delete key
 	if (event->type == TERSE_EVENT_DELETE) {
 		tprompt_buffer_delete_at(&handle->buffer, 1);
+		handle->input_state.last_key_type = event->type;
+		handle->input_state.last_cursor_pos = handle->buffer.cursor;
+		handle->input_state.has_goal_column = false;
+		return 0;
+	}
+
+	// Handle Tab key (when completion is not active)
+	if (event->type == TERSE_EVENT_TAB) {
+		// Insert tab character
+		if (tprompt_buffer_insert(&handle->buffer, "\t", 1) != 0) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+				"Failed to insert tab character: buffer at %zu/%zu bytes",
+				handle->buffer.length, handle->buffer.size);
+			return -1;
+		}
 		handle->input_state.last_key_type = event->type;
 		handle->input_state.last_cursor_pos = handle->buffer.cursor;
 		handle->input_state.has_goal_column = false;
@@ -2956,7 +3104,8 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 				}
 				utf8_buf[len] = '\0';
 
-				if (tprompt_buffer_insert(&handle->buffer, utf8_buf, len) != 0) {
+				// Use char input handler for completion trigger detection
+				if (tprompt_handle_char_input(handle, utf8_buf, event.data.ch.width) != 0) {
 					tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
 						"Failed to insert character (scalar=0x%X) into buffer", scalar);
 					return NULL;
@@ -2997,21 +3146,55 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 		} else if (event.type == TERSE_EVENT_ARROW_DOWN) {
 			tprompt_cursor_move_down(handle);
 		} else if (event.type == TERSE_EVENT_HOME) {
-			// TODO: Implement staged Home key behavior (physical -> logical line start)
-			tprompt_cursor_move_to_start(&handle->buffer);
+			// Staged Home key behavior (Claude Code style)
+			// First press: move to physical line start, second press: move to logical line start
+			bool is_consecutive = (handle->input_state.last_key_type == TERSE_EVENT_HOME && handle->input_state.last_cursor_pos == handle->buffer.cursor);
+
+			if (is_consecutive) {
+				// Second press: move to logical line start
+				tprompt_cursor_move_to_logical_line_start(handle);
+			} else {
+				// First press: move to physical line start
+				tprompt_cursor_move_to_physical_line_start(handle);
+			}
+
+			// Update input state for next key press
+			handle->input_state.last_key_type = event.type;
+			handle->input_state.last_cursor_pos = handle->buffer.cursor;
 			handle->input_state.has_goal_column = false;
 		} else if (event.type == TERSE_EVENT_END) {
-			// TODO: Implement staged End key behavior (physical -> logical line end)
-			tprompt_cursor_move_to_end(&handle->buffer);
+			// Staged End key behavior (Claude Code style)
+			// First press: move to physical line end, second press: move to logical line end
+			bool is_consecutive = (handle->input_state.last_key_type == TERSE_EVENT_END && handle->input_state.last_cursor_pos == handle->buffer.cursor);
+
+			if (is_consecutive) {
+				// Second press: move to logical line end
+				tprompt_cursor_move_to_logical_line_end(handle);
+			} else {
+				// First press: move to physical line end
+				tprompt_cursor_move_to_physical_line_end(handle);
+			}
+
+			// Update input state for next key press
+			handle->input_state.last_key_type = event.type;
+			handle->input_state.last_cursor_pos = handle->buffer.cursor;
 			handle->input_state.has_goal_column = false;
 		} else if (event.type == TERSE_EVENT_TAB) {
-			// TODO: Implement completion trigger
-			// For now, just insert tab character
-			if (tprompt_buffer_insert(&handle->buffer, "\t", 1) != 0) {
-				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-					"Failed to insert tab character into buffer");
-				return NULL;
+			// Handle Tab key through tprompt_handle_key_event (supports completion)
+			int key_result = tprompt_handle_key_event(handle, &event);
+			if (key_result == 1) {
+				break; // Confirm input (shouldn't happen for Tab, but handle it)
+			} else if (key_result == -1) {
+				return NULL; // Error
 			}
+			// key_result == 0: Tab was handled (completion confirmed or tab inserted)
+		}
+
+		// Track last event for staging behavior (unless already tracked by Home/End handlers)
+		// Only track if not already set by Home/End key handlers
+		if (event.type != TERSE_EVENT_HOME && event.type != TERSE_EVENT_END) {
+			handle->input_state.last_key_type = event.type;
+			handle->input_state.last_cursor_pos = handle->buffer.cursor;
 		}
 
 		// Re-render display after each event
@@ -3109,7 +3292,31 @@ void tprompt_history_set_max_size(tprompt_handle_t handle, size_t max_size)
 
 	handle->history.max_size = max_size;
 
-	// TODO: Trim history if current count exceeds new max
+	// Trim history if current count exceeds new max_size
+	while (handle->history.max_size > 0 && handle->history.count > handle->history.max_size) {
+		if (!handle->history.tail) {
+			break; // Safety check
+		}
+
+		tprompt_history_entry_t *old_tail = handle->history.tail;
+		handle->history.tail = old_tail->prev;
+
+		if (handle->history.tail) {
+			handle->history.tail->next = NULL;
+		} else {
+			// List became empty
+			handle->history.head = NULL;
+		}
+
+		free(old_tail->text);
+		free(old_tail);
+		handle->history.count--;
+	}
+
+	// Reset navigation position if history became empty
+	if (handle->history.count == 0) {
+		handle->history.current = NULL;
+	}
 }
 
 /* ========================================================================

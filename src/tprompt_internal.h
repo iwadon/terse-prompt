@@ -290,6 +290,20 @@ int tprompt_cursor_move_up(tprompt_handle_t handle);
  */
 int tprompt_cursor_move_down(tprompt_handle_t handle);
 
+/**
+ * @brief Move cursor to start of current physical line
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_cursor_move_to_physical_line_start(tprompt_handle_t handle);
+
+/**
+ * @brief Move cursor to end of current physical line
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_cursor_move_to_physical_line_end(tprompt_handle_t handle);
+
 /* ========================================================================
  * Internal Helper Functions - History Management
  * ======================================================================== */
