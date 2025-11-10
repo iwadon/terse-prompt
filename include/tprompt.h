@@ -55,11 +55,10 @@ typedef struct tprompt_keybinding tprompt_keybinding_t;
  * - terse-prompt frees them using tprompt_free_completion_result()
  */
 typedef tprompt_completion_result_t (*tprompt_completion_fn)(
-    const char *text,
-    size_t cursor_pos,
-    const char *prefix_char,
-    void *user_data
-);
+	const char *text,
+	size_t cursor_pos,
+	const char *prefix_char,
+	void *user_data);
 
 /**
  * @brief Keybinding structure for custom key actions
@@ -81,61 +80,61 @@ typedef tprompt_completion_result_t (*tprompt_completion_fn)(
  * @endcode
  */
 struct tprompt_keybinding {
-    terse_event_type_t key;    /**< Key type (TERSE_EVENT_ENTER, TERSE_EVENT_CHAR, etc.) */
-    int modifiers;             /**< Modifier keys (TERSE_MOD_SHIFT, TERSE_MOD_CTRL, etc., 0 = none) */
-    union {
-        unsigned int scalar;   /**< For TERSE_EVENT_CHAR: Unicode code point (e.g., 'J' = 0x4A) */
-        int function_num;      /**< For TERSE_EVENT_FUNCTION: Function key number (F1=1, F2=2, etc.) */
-    } data;
-    int action;                /**< Action to perform (TPROMPT_ACTION_*) */
+	terse_event_type_t key; /**< Key type (TERSE_EVENT_ENTER, TERSE_EVENT_CHAR, etc.) */
+	int modifiers;			/**< Modifier keys (TERSE_MOD_SHIFT, TERSE_MOD_CTRL, etc., 0 = none) */
+	union {
+		unsigned int scalar; /**< For TERSE_EVENT_CHAR: Unicode code point (e.g., 'J' = 0x4A) */
+		int function_num;	 /**< For TERSE_EVENT_FUNCTION: Function key number (F1=1, F2=2, etc.) */
+	} data;
+	int action; /**< Action to perform (TPROMPT_ACTION_*) */
 };
 
 /**
  * @brief Options structure for tprompt_open()
  */
 typedef struct tprompt_options {
-    const char *prompt;                  /**< Prompt string (NULL = "> ") */
-    const char *history_file;            /**< History file path (NULL = memory only) */
-    size_t max_input_size;               /**< Max input size in bytes (0 = unlimited) */
-    size_t max_history_size;             /**< Max history entries (0 = unlimited) */
-    tprompt_completion_fn completion_callback; /**< Completion callback (NULL = disabled) */
-    void *completion_user_data;          /**< User data for completion callback */
-    const char *completion_prefixes;     /**< Completion trigger chars (e.g., "/@", NULL = disabled) */
-    terse_handle_t terse_handle;         /**< Existing terse handle (NULL = auto-create) */
-    int flags;                           /**< Behavior flags (TPROMPT_FLAG_*) */
-    const tprompt_keybinding_t *custom_keybindings; /**< Custom keybindings array (NULL = use defaults) */
-    size_t keybinding_count;             /**< Number of custom keybindings */
+	const char *prompt;								/**< Prompt string (NULL = "> ") */
+	const char *history_file;						/**< History file path (NULL = memory only) */
+	size_t max_input_size;							/**< Max input size in bytes (0 = unlimited) */
+	size_t max_history_size;						/**< Max history entries (0 = unlimited) */
+	tprompt_completion_fn completion_callback;		/**< Completion callback (NULL = disabled) */
+	void *completion_user_data;						/**< User data for completion callback */
+	const char *completion_prefixes;				/**< Completion trigger chars (e.g., "/@", NULL = disabled) */
+	terse_handle_t terse_handle;					/**< Existing terse handle (NULL = auto-create) */
+	int flags;										/**< Behavior flags (TPROMPT_FLAG_*) */
+	const tprompt_keybinding_t *custom_keybindings; /**< Custom keybindings array (NULL = use defaults) */
+	size_t keybinding_count;						/**< Number of custom keybindings */
 } tprompt_options_t;
 
 /**
  * @brief Completion result structure
  */
 struct tprompt_completion_result {
-    char **candidates;  /**< NULL-terminated array of candidate strings */
-    size_t count;       /**< Number of candidates */
+	char **candidates; /**< NULL-terminated array of candidate strings */
+	size_t count;	   /**< Number of candidates */
 };
 
 /**
  * @brief Error category enumeration
  */
 typedef enum tprompt_error_category {
-    TPROMPT_ERROR_NONE = 0,        /**< No error */
-    TPROMPT_ERROR_INVALID_ARGS,    /**< Invalid arguments */
-    TPROMPT_ERROR_IO,              /**< I/O error (see errno) */
-    TPROMPT_ERROR_MEMORY,          /**< Memory allocation failure */
-    TPROMPT_ERROR_TERSE,           /**< terse API error */
-    TPROMPT_ERROR_HISTORY_FILE,    /**< History file read/write error */
-    TPROMPT_ERROR_ENCODING,        /**< UTF-8 encoding error */
-    TPROMPT_ERROR_SIZE_LIMIT       /**< Size limit exceeded */
+	TPROMPT_ERROR_NONE = 0,		/**< No error */
+	TPROMPT_ERROR_INVALID_ARGS, /**< Invalid arguments */
+	TPROMPT_ERROR_IO,			/**< I/O error (see errno) */
+	TPROMPT_ERROR_MEMORY,		/**< Memory allocation failure */
+	TPROMPT_ERROR_TERSE,		/**< terse API error */
+	TPROMPT_ERROR_HISTORY_FILE, /**< History file read/write error */
+	TPROMPT_ERROR_ENCODING,		/**< UTF-8 encoding error */
+	TPROMPT_ERROR_SIZE_LIMIT	/**< Size limit exceeded */
 } tprompt_error_category_t;
 
 /**
  * @brief Error information structure
  */
 typedef struct tprompt_error_info {
-    tprompt_error_category_t category; /**< Error category */
-    int code;                          /**< Detailed error code (errno equivalent) */
-    char message[256];                 /**< Human-readable error message */
+	tprompt_error_category_t category; /**< Error category */
+	int code;						   /**< Detailed error code (errno equivalent) */
+	char message[256];				   /**< Human-readable error message */
 } tprompt_error_info_t;
 
 /* ========================================================================
@@ -145,17 +144,17 @@ typedef struct tprompt_error_info {
 /**
  * @brief Enable multi-line mode (default)
  */
-#define TPROMPT_FLAG_MULTILINE        (1 << 0)
+#define TPROMPT_FLAG_MULTILINE (1 << 0)
 
 /**
  * @brief Disable history feature
  */
-#define TPROMPT_FLAG_DISABLE_HISTORY  (1 << 1)
+#define TPROMPT_FLAG_DISABLE_HISTORY (1 << 1)
 
 /**
  * @brief Disable automatic history saving on close
  */
-#define TPROMPT_FLAG_NO_AUTO_SAVE     (1 << 2)
+#define TPROMPT_FLAG_NO_AUTO_SAVE (1 << 2)
 
 /* ========================================================================
  * Keybinding Actions
@@ -164,12 +163,12 @@ typedef struct tprompt_error_info {
 /**
  * @brief No action (use default behavior)
  */
-#define TPROMPT_ACTION_NONE           0
+#define TPROMPT_ACTION_NONE 0
 
 /**
  * @brief Confirm input and return to caller
  */
-#define TPROMPT_ACTION_CONFIRM_INPUT  1
+#define TPROMPT_ACTION_CONFIRM_INPUT 1
 
 /**
  * @brief Insert newline at cursor position
@@ -189,7 +188,7 @@ typedef struct tprompt_error_info {
  * @param act Action to perform (e.g., TPROMPT_ACTION_CONFIRM_INPUT)
  */
 #define TPROMPT_BIND_KEY(event, mods, act) \
-    { (event), (mods), { .scalar = 0 }, (act) }
+	{ (event), (mods), { .scalar = 0 }, (act) }
 
 /**
  * @brief Helper macro to bind a character key
@@ -198,7 +197,7 @@ typedef struct tprompt_error_info {
  * @param act Action to perform (e.g., TPROMPT_ACTION_INSERT_NEWLINE)
  */
 #define TPROMPT_BIND_CHAR(ch, mods, act) \
-    { TERSE_EVENT_CHAR, (mods), { .scalar = (ch) }, (act) }
+	{ TERSE_EVENT_CHAR, (mods), { .scalar = (ch) }, (act) }
 
 /**
  * @brief Helper macro to bind a function key (F1-F12)
@@ -207,23 +206,23 @@ typedef struct tprompt_error_info {
  * @param act Action to perform
  */
 #define TPROMPT_BIND_FUNCTION(num, mods, act) \
-    { TERSE_EVENT_FUNCTION, (mods), { .function_num = (num) }, (act) }
+	{ TERSE_EVENT_FUNCTION, (mods), { .function_num = (num) }, (act) }
 
 /**
  * @brief Default options initializer
  */
-#define TPROMPT_OPTIONS_DEFAULT { \
-    .prompt = "> ", \
-    .history_file = NULL, \
-    .max_input_size = 1024 * 1024, \
-    .max_history_size = 100, \
-    .completion_callback = NULL, \
-    .completion_user_data = NULL, \
-    .completion_prefixes = NULL, \
-    .terse_handle = NULL, \
-    .flags = TPROMPT_FLAG_MULTILINE, \
-    .custom_keybindings = NULL, \
-    .keybinding_count = 0 \
+#define TPROMPT_OPTIONS_DEFAULT {    \
+	.prompt = "> ",                  \
+	.history_file = NULL,            \
+	.max_input_size = 1024 * 1024,   \
+	.max_history_size = 100,         \
+	.completion_callback = NULL,     \
+	.completion_user_data = NULL,    \
+	.completion_prefixes = NULL,     \
+	.terse_handle = NULL,            \
+	.flags = TPROMPT_FLAG_MULTILINE, \
+	.custom_keybindings = NULL,      \
+	.keybinding_count = 0            \
 }
 
 /* ========================================================================
@@ -416,10 +415,9 @@ void tprompt_history_set_max_size(tprompt_handle_t handle, size_t max_size);
  * @param user_data User data passed to callback
  */
 void tprompt_set_completion_callback(
-    tprompt_handle_t handle,
-    tprompt_completion_fn callback,
-    void *user_data
-);
+	tprompt_handle_t handle,
+	tprompt_completion_fn callback,
+	void *user_data);
 
 /**
  * @brief Set completion trigger prefixes
@@ -476,8 +474,8 @@ void tprompt_free_completion_result(tprompt_completion_result_t *result);
  * @endcode
  */
 int tprompt_set_keybindings(tprompt_handle_t handle,
-                           const tprompt_keybinding_t *bindings,
-                           size_t count);
+	const tprompt_keybinding_t *bindings,
+	size_t count);
 
 /* ========================================================================
  * Framework API - Error Handling

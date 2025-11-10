@@ -32,111 +32,111 @@ extern "C" {
  * @brief Dynamic buffer for input text
  */
 typedef struct tprompt_buffer {
-    char *data;           /**< UTF-8 text buffer */
-    size_t size;          /**< Current buffer size (allocated capacity) */
-    size_t length;        /**< Current text length in bytes (excluding NUL) */
-    size_t cursor;        /**< Cursor position in bytes (byte offset) */
+	char *data;	   /**< UTF-8 text buffer */
+	size_t size;   /**< Current buffer size (allocated capacity) */
+	size_t length; /**< Current text length in bytes (excluding NUL) */
+	size_t cursor; /**< Cursor position in bytes (byte offset) */
 } tprompt_buffer_t;
 
 /**
  * @brief History entry node (linked list)
  */
 typedef struct tprompt_history_entry {
-    char *text;                           /**< History entry text */
-    struct tprompt_history_entry *next;   /**< Next entry (older) */
-    struct tprompt_history_entry *prev;   /**< Previous entry (newer) */
+	char *text;							/**< History entry text */
+	struct tprompt_history_entry *next; /**< Next entry (older) */
+	struct tprompt_history_entry *prev; /**< Previous entry (newer) */
 } tprompt_history_entry_t;
 
 /**
  * @brief History management structure
  */
 typedef struct tprompt_history {
-    tprompt_history_entry_t *head;   /**< Most recent entry */
-    tprompt_history_entry_t *tail;   /**< Oldest entry */
-    size_t count;                    /**< Number of entries */
-    size_t max_size;                 /**< Maximum number of entries (0 = unlimited) */
-    tprompt_history_entry_t *current; /**< Current position during navigation */
+	tprompt_history_entry_t *head;	  /**< Most recent entry */
+	tprompt_history_entry_t *tail;	  /**< Oldest entry */
+	size_t count;					  /**< Number of entries */
+	size_t max_size;				  /**< Maximum number of entries (0 = unlimited) */
+	tprompt_history_entry_t *current; /**< Current position during navigation */
 } tprompt_history_t;
 
 /**
  * @brief Completion state
  */
 typedef struct tprompt_completion_state {
-    bool active;                          /**< Whether completion is active */
-    char **candidates;                    /**< Current candidate list (NULL-terminated) */
-    size_t candidate_count;               /**< Number of candidates */
-    size_t selected_index;                /**< Currently selected candidate index */
-    size_t trigger_offset;                /**< Byte offset of completion trigger character */
-    char trigger_char;                    /**< Character that triggered completion */
+	bool active;			/**< Whether completion is active */
+	char **candidates;		/**< Current candidate list (NULL-terminated) */
+	size_t candidate_count; /**< Number of candidates */
+	size_t selected_index;	/**< Currently selected candidate index */
+	size_t trigger_offset;	/**< Byte offset of completion trigger character */
+	char trigger_char;		/**< Character that triggered completion */
 } tprompt_completion_state_t;
 
 /**
  * @brief Display state for multi-line rendering
  */
 typedef struct tprompt_display_state {
-    size_t physical_line;       /**< Current physical line number */
-    size_t physical_column;     /**< Current physical column number */
-    size_t total_physical_lines; /**< Total number of physical lines */
-    size_t prev_total_physical_lines; /**< Previous total_physical_lines (for clearing orphaned lines) */
-    size_t terminal_width;      /**< Terminal width in columns */
-    size_t terminal_height;     /**< Terminal height in rows */
-    int start_row;              /**< Starting row for rendering (0-based absolute terminal row) */
-    bool start_row_known;       /**< Whether start_row has been initialized */
+	size_t physical_line;			  /**< Current physical line number */
+	size_t physical_column;			  /**< Current physical column number */
+	size_t total_physical_lines;	  /**< Total number of physical lines */
+	size_t prev_total_physical_lines; /**< Previous total_physical_lines (for clearing orphaned lines) */
+	size_t terminal_width;			  /**< Terminal width in columns */
+	size_t terminal_height;			  /**< Terminal height in rows */
+	int start_row;					  /**< Starting row for rendering (0-based absolute terminal row) */
+	bool start_row_known;			  /**< Whether start_row has been initialized */
 } tprompt_display_state_t;
 
 /**
  * @brief Input state for tracking key sequences
  */
 typedef struct tprompt_input_state {
-    int last_key_type;          /**< Last key event type (TERSE_EVENT_*) */
-    size_t last_cursor_pos;     /**< Cursor position at last key press */
-    size_t goal_column;         /**< Goal column for vertical navigation (0 = not set) */
-    bool has_goal_column;       /**< Whether goal column is currently active */
+	int last_key_type;		/**< Last key event type (TERSE_EVENT_*) */
+	size_t last_cursor_pos; /**< Cursor position at last key press */
+	size_t goal_column;		/**< Goal column for vertical navigation (0 = not set) */
+	bool has_goal_column;	/**< Whether goal column is currently active */
 } tprompt_input_state_t;
 
 /**
  * @brief Main handle structure (opaque pointer implementation)
  */
 struct tprompt_handle {
-    /* Core dependencies */
-    terse_handle_t terse;        /**< terse handle for terminal control */
-    bool owns_terse;             /**< Whether this handle owns the terse handle */
+	/* Core dependencies */
+	terse_handle_t terse; /**< terse handle for terminal control */
+	bool owns_terse;	  /**< Whether this handle owns the terse handle */
 
-    /* Terminal raw mode */
+	/* Terminal raw mode */
 #if defined(__unix__) || defined(__APPLE__)
-    struct termios original_termios;  /**< Original terminal settings */
-    bool raw_mode_active;             /**< Whether raw mode is currently active */
+	struct termios original_termios; /**< Original terminal settings */
+	bool raw_mode_active;			 /**< Whether raw mode is currently active */
 #endif
 
-    /* Input buffer */
-    tprompt_buffer_t buffer;     /**< Dynamic input buffer */
+	/* Input buffer */
+	tprompt_buffer_t buffer; /**< Dynamic input buffer */
 
-    /* History */
-    tprompt_history_t history;   /**< History management */
-    char *history_file_path;     /**< History file path (NULL if none) */
+	/* History */
+	tprompt_history_t history; /**< History management */
+	char *history_file_path;   /**< History file path (NULL if none) */
 
-    /* Completion */
-    tprompt_completion_fn completion_callback;  /**< Completion callback function */
-    void *completion_user_data;                 /**< User data for completion callback */
-    char *completion_prefixes;                  /**< Completion trigger prefix characters */
-    tprompt_completion_state_t completion_state; /**< Current completion state */
+	/* Completion */
+	tprompt_completion_fn completion_callback;	 /**< Completion callback function */
+	void *completion_user_data;					 /**< User data for completion callback */
+	char *completion_prefixes;					 /**< Completion trigger prefix characters */
+	tprompt_completion_state_t completion_state; /**< Current completion state */
 
-    /* Display */
-    tprompt_display_state_t display;  /**< Display state for rendering */
-    char *prompt;                     /**< Current prompt string */
+	/* Display */
+	tprompt_display_state_t display; /**< Display state for rendering */
+	char *prompt;					 /**< Current prompt string */
 
-    /* Input state */
-    tprompt_input_state_t input_state; /**< Input state for key sequence tracking */
+	/* Input state */
+	tprompt_input_state_t input_state; /**< Input state for key sequence tracking */
 
-    /* Keybindings */
-    tprompt_keybinding_t *keybindings;  /**< Custom keybindings array (dynamically allocated) */
-    size_t keybinding_count;            /**< Number of custom keybindings */
+	/* Keybindings */
+	tprompt_keybinding_t *keybindings; /**< Custom keybindings array (dynamically allocated) */
+	size_t keybinding_count;		   /**< Number of custom keybindings */
 
-    /* Configuration */
-    tprompt_options_t options;   /**< Copy of options */
+	/* Configuration */
+	tprompt_options_t options; /**< Copy of options */
 
-    /* Error tracking */
-    tprompt_error_info_t last_error; /**< Last error information */
+	/* Error tracking */
+	tprompt_error_info_t last_error; /**< Last error information */
 };
 
 /**
@@ -516,9 +516,9 @@ int tprompt_display_render_completion(tprompt_handle_t handle);
  * @param ... Format arguments
  */
 void tprompt_set_error(tprompt_error_info_t *error,
-                       tprompt_error_category_t category,
-                       int code,
-                       const char *message, ...);
+	tprompt_error_category_t category,
+	int code,
+	const char *message, ...);
 
 /**
  * @brief Clear error information (reset to NONE)
@@ -594,8 +594,8 @@ int tprompt_find_keybinding_action(tprompt_handle_t handle, const terse_event_t 
  * @return 0 on success, -1 on critical error (NULL bindings with count > 0)
  */
 int tprompt_validate_keybindings(const tprompt_keybinding_t *bindings,
-                                 size_t count,
-                                 tprompt_error_info_t *error);
+	size_t count,
+	tprompt_error_info_t *error);
 
 /* ========================================================================
  * Internal Helper Functions - Phase 6 Keybinding Handlers
@@ -664,7 +664,7 @@ size_t tprompt_get_logical_line_at_offset(tprompt_handle_t handle, size_t byte_o
  * @return 0 on success, -1 if line number is invalid
  */
 int tprompt_get_logical_line_bounds(tprompt_handle_t handle, size_t logical_line,
-                                     size_t *out_start, size_t *out_end);
+	size_t *out_start, size_t *out_end);
 
 /**
  * @brief Get byte length of a logical line
