@@ -168,13 +168,15 @@ terse-prompt delegates terminal control to the terse library:
 tprompt_keybinding_t bindings[] = {
     TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),           // Enter = confirm
     TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, TERSE_MOD_SHIFT, TPROMPT_ACTION_INSERT_NEWLINE),  // Shift+Enter = newline
-    TPROMPT_BIND_CHAR('J', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),          // Ctrl+J = newline
+    TPROMPT_BIND_CHAR('j', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),          // Ctrl+J = newline (lowercase!)
 };
 
 tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
 opts.custom_keybindings = bindings;
 opts.keybinding_count = 3;
 ```
+
+**Important**: When binding Ctrl+letter combinations, use lowercase letters. The terse library transmits Ctrl+J as `TERSE_EVENT_CHAR` with `scalar='j'` (lowercase) and `TERSE_MOD_CTRL`.
 
 **Implementation Details**:
 - **Search order**: Custom bindings checked before default behavior in `tprompt_handle_key_event()`

@@ -68,12 +68,15 @@ typedef tprompt_completion_result_t (*tprompt_completion_fn)(
  * Use helper macros (TPROMPT_BIND_KEY, TPROMPT_BIND_CHAR, TPROMPT_BIND_FUNCTION) for
  * easier initialization.
  *
+ * Note: When binding Ctrl+letter combinations, use lowercase letters. For example,
+ * Ctrl+J is transmitted as TERSE_EVENT_CHAR with scalar='j' (lowercase) and TERSE_MOD_CTRL.
+ *
  * Example:
  * @code
  * tprompt_keybinding_t bindings[] = {
  *     TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
  *     TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, TERSE_MOD_SHIFT, TPROMPT_ACTION_INSERT_NEWLINE),
- *     TPROMPT_BIND_CHAR('J', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),
+ *     TPROMPT_BIND_CHAR('j', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),  // Ctrl+J
  * };
  * @endcode
  */
@@ -467,7 +470,7 @@ void tprompt_free_completion_result(tprompt_completion_result_t *result);
  * @code
  * tprompt_keybinding_t new_bindings[] = {
  *     TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
- *     TPROMPT_BIND_CHAR('J', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),
+ *     TPROMPT_BIND_CHAR('j', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),  // Ctrl+J (lowercase)
  * };
  * tprompt_set_keybindings(handle, new_bindings, 2);
  * @endcode

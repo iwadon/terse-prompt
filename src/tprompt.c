@@ -2885,8 +2885,19 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
             unsigned int scalar = event.data.ch.scalar;
             int mods = event.data.ch.mods;
 
+            // Check custom keybindings first (before built-in Ctrl shortcuts)
+            int custom_action = tprompt_find_keybinding_action(handle, &event);
+            if (custom_action != TPROMPT_ACTION_NONE) {
+                int key_result = tprompt_handle_key_event(handle, &event);
+                if (key_result == 1) {
+                    break;  // Confirm input
+                } else if (key_result == -1) {
+                    return NULL;  // Error
+                }
+                // key_result == 0: continue editing
+            }
             // Handle Ctrl+W - delete word backward
-            if (scalar == 'w' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+W
+            else if (scalar == 'w' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+W
                 tprompt_key_handle_ctrl_w(handle);
                 handle->input_state.has_goal_column = false;
             }

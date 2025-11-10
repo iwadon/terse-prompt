@@ -23,7 +23,7 @@ static void print_usage(void) {
     printf("\nKeybindings:\n");
     printf("  Enter        - Confirm input and submit\n");
     printf("  Shift+Enter  - Insert newline\n");
-    printf("  Ctrl+J       - Insert newline\n");
+    printf("  Ctrl+Enter   - Insert newline (Ctrl+J also works)\n");
     printf("\nHistory:\n");
     printf("  Use Up/Down arrows to navigate history\n");
     printf("  History is saved to 'demo_history.txt'\n\n");
@@ -34,10 +34,11 @@ int main(void) {
 
     // Define custom keybindings
     // Enter to confirm, Shift+Enter to insert newline, Ctrl+J also inserts newline
+    // Note: terse transmits Ctrl+J as CHAR event with scalar='j' and mods=CTRL
     tprompt_keybinding_t custom_bindings[] = {
         TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
         TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, TERSE_MOD_SHIFT, TPROMPT_ACTION_INSERT_NEWLINE),
-        TPROMPT_BIND_CHAR('J', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),
+        TPROMPT_BIND_CHAR('j', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),  // Ctrl+J
     };
 
     // Configure tprompt with custom options
