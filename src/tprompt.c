@@ -1756,7 +1756,13 @@ int tprompt_display_render(tprompt_handle_t handle)
         // Write debug info
         char debug_info[128];
         int target_col = (int)handle->display.physical_column;
-        snprintf(debug_info, sizeof(debug_info), "x=%d y=%d", target_col, (int)handle->display.physical_line);
+        if (handle->input_state.has_goal_column) {
+            snprintf(debug_info, sizeof(debug_info), "x=%d y=%d goal=%zu",
+                     target_col, (int)handle->display.physical_line, handle->input_state.goal_column);
+        } else {
+            snprintf(debug_info, sizeof(debug_info), "x=%d y=%d goal=-",
+                     target_col, (int)handle->display.physical_line);
+        }
         terse_write_text(handle->terse, debug_info);
 
         // Return cursor to target position
@@ -2071,11 +2077,13 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
             case TERSE_EVENT_ARROW_LEFT:
                 // Move cursor left by one character
                 tprompt_cursor_move_left(&handle->buffer, 1);
+                handle->input_state.has_goal_column = false;
                 return 0;  // Continue editing
 
             case TERSE_EVENT_ARROW_RIGHT:
                 // Move cursor right by one character
                 tprompt_cursor_move_right(&handle->buffer, 1);
+                handle->input_state.has_goal_column = false;
                 return 0;  // Continue editing
 
             default:
@@ -2101,6 +2109,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
         // Update input state for next key press
         handle->input_state.last_key_type = event->type;
         handle->input_state.last_cursor_pos = handle->buffer.cursor;
+        handle->input_state.has_goal_column = false;
         return 0;  // Continue editing
     }
 
@@ -2122,6 +2131,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
         // Update input state for next key press
         handle->input_state.last_key_type = event->type;
         handle->input_state.last_cursor_pos = handle->buffer.cursor;
+        handle->input_state.has_goal_column = false;
         return 0;  // Continue editing
     }
 
@@ -2870,22 +2880,27 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
             // Handle Ctrl+W - delete word backward
             if (scalar == 'w' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+W
                 tprompt_key_handle_ctrl_w(handle);
+                handle->input_state.has_goal_column = false;
             }
             // Handle Ctrl+K - delete to end of line
             else if (scalar == 'k' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+K
                 tprompt_key_handle_ctrl_k(handle);
+                handle->input_state.has_goal_column = false;
             }
             // Handle Ctrl+U - delete to start of line
             else if (scalar == 'u' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+U
                 tprompt_key_handle_ctrl_u(handle);
+                handle->input_state.has_goal_column = false;
             }
             // Handle Ctrl+A - move to start of line
             else if (scalar == 'a' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+A
                 tprompt_key_handle_ctrl_a(handle);
+                handle->input_state.has_goal_column = false;
             }
             // Handle Ctrl+E - move to end of line
             else if (scalar == 'e' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+E
                 tprompt_key_handle_ctrl_e(handle);
+                handle->input_state.has_goal_column = false;
             }
             // Handle Ctrl+D (EOF-like behavior)
             else if (scalar == 'd' && (mods & TERSE_MOD_CTRL)) {  // Ctrl+D
@@ -2930,6 +2945,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
                                      "Failed to insert character (scalar=0x%X) into buffer", scalar);
                     return NULL;
                 }
+                handle->input_state.has_goal_column = false;
             }
         } else if (event.type == TERSE_EVENT_ENTER) {
             // Handle Enter key through tprompt_handle_key_event (supports custom keybindings)
@@ -2942,20 +2958,24 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
             // key_result == 0: continue editing (newline was inserted)
         } else if (event.type == TERSE_EVENT_BACKSPACE) {
             tprompt_buffer_delete_before(&handle->buffer, 1);
+            handle->input_state.has_goal_column = false;
         } else if (event.type == TERSE_EVENT_DELETE) {
             tprompt_buffer_delete_at(&handle->buffer, 1);
+            handle->input_state.has_goal_column = false;
         } else if (event.type == TERSE_EVENT_ARROW_LEFT) {
             if (event.data.key.mods & TERSE_MOD_CTRL) {
                 tprompt_cursor_move_word_backward(&handle->buffer);
             } else {
                 tprompt_cursor_move_left(&handle->buffer, 1);
             }
+            handle->input_state.has_goal_column = false;
         } else if (event.type == TERSE_EVENT_ARROW_RIGHT) {
             if (event.data.key.mods & TERSE_MOD_CTRL) {
                 tprompt_cursor_move_word_forward(&handle->buffer);
             } else {
                 tprompt_cursor_move_right(&handle->buffer, 1);
             }
+            handle->input_state.has_goal_column = false;
         } else if (event.type == TERSE_EVENT_ARROW_UP) {
             tprompt_cursor_move_up(handle);
         } else if (event.type == TERSE_EVENT_ARROW_DOWN) {
@@ -2963,9 +2983,11 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
         } else if (event.type == TERSE_EVENT_HOME) {
             // TODO: Implement staged Home key behavior (physical -> logical line start)
             tprompt_cursor_move_to_start(&handle->buffer);
+            handle->input_state.has_goal_column = false;
         } else if (event.type == TERSE_EVENT_END) {
             // TODO: Implement staged End key behavior (physical -> logical line end)
             tprompt_cursor_move_to_end(&handle->buffer);
+            handle->input_state.has_goal_column = false;
         } else if (event.type == TERSE_EVENT_TAB) {
             // TODO: Implement completion trigger
             // For now, just insert tab character
