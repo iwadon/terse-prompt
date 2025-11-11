@@ -2433,8 +2433,9 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 	if (custom_action != TPROMPT_ACTION_NONE) {
 		switch (custom_action) {
 		case TPROMPT_ACTION_CONFIRM_INPUT:
-			// Confirm input and return to caller
-			return 1;
+			// Mark confirmation as pending (will be validated in main loop)
+			handle->pending_confirmation = true;
+			return 0;
 
 		case TPROMPT_ACTION_INSERT_NEWLINE:
 			// Insert newline at cursor position
@@ -2460,7 +2461,9 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 
 		// Ctrl+Enter or Alt+Enter: confirm input (opposite of default behavior)
 		if ((mods & TERSE_MOD_CTRL) || (mods & TERSE_MOD_ALT)) {
-			return 1; // Confirm input
+			// Mark confirmation as pending (will be validated in main loop)
+			handle->pending_confirmation = true;
+			return 0;
 		}
 
 		// Plain Enter in multiline mode: insert newline
@@ -2475,13 +2478,17 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 		}
 
 		// Plain Enter in single-line mode: confirm input
-		return 1;
+		// Mark confirmation as pending (will be validated in main loop)
+		handle->pending_confirmation = true;
+		return 0;
 	}
 
 	// Handle Ctrl+D as EOF
 	if (event->type == TERSE_EVENT_CHAR && event->data.ch.scalar == 4 && // Ctrl+D
 		(event->data.ch.mods & TERSE_MOD_CTRL)) {
-		return 1;
+		// Mark confirmation as pending (will be validated in main loop)
+		handle->pending_confirmation = true;
+		return 0;
 	}
 
 	// Handle Ctrl+P (previous history) - Emacs-style binding
@@ -2972,7 +2979,9 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 		.terse_handle = NULL,
 		.flags = TPROMPT_FLAG_MULTILINE,
 		.custom_keybindings = NULL,
-		.keybinding_count = 0
+		.keybinding_count = 0,
+		.validation_callback = NULL,
+		.validation_user_data = NULL
 	};
 
 	if (!options) {
@@ -3087,6 +3096,10 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 	handle->input_state.goal_column = 0;
 	handle->input_state.has_goal_column = false;
 
+	// Initialize validation state
+	handle->pending_confirmation = false;
+	handle->validation_error_msg = NULL;
+
 	// Store prompt
 	handle->prompt = strdup(options->prompt);
 	if (!handle->prompt) {
@@ -3182,6 +3195,7 @@ void tprompt_close(tprompt_handle_t handle)
 	free(handle->prompt);
 	free(handle->completion_prefixes);
 	free(handle->keybindings);
+	free(handle->validation_error_msg);
 
 	tprompt_completion_free(&handle->completion_state);
 	tprompt_history_free(&handle->history);
@@ -3476,6 +3490,51 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 #endif
 			return NULL;
 		}
+
+		// Check if input confirmation is pending
+		if (handle->pending_confirmation) {
+			handle->pending_confirmation = false; // Reset flag
+
+			// Call validation callback if configured
+			if (handle->options.validation_callback) {
+				tprompt_validation_result_t validation_result = handle->options.validation_callback(
+					handle->buffer.data,
+					handle->buffer.length,
+					handle->options.validation_user_data);
+
+				if (validation_result == TPROMPT_VALIDATION_REJECT) {
+					// Validation rejected - play beep and continue editing
+					terse_write_text(handle->terse, "\x07"); // Bell character (beep)
+					terse_flush(handle->terse);
+					// TODO: Display validation error message if provided
+					continue; // Stay in editing loop
+
+				} else if (validation_result == TPROMPT_VALIDATION_CONTINUE) {
+					// Validation wants to continue editing with newline
+					bool is_multiline = (handle->options.flags & TPROMPT_FLAG_MULTILINE) != 0;
+
+					if (is_multiline) {
+						// Insert newline and continue editing
+						if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
+							tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+								"Failed to insert newline after validation: buffer at %zu/%zu bytes",
+								handle->buffer.length, handle->buffer.size);
+							return NULL;
+						}
+						continue; // Stay in editing loop
+					} else {
+						// Single-line mode: CONTINUE treated as REJECT (can't insert newline)
+						terse_write_text(handle->terse, "\x07"); // Bell character (beep)
+						terse_flush(handle->terse);
+						continue; // Stay in editing loop
+					}
+				}
+				// TPROMPT_VALIDATION_ACCEPT: fall through to break from loop
+			}
+
+			// Validation passed or no validation callback - confirm input
+			break;
+		}
 	}
 
 	// Restore terminal mode before returning
@@ -3639,6 +3698,22 @@ void tprompt_free_completion_result(tprompt_completion_result_t *result)
 	}
 
 	result->count = 0;
+}
+
+/* ========================================================================
+ * Public API - Framework: Validation
+ * ======================================================================== */
+
+void tprompt_set_validation_callback(tprompt_handle_t handle,
+	tprompt_validation_fn callback,
+	void *user_data)
+{
+	if (!handle) {
+		return;
+	}
+
+	handle->options.validation_callback = callback;
+	handle->options.validation_user_data = user_data;
 }
 
 /* ========================================================================

@@ -117,3 +117,23 @@ target_link_libraries(test_keybindings PRIVATE
 )
 
 add_test(NAME test_keybindings COMMAND test_keybindings)
+
+# Validation callback tests
+add_executable(test_validation
+    test_validation.c
+)
+
+target_include_directories(test_validation PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(test_validation PRIVATE
+    _POSIX_C_SOURCE=200809L
+)
+
+target_link_libraries(test_validation PRIVATE
+    tprompt
+    attest
+)
+
+add_test(NAME test_validation COMMAND test_validation)

@@ -42,6 +42,53 @@ typedef struct tprompt_completion_result tprompt_completion_result_t;
 typedef struct tprompt_keybinding tprompt_keybinding_t;
 
 /**
+ * @brief Validation result enumeration
+ *
+ * Returned by validation callback to indicate whether input should be accepted,
+ * rejected, or continued (insert newline).
+ */
+typedef enum tprompt_validation_result {
+	TPROMPT_VALIDATION_ACCEPT = 0,   /**< Accept input and return to caller */
+	TPROMPT_VALIDATION_CONTINUE = 1, /**< Insert newline and continue editing (multiline mode only) */
+	TPROMPT_VALIDATION_REJECT = 2    /**< Reject input and continue editing */
+} tprompt_validation_result_t;
+
+/**
+ * @brief Validation callback function type
+ *
+ * Called when user attempts to confirm input (e.g., pressing Enter).
+ * Allows application to validate input completeness before accepting.
+ *
+ * @param text Current input text (NUL-terminated)
+ * @param length Length of input text in bytes
+ * @param user_data User-defined data passed to the callback
+ * @return Validation result indicating action to take
+ *
+ * Example (Ruby REPL-style validation):
+ * @code
+ * tprompt_validation_result_t validate_ruby(const char *text, size_t length, void *user_data) {
+ *     // Check if parentheses are balanced
+ *     int paren_count = 0;
+ *     for (size_t i = 0; i < length; i++) {
+ *         if (text[i] == '(') paren_count++;
+ *         if (text[i] == ')') paren_count--;
+ *     }
+ *
+ *     if (paren_count > 0) {
+ *         // Unbalanced parentheses - insert newline and continue
+ *         return TPROMPT_VALIDATION_CONTINUE;
+ *     }
+ *
+ *     return TPROMPT_VALIDATION_ACCEPT;
+ * }
+ * @endcode
+ */
+typedef tprompt_validation_result_t (*tprompt_validation_fn)(
+	const char *text,
+	size_t length,
+	void *user_data);
+
+/**
  * @brief Completion callback function type
  *
  * @param text Current input text (entire buffer)
@@ -104,6 +151,8 @@ typedef struct tprompt_options {
 	int flags;										/**< Behavior flags (TPROMPT_FLAG_*) */
 	const tprompt_keybinding_t *custom_keybindings; /**< Custom keybindings array (NULL = use defaults) */
 	size_t keybinding_count;						/**< Number of custom keybindings */
+	tprompt_validation_fn validation_callback;		/**< Validation callback (NULL = no validation) */
+	void *validation_user_data;						/**< User data for validation callback */
 } tprompt_options_t;
 
 /**
@@ -222,7 +271,9 @@ typedef struct tprompt_error_info {
 	.terse_handle = NULL,            \
 	.flags = TPROMPT_FLAG_MULTILINE, \
 	.custom_keybindings = NULL,      \
-	.keybinding_count = 0            \
+	.keybinding_count = 0,           \
+	.validation_callback = NULL,     \
+	.validation_user_data = NULL     \
 }
 
 /* ========================================================================
@@ -441,6 +492,41 @@ int tprompt_set_completion_prefixes(tprompt_handle_t handle, const char *prefixe
  * @param result Completion result to free
  */
 void tprompt_free_completion_result(tprompt_completion_result_t *result);
+
+/* ========================================================================
+ * Framework API - Validation
+ * ======================================================================== */
+
+/**
+ * @brief Set validation callback at runtime
+ *
+ * Updates the validation callback for the session. This allows dynamic
+ * modification of input validation behavior during runtime.
+ *
+ * The validation callback is called when the user attempts to confirm input
+ * (e.g., pressing Enter in single-line mode, or Ctrl+Enter in multiline mode).
+ *
+ * @param handle Session handle
+ * @param callback Validation callback function (NULL to disable validation)
+ * @param user_data User data passed to callback
+ *
+ * Example:
+ * @code
+ * tprompt_validation_result_t validate_complete(const char *text, size_t length, void *user_data) {
+ *     // Check if input ends with semicolon
+ *     if (length > 0 && text[length - 1] != ';') {
+ *         return TPROMPT_VALIDATION_CONTINUE;  // Insert newline, wait for more input
+ *     }
+ *     return TPROMPT_VALIDATION_ACCEPT;
+ * }
+ *
+ * tprompt_set_validation_callback(handle, validate_complete, NULL);
+ * @endcode
+ */
+void tprompt_set_validation_callback(
+	tprompt_handle_t handle,
+	tprompt_validation_fn callback,
+	void *user_data);
 
 /* ========================================================================
  * Framework API - Keybindings

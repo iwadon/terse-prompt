@@ -133,6 +133,10 @@ struct tprompt_handle {
 	tprompt_keybinding_t *keybindings; /**< Custom keybindings array (dynamically allocated) */
 	size_t keybinding_count;		   /**< Number of custom keybindings */
 
+	/* Validation */
+	bool pending_confirmation;	 /**< Whether input confirmation is pending validation */
+	char *validation_error_msg;	 /**< Validation error message to display (NULL if none) */
+
 	/* Configuration */
 	tprompt_options_t options; /**< Copy of options */
 
