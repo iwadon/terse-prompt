@@ -18,6 +18,10 @@
 #include <unistd.h>
 #endif
 
+#ifdef TERSE_ENABLE_TEST_MODE
+#include <terse_test.h>
+#endif
+
 /* ========================================================================
  * Global Error Information
  * ======================================================================== */
@@ -3007,6 +3011,39 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 			return NULL;
 		}
 		handle->owns_terse = true;
+
+#ifdef TERSE_ENABLE_TEST_MODE
+		// In test mode, set up mocked terminal size and capabilities
+		terse_test_mock_size(handle->terse, 24, 80);
+
+		// Mock P1 capabilities (basic colors, no advanced features)
+		terse_capabilities_t mock_caps = {
+			.profile = TERSE_P1,
+			.has_basic_output = 1,
+			.has_cursor_visibility = 1,
+			.has_move_absolute = 1,
+			.has_move_relative = 1,
+			.has_clear_line = 1,
+			.has_clear_screen = 1,
+			.has_size = 1,
+			.has_sgr_basic = 1,
+			.has_sgr_extended = 0,
+			.has_truecolor = 0,
+			.has_text_styles = 1,
+			.mouse = TERSE_MOUSE_NONE,
+			.has_bracketed_paste = 0,
+			.has_title = 0,
+			.has_hyperlinks = 0,
+			.has_cursor_shape = 0,
+			.colors = TERSE_COLOR_BASIC16,
+			.effects = 0,
+			.has_clipboard_write = 0,
+			.images = TERSE_IMAGE_NONE,
+			.notifications = 0,
+			.keyboard_features = 0
+		};
+		terse_test_mock_capabilities(handle->terse, &mock_caps);
+#endif
 	}
 
 	// Initialize raw mode flag
