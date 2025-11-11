@@ -982,28 +982,77 @@ int tprompt_history_load_internal(tprompt_history_t *history, const char *file_p
 		return -1;
 	}
 
-	// Read line by line
+	// Read line by line using fixed-size buffer
+	// Note: 4096 bytes should be sufficient for typical history entries
+	char buffer[4096];
 	char *line = NULL;
+	size_t line_len = 0;
 	size_t line_cap = 0;
-	ssize_t line_len;
 
-	while ((line_len = getline(&line, &line_cap, fp)) != -1) {
-		// Remove trailing newline if present
-		if (line_len > 0 && line[line_len - 1] == '\n') {
-			line[line_len - 1] = '\0';
-			line_len--;
+	while (fgets(buffer, sizeof(buffer), fp)) {
+		size_t buffer_len = strlen(buffer);
+
+		// Check if this is a continuation of a previous line
+		// (no newline at end means buffer was full)
+		bool has_newline = (buffer_len > 0 && buffer[buffer_len - 1] == '\n');
+
+		// Append buffer to line
+		if (line_len + buffer_len >= line_cap) {
+			// Expand line buffer
+			size_t new_cap = line_cap == 0 ? 4096 : line_cap * 2;
+			while (new_cap < line_len + buffer_len + 1) {
+				new_cap *= 2;
+			}
+			char *new_line = realloc(line, new_cap);
+			if (!new_line) {
+				free(line);
+				fclose(fp);
+				return -1;
+			}
+			line = new_line;
+			line_cap = new_cap;
 		}
 
-		// Remove trailing carriage return if present (CRLF handling)
+		memcpy(line + line_len, buffer, buffer_len + 1); // +1 for NUL
+		line_len += buffer_len;
+
+		// If we found a newline, process this line
+		if (has_newline) {
+			// Remove trailing newline
+			if (line_len > 0 && line[line_len - 1] == '\n') {
+				line[line_len - 1] = '\0';
+				line_len--;
+			}
+
+			// Remove trailing carriage return if present (CRLF handling)
+			if (line_len > 0 && line[line_len - 1] == '\r') {
+				line[line_len - 1] = '\0';
+				line_len--;
+			}
+
+			// Unescape special characters
+			tprompt_history_unescape(line);
+
+			// Add to history (skip empty lines handled by add_internal)
+			tprompt_history_add_internal(history, line);
+
+			// Reset for next line
+			line_len = 0;
+			if (line) {
+				line[0] = '\0';
+			}
+		}
+	}
+
+	// Handle case where file doesn't end with newline
+	if (line_len > 0) {
+		// Remove trailing carriage return if present
 		if (line_len > 0 && line[line_len - 1] == '\r') {
 			line[line_len - 1] = '\0';
 			line_len--;
 		}
 
-		// Unescape special characters
 		tprompt_history_unescape(line);
-
-		// Add to history (skip empty lines handled by add_internal)
 		tprompt_history_add_internal(history, line);
 	}
 
