@@ -25,9 +25,11 @@ static void print_usage(void)
 	printf("  Enter        - Confirm input and submit\n");
 	printf("  Shift+Enter  - Insert newline\n");
 	printf("  Ctrl+Enter   - Insert newline (Ctrl+J also works)\n");
-	printf("\nHistory:\n");
-	printf("  Use Up/Down arrows to navigate history\n");
-	printf("  History is saved to 'demo_history.txt'\n\n");
+	printf("\nHistory Navigation:\n");
+	printf("  Up/Ctrl+P    - Previous history (or move up in multi-line)\n");
+	printf("  Down/Ctrl+N  - Next history (or move down in multi-line)\n");
+	printf("  * In multi-line editing: history navigation works at top/bottom lines\n");
+	printf("  * History is automatically saved to 'demo_history.txt'\n\n");
 }
 
 int main(void)
@@ -89,11 +91,7 @@ int main(void)
 			continue;
 		}
 
-		// Add to history
-		if (tprompt_history_add(handle, line) != 0) {
-			tprompt_error_info_t error = tprompt_get_last_error(handle);
-			fprintf(stderr, "Warning: Failed to add to history: %s\n", error.message);
-		}
+		// Note: tprompt_readline() automatically adds to history, no need to call tprompt_history_add()
 
 		// Process commands
 		if (strcmp(line, "help") == 0) {

@@ -56,6 +56,7 @@ typedef struct tprompt_history {
 	size_t count;					  /**< Number of entries */
 	size_t max_size;				  /**< Maximum number of entries (0 = unlimited) */
 	tprompt_history_entry_t *current; /**< Current position during navigation */
+	char *saved_input;				  /**< Saved input buffer when entering history navigation */
 } tprompt_history_t;
 
 /**

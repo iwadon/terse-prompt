@@ -728,6 +728,7 @@ void tprompt_history_init(tprompt_history_t *history, size_t max_size)
 	history->count = 0;
 	history->max_size = max_size;
 	history->current = NULL;
+	history->saved_input = NULL;
 }
 
 void tprompt_history_free(tprompt_history_t *history)
@@ -748,6 +749,12 @@ void tprompt_history_free(tprompt_history_t *history)
 	history->tail = NULL;
 	history->count = 0;
 	history->current = NULL;
+
+	// Free saved input if any
+	if (history->saved_input) {
+		free(history->saved_input);
+		history->saved_input = NULL;
+	}
 }
 
 int tprompt_history_add_internal(tprompt_history_t *history, const char *text)
@@ -866,7 +873,97 @@ void tprompt_history_reset_position(tprompt_history_t *history)
 {
 	if (history) {
 		history->current = NULL;
+		// Free saved input when exiting history navigation
+		if (history->saved_input) {
+			free(history->saved_input);
+			history->saved_input = NULL;
+		}
 	}
+}
+
+/**
+ * @brief Escape special characters in history entry for file storage
+ *
+ * Escapes: newline (\n), carriage return (\r), backslash (\\)
+ * Caller must free the returned string.
+ */
+static char *tprompt_history_escape(const char *text)
+{
+	if (!text) {
+		return NULL;
+	}
+
+	// Count characters that need escaping
+	size_t escape_count = 0;
+	for (const char *p = text; *p; p++) {
+		if (*p == '\n' || *p == '\r' || *p == '\\') {
+			escape_count++;
+		}
+	}
+
+	// Allocate buffer (original length + escape characters + null terminator)
+	size_t len = strlen(text);
+	char *escaped = malloc(len + escape_count + 1);
+	if (!escaped) {
+		return NULL;
+	}
+
+	// Escape characters
+	char *dst = escaped;
+	for (const char *src = text; *src; src++) {
+		if (*src == '\n') {
+			*dst++ = '\\';
+			*dst++ = 'n';
+		} else if (*src == '\r') {
+			*dst++ = '\\';
+			*dst++ = 'r';
+		} else if (*src == '\\') {
+			*dst++ = '\\';
+			*dst++ = '\\';
+		} else {
+			*dst++ = *src;
+		}
+	}
+	*dst = '\0';
+
+	return escaped;
+}
+
+/**
+ * @brief Unescape special characters from history file
+ *
+ * Unescapes: \n, \r, \\
+ * Modifies the string in-place.
+ */
+static void tprompt_history_unescape(char *text)
+{
+	if (!text) {
+		return;
+	}
+
+	char *src = text;
+	char *dst = text;
+
+	while (*src) {
+		if (*src == '\\' && *(src + 1)) {
+			src++; // Skip backslash
+			if (*src == 'n') {
+				*dst++ = '\n';
+			} else if (*src == 'r') {
+				*dst++ = '\r';
+			} else if (*src == '\\') {
+				*dst++ = '\\';
+			} else {
+				// Unknown escape sequence, keep both characters
+				*dst++ = '\\';
+				*dst++ = *src;
+			}
+			src++;
+		} else {
+			*dst++ = *src++;
+		}
+	}
+	*dst = '\0';
 }
 
 int tprompt_history_load_internal(tprompt_history_t *history, const char *file_path)
@@ -903,6 +1000,9 @@ int tprompt_history_load_internal(tprompt_history_t *history, const char *file_p
 			line_len--;
 		}
 
+		// Unescape special characters
+		tprompt_history_unescape(line);
+
 		// Add to history (skip empty lines handled by add_internal)
 		tprompt_history_add_internal(history, line);
 	}
@@ -929,11 +1029,22 @@ int tprompt_history_save_internal(tprompt_history_t *history, const char *file_p
 	// This ensures that when we load and insert at head, the order is preserved
 	tprompt_history_entry_t *entry = history->tail;
 	while (entry) {
-		// Write entry with newline
-		if (fprintf(fp, "%s\n", entry->text) < 0) {
+		// Escape special characters before writing
+		char *escaped = tprompt_history_escape(entry->text);
+		if (!escaped) {
 			fclose(fp);
 			return -1;
 		}
+
+		// Write escaped entry with newline
+		int result = fprintf(fp, "%s\n", escaped);
+		free(escaped);
+
+		if (result < 0) {
+			fclose(fp);
+			return -1;
+		}
+
 		entry = entry->prev;
 	}
 
@@ -2179,17 +2290,40 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 
 	// If completion is not active, handle UP/DOWN for either line navigation or history
 	if (!handle->completion_state.active) {
-		// Decide between multi-line navigation and history navigation
-		// Use line navigation if: buffer has newlines OR multi-line flag is set
-		bool use_line_navigation = tprompt_buffer_has_newlines(handle) || (handle->options.flags & TPROMPT_FLAG_MULTILINE);
+		// Check if buffer has multiple lines
+		bool has_multiple_lines = tprompt_buffer_has_newlines(handle);
 
 		switch (event->type) {
 		case TERSE_EVENT_ARROW_UP:
-			if (use_line_navigation) {
-				// Navigate up one logical line
-				tprompt_cursor_move_up(handle);
+			if (has_multiple_lines) {
+				// In multi-line mode: check if at first line
+				size_t current_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+				if (current_line == 0) {
+					// At first line, navigate to previous history entry
+					// Save current input if not already in history navigation
+					if (!handle->history.current) {
+						if (handle->history.saved_input) {
+							free(handle->history.saved_input);
+						}
+						handle->history.saved_input = strdup(handle->buffer.data);
+					}
+					const char *entry = tprompt_history_prev(&handle->history);
+					if (entry) {
+						tprompt_buffer_set(&handle->buffer, entry);
+					}
+				} else {
+					// Not at first line, navigate up within buffer
+					tprompt_cursor_move_up(handle);
+				}
 			} else {
-				// Navigate to previous history entry
+				// Single line mode: always navigate history
+				// Save current input if not already in history navigation
+				if (!handle->history.current) {
+					if (handle->history.saved_input) {
+						free(handle->history.saved_input);
+					}
+					handle->history.saved_input = strdup(handle->buffer.data);
+				}
 				const char *entry = tprompt_history_prev(&handle->history);
 				if (entry) {
 					tprompt_buffer_set(&handle->buffer, entry);
@@ -2198,17 +2332,39 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 			return 0; // Continue editing
 
 		case TERSE_EVENT_ARROW_DOWN:
-			if (use_line_navigation) {
-				// Navigate down one logical line
-				tprompt_cursor_move_down(handle);
+			if (has_multiple_lines) {
+				// In multi-line mode: check if at last line
+				size_t current_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+				size_t total_lines = tprompt_count_logical_lines(handle);
+				if (current_line >= total_lines - 1) {
+					// At last line, navigate to next history entry
+					const char *entry = tprompt_history_next(&handle->history);
+					if (entry) {
+						tprompt_buffer_set(&handle->buffer, entry);
+					} else {
+						// At the end of history, restore saved input
+						if (handle->history.saved_input) {
+							tprompt_buffer_set(&handle->buffer, handle->history.saved_input);
+						} else {
+							tprompt_buffer_clear(&handle->buffer);
+						}
+					}
+				} else {
+					// Not at last line, navigate down within buffer
+					tprompt_cursor_move_down(handle);
+				}
 			} else {
-				// Navigate to next history entry
+				// Single line mode: always navigate history
 				const char *entry = tprompt_history_next(&handle->history);
 				if (entry) {
 					tprompt_buffer_set(&handle->buffer, entry);
 				} else {
-					// At the end of history, clear buffer (return to current input)
-					tprompt_buffer_clear(&handle->buffer);
+					// At the end of history, restore saved input
+					if (handle->history.saved_input) {
+						tprompt_buffer_set(&handle->buffer, handle->history.saved_input);
+					} else {
+						tprompt_buffer_clear(&handle->buffer);
+					}
 				}
 			}
 			return 0; // Continue editing
@@ -2326,6 +2482,93 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 	if (event->type == TERSE_EVENT_CHAR && event->data.ch.scalar == 4 && // Ctrl+D
 		(event->data.ch.mods & TERSE_MOD_CTRL)) {
 		return 1;
+	}
+
+	// Handle Ctrl+P (previous history) - Emacs-style binding
+	if (event->type == TERSE_EVENT_CHAR && event->data.ch.scalar == 'p' && // Ctrl+P
+		(event->data.ch.mods & TERSE_MOD_CTRL)) {
+		// Check if buffer has multiple lines
+		bool has_multiple_lines = tprompt_buffer_has_newlines(handle);
+
+		if (has_multiple_lines) {
+			// In multi-line mode: check if at first line
+			size_t current_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+			if (current_line == 0) {
+				// At first line, navigate to previous history entry
+				// Save current input if not already in history navigation
+				if (!handle->history.current) {
+					if (handle->history.saved_input) {
+						free(handle->history.saved_input);
+					}
+					handle->history.saved_input = strdup(handle->buffer.data);
+				}
+				const char *entry = tprompt_history_prev(&handle->history);
+				if (entry) {
+					tprompt_buffer_set(&handle->buffer, entry);
+				}
+			} else {
+				// Not at first line, navigate up within buffer
+				tprompt_cursor_move_up(handle);
+			}
+		} else {
+			// Single line mode: always navigate history
+			// Save current input if not already in history navigation
+			if (!handle->history.current) {
+				if (handle->history.saved_input) {
+					free(handle->history.saved_input);
+				}
+				handle->history.saved_input = strdup(handle->buffer.data);
+			}
+			const char *entry = tprompt_history_prev(&handle->history);
+			if (entry) {
+				tprompt_buffer_set(&handle->buffer, entry);
+			}
+		}
+		return 0;
+	}
+
+	// Handle Ctrl+N (next history) - Emacs-style binding
+	if (event->type == TERSE_EVENT_CHAR && event->data.ch.scalar == 'n' && // Ctrl+N
+		(event->data.ch.mods & TERSE_MOD_CTRL)) {
+		// Check if buffer has multiple lines
+		bool has_multiple_lines = tprompt_buffer_has_newlines(handle);
+
+		if (has_multiple_lines) {
+			// In multi-line mode: check if at last line
+			size_t current_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+			size_t total_lines = tprompt_count_logical_lines(handle);
+			if (current_line >= total_lines - 1) {
+				// At last line, navigate to next history entry
+				const char *entry = tprompt_history_next(&handle->history);
+				if (entry) {
+					tprompt_buffer_set(&handle->buffer, entry);
+				} else {
+					// At the end of history, restore saved input
+					if (handle->history.saved_input) {
+						tprompt_buffer_set(&handle->buffer, handle->history.saved_input);
+					} else {
+						tprompt_buffer_clear(&handle->buffer);
+					}
+				}
+			} else {
+				// Not at last line, navigate down within buffer
+				tprompt_cursor_move_down(handle);
+			}
+		} else {
+			// Single line mode: always navigate history
+			const char *entry = tprompt_history_next(&handle->history);
+			if (entry) {
+				tprompt_buffer_set(&handle->buffer, entry);
+			} else {
+				// At the end of history, restore saved input
+				if (handle->history.saved_input) {
+					tprompt_buffer_set(&handle->buffer, handle->history.saved_input);
+				} else {
+					tprompt_buffer_clear(&handle->buffer);
+				}
+			}
+		}
+		return 0;
 	}
 
 	// Handle left/right arrow keys for cursor movement
@@ -2683,7 +2926,7 @@ char *tprompt(const char *prompt_text)
 		.completion_user_data = NULL,
 		.completion_prefixes = NULL,
 		.terse_handle = NULL,
-		.flags = TPROMPT_FLAG_MULTILINE
+		.flags = 0
 	};
 
 	// Open temporary handle
@@ -3066,6 +3309,26 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 				tprompt_key_handle_ctrl_e(handle);
 				handle->input_state.has_goal_column = false;
 			}
+			// Handle Ctrl+P - previous history (Emacs-style)
+			else if (scalar == 'p' && (mods & TERSE_MOD_CTRL)) { // Ctrl+P
+				int key_result = tprompt_handle_key_event(handle, &event);
+				if (key_result == 1) {
+					break; // Confirm input
+				} else if (key_result == -1) {
+					return NULL; // Error
+				}
+				// key_result == 0: continue editing
+			}
+			// Handle Ctrl+N - next history (Emacs-style)
+			else if (scalar == 'n' && (mods & TERSE_MOD_CTRL)) { // Ctrl+N
+				int key_result = tprompt_handle_key_event(handle, &event);
+				if (key_result == 1) {
+					break; // Confirm input
+				} else if (key_result == -1) {
+					return NULL; // Error
+				}
+				// key_result == 0: continue editing
+			}
 			// Handle Ctrl+D (EOF-like behavior)
 			else if (scalar == 'd' && (mods & TERSE_MOD_CTRL)) { // Ctrl+D
 				if (handle->buffer.length == 0) {
@@ -3141,10 +3404,15 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 				tprompt_cursor_move_right(&handle->buffer, 1);
 			}
 			handle->input_state.has_goal_column = false;
-		} else if (event.type == TERSE_EVENT_ARROW_UP) {
-			tprompt_cursor_move_up(handle);
-		} else if (event.type == TERSE_EVENT_ARROW_DOWN) {
-			tprompt_cursor_move_down(handle);
+		} else if (event.type == TERSE_EVENT_ARROW_UP || event.type == TERSE_EVENT_ARROW_DOWN) {
+			// Handle UP/DOWN through tprompt_handle_key_event (supports history navigation)
+			int key_result = tprompt_handle_key_event(handle, &event);
+			if (key_result == 1) {
+				break; // Confirm input (should not happen for arrows, but handle it)
+			} else if (key_result == -1) {
+				return NULL; // Error
+			}
+			// key_result == 0: continue editing
 		} else if (event.type == TERSE_EVENT_HOME) {
 			// Staged Home key behavior (Claude Code style)
 			// First press: move to physical line start, second press: move to logical line start
