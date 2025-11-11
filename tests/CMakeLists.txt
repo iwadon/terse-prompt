@@ -9,6 +9,7 @@ target_include_directories(test_basic PRIVATE
 
 target_compile_definitions(test_basic PRIVATE
     _POSIX_C_SOURCE=200809L
+    $<$<BOOL:${TPROMPT_USE_TERSE_TEST_MODE}>:TERSE_ENABLE_TEST_MODE=1>
 )
 
 target_link_libraries(test_basic PRIVATE
@@ -29,6 +30,7 @@ target_include_directories(test_history PRIVATE
 
 target_compile_definitions(test_history PRIVATE
     _POSIX_C_SOURCE=200809L
+    $<$<BOOL:${TPROMPT_USE_TERSE_TEST_MODE}>:TERSE_ENABLE_TEST_MODE=1>
 )
 
 target_link_libraries(test_history PRIVATE
@@ -49,6 +51,7 @@ target_include_directories(test_completion PRIVATE
 
 target_compile_definitions(test_completion PRIVATE
     _POSIX_C_SOURCE=200809L
+    $<$<BOOL:${TPROMPT_USE_TERSE_TEST_MODE}>:TERSE_ENABLE_TEST_MODE=1>
 )
 
 target_link_libraries(test_completion PRIVATE
@@ -69,6 +72,7 @@ target_include_directories(test_multiline PRIVATE
 
 target_compile_definitions(test_multiline PRIVATE
     _POSIX_C_SOURCE=200809L
+    $<$<BOOL:${TPROMPT_USE_TERSE_TEST_MODE}>:TERSE_ENABLE_TEST_MODE=1>
 )
 
 target_link_libraries(test_multiline PRIVATE
@@ -89,6 +93,7 @@ target_include_directories(test_newline PRIVATE
 
 target_compile_definitions(test_newline PRIVATE
     _POSIX_C_SOURCE=200809L
+    $<$<BOOL:${TPROMPT_USE_TERSE_TEST_MODE}>:TERSE_ENABLE_TEST_MODE=1>
 )
 
 target_link_libraries(test_newline PRIVATE
@@ -109,6 +114,7 @@ target_include_directories(test_keybindings PRIVATE
 
 target_compile_definitions(test_keybindings PRIVATE
     _POSIX_C_SOURCE=200809L
+    $<$<BOOL:${TPROMPT_USE_TERSE_TEST_MODE}>:TERSE_ENABLE_TEST_MODE=1>
 )
 
 target_link_libraries(test_keybindings PRIVATE
@@ -129,6 +135,7 @@ target_include_directories(test_validation PRIVATE
 
 target_compile_definitions(test_validation PRIVATE
     _POSIX_C_SOURCE=200809L
+    $<$<BOOL:${TPROMPT_USE_TERSE_TEST_MODE}>:TERSE_ENABLE_TEST_MODE=1>
 )
 
 target_link_libraries(test_validation PRIVATE

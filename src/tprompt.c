@@ -2459,25 +2459,20 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 		int mods = event->data.key.mods;
 		bool is_multiline = (handle->options.flags & TPROMPT_FLAG_MULTILINE) != 0;
 
-		// Ctrl+Enter or Alt+Enter: confirm input (opposite of default behavior)
+		// Ctrl+Enter or Alt+Enter: confirm input (always accept, but call validation for logging/statistics)
 		if ((mods & TERSE_MOD_CTRL) || (mods & TERSE_MOD_ALT)) {
-			// Mark confirmation as pending (will be validated in main loop)
-			handle->pending_confirmation = true;
-			return 0;
-		}
-
-		// Plain Enter in multiline mode: insert newline
-		if (is_multiline) {
-			if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
-				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-					"Failed to insert newline: buffer at %zu/%zu bytes",
-					handle->buffer.length, handle->buffer.size);
-				return -1;
+			// Call validation callback if configured (for logging/statistics), but always accept
+			if (handle->options.validation_callback) {
+				handle->options.validation_callback(
+					handle->buffer.data,
+					handle->buffer.length,
+					handle->options.validation_user_data);
+				// Ignore result - always confirm
 			}
-			return 0; // Continue editing
+			return 1; // Immediately confirm input, regardless of validation result
 		}
 
-		// Plain Enter in single-line mode: confirm input
+		// Plain Enter: behavior depends on mode and validation callback
 		// Mark confirmation as pending (will be validated in main loop)
 		handle->pending_confirmation = true;
 		return 0;
@@ -3479,19 +3474,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 			handle->input_state.last_cursor_pos = handle->buffer.cursor;
 		}
 
-		// Re-render display after each event
-		if (tprompt_display_render(handle) != 0) {
-			// Restore terminal on error
-#if defined(__unix__) || defined(__APPLE__)
-			if (handle->raw_mode_active) {
-				tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
-				handle->raw_mode_active = false;
-			}
-#endif
-			return NULL;
-		}
-
-		// Check if input confirmation is pending
+		// Check if input confirmation is pending (before rendering)
 		if (handle->pending_confirmation) {
 			handle->pending_confirmation = false; // Reset flag
 
@@ -3503,10 +3486,21 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 					handle->options.validation_user_data);
 
 				if (validation_result == TPROMPT_VALIDATION_REJECT) {
-					// Validation rejected - play beep and continue editing
+					// Validation rejected - play beep, render, and continue editing
 					terse_write_text(handle->terse, "\x07"); // Bell character (beep)
 					terse_flush(handle->terse);
 					// TODO: Display validation error message if provided
+					// Re-render display before continuing
+					if (tprompt_display_render(handle) != 0) {
+						// Restore terminal on error
+#if defined(__unix__) || defined(__APPLE__)
+						if (handle->raw_mode_active) {
+							tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
+							handle->raw_mode_active = false;
+						}
+#endif
+						return NULL;
+					}
 					continue; // Stay in editing loop
 
 				} else if (validation_result == TPROMPT_VALIDATION_CONTINUE) {
@@ -3521,19 +3515,79 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 								handle->buffer.length, handle->buffer.size);
 							return NULL;
 						}
+						// Re-render display before continuing
+						if (tprompt_display_render(handle) != 0) {
+							// Restore terminal on error
+#if defined(__unix__) || defined(__APPLE__)
+							if (handle->raw_mode_active) {
+								tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
+								handle->raw_mode_active = false;
+							}
+#endif
+							return NULL;
+						}
 						continue; // Stay in editing loop
 					} else {
 						// Single-line mode: CONTINUE treated as REJECT (can't insert newline)
 						terse_write_text(handle->terse, "\x07"); // Bell character (beep)
 						terse_flush(handle->terse);
+						// Re-render display before continuing
+						if (tprompt_display_render(handle) != 0) {
+							// Restore terminal on error
+#if defined(__unix__) || defined(__APPLE__)
+							if (handle->raw_mode_active) {
+								tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
+								handle->raw_mode_active = false;
+							}
+#endif
+							return NULL;
+						}
 						continue; // Stay in editing loop
 					}
 				}
 				// TPROMPT_VALIDATION_ACCEPT: fall through to break from loop
+			} else {
+				// No validation callback - behavior depends on mode
+				bool is_multiline = (handle->options.flags & TPROMPT_FLAG_MULTILINE) != 0;
+
+				if (is_multiline) {
+					// Multiline mode without validation: insert newline
+					if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
+						tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+							"Failed to insert newline: buffer at %zu/%zu bytes",
+							handle->buffer.length, handle->buffer.size);
+						return NULL;
+					}
+					// Re-render display before continuing
+					if (tprompt_display_render(handle) != 0) {
+						// Restore terminal on error
+#if defined(__unix__) || defined(__APPLE__)
+						if (handle->raw_mode_active) {
+							tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
+							handle->raw_mode_active = false;
+						}
+#endif
+						return NULL;
+					}
+					continue; // Stay in editing loop
+				}
+				// Single-line mode without validation: confirm input
 			}
 
-			// Validation passed or no validation callback - confirm input
+			// Validation passed or no validation callback in single-line mode - confirm input
 			break;
+		}
+
+		// Re-render display after each event (if not already handled by validation logic)
+		if (tprompt_display_render(handle) != 0) {
+			// Restore terminal on error
+#if defined(__unix__) || defined(__APPLE__)
+			if (handle->raw_mode_active) {
+				tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
+				handle->raw_mode_active = false;
+			}
+#endif
+			return NULL;
 		}
 	}
 
