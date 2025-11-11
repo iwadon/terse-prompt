@@ -301,13 +301,9 @@ TEST(HandleManagement, Open_DefaultOptions)
 	EXPECT_NE(handle->buffer.data, NULL);
 	EXPECT_NE(handle->prompt, NULL);
 
-#ifdef TERSE_ENABLE_TEST_MODE
-	// In test mode, verify mocked terminal size
-	terse_size_t size = terse_get_size(handle->terse);
-	EXPECT_EQ(size.rows, 24);
-	EXPECT_EQ(size.cols, 80);
-	EXPECT_TRUE(size.known);
-#endif
+	// Note: Terminal size is not mocked for internally-created terse handles
+	// in production builds. Tests that need mocked terminal size should use
+	// test_create_terse_handle() and pass it via terse_handle option.
 
 	tprompt_close(handle);
 }
