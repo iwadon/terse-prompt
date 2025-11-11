@@ -22,7 +22,13 @@ int main(void)
 		char *line = tprompt(">>> ");
 
 		if (line == NULL) {
-			// EOF (Ctrl+D) or error
+			// Check if this was an error or EOF
+			tprompt_error_info_t err = tprompt_get_last_error(NULL);
+			if (err.category != TPROMPT_ERROR_NONE) {
+				fprintf(stderr, "\nError: %s (code: %d)\n", err.message, err.code);
+				return 1;
+			}
+			// EOF (Ctrl+D)
 			printf("\nGoodbye!\n");
 			break;
 		}

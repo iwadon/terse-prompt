@@ -1871,7 +1871,11 @@ int tprompt_display_render(tprompt_handle_t handle)
 			handle->display.start_row_known = true;
 			base_row = start_pos.row;
 		} else {
+			// Cursor position not available - start tracking manually from current position
+			// We assume we're at row 0 for the first time, then track from there
 			base_row = 0;
+			handle->display.start_row = base_row;
+			handle->display.start_row_known = true; // Enable manual tracking
 		}
 	}
 
@@ -1887,15 +1891,17 @@ int tprompt_display_render(tprompt_handle_t handle)
 		int scroll_count = last_row - (int)terminal_height + 1;
 
 		// Move to bottom of terminal and write newlines to force scrolling
-		if (terse_move_to(handle->terse, (int)terminal_height - 1, 0) < 0) {
-			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+		terse_error_t terr = terse_move_to(handle->terse, (int)terminal_height - 1, 0);
+		if (terr != TERSE_OK) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 				"Failed to move cursor to bottom for scrolling");
 			return -1;
 		}
 
 		for (int i = 0; i < scroll_count; i++) {
-			if (terse_write_text(handle->terse, "\r\n") < 0) {
-				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+			terr = terse_write_text(handle->terse, "\r\n");
+			if (terr != TERSE_OK) {
+				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 					"Failed to write newline for scrolling");
 				return -1;
 			}
@@ -1912,23 +1918,43 @@ int tprompt_display_render(tprompt_handle_t handle)
 		? handle->display.total_physical_lines
 		: handle->display.prev_total_physical_lines;
 	for (size_t i = 0; i <= lines_to_clear; i++) {
-		if (terse_move_to(handle->terse, base_row + (int)i, 0) < 0) {
-			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+		int target_row = base_row + (int)i;
+		terse_error_t terr = terse_move_to(handle->terse, target_row, 0);
+		if (terr != TERSE_OK) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 				"Failed to move cursor to clear line %zu", i);
 			return -1;
 		}
-		if (terse_clear_line(handle->terse, TERSE_CLEAR_ALL) < 0) {
-			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-				"Failed to clear physical line %zu", i);
-			return -1;
+		terr = terse_clear_line(handle->terse, TERSE_CLEAR_ALL);
+		if (terr != TERSE_OK) {
+			// Fallback: clear line by writing spaces
+			size_t width = handle->display.terminal_width;
+			for (size_t j = 0; j < width; j++) {
+				terr = terse_write_text(handle->terse, " ");
+				if (terr != TERSE_OK) {
+					tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
+						"Failed to clear physical line %zu", i);
+					return -1;
+				}
+			}
+			// Move back to start of line
+			terr = terse_move_to(handle->terse, target_row, 0);
+			if (terr != TERSE_OK) {
+				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
+					"Failed to move cursor after fallback clear");
+				return -1;
+			}
 		}
 	}
 
 	// Move back to start position
-	if (terse_move_to(handle->terse, base_row, 0) < 0) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
-			"Failed to move cursor to start position (row %d)", base_row);
-		return -1;
+	{
+		terse_error_t terr = terse_move_to(handle->terse, base_row, 0);
+		if (terr != TERSE_OK) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
+				"Failed to move cursor to start position (row %d)", base_row);
+			return -1;
+		}
 	}
 
 	// Render text with wrapping and explicit newlines
@@ -1939,8 +1965,9 @@ int tprompt_display_render(tprompt_handle_t handle)
 	// Write prompt on first line
 	if (handle->prompt && first_logical_line) {
 		size_t prompt_len = strlen(handle->prompt);
-		if (terse_write_text(handle->terse, handle->prompt) < 0) {
-			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+		terse_error_t terr = terse_write_text(handle->terse, handle->prompt);
+		if (terr != TERSE_OK) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 				"Failed to write prompt text to terminal");
 			return -1;
 		}
@@ -1953,8 +1980,9 @@ int tprompt_display_render(tprompt_handle_t handle)
 		// Check for explicit newline character
 		if (handle->buffer.data[i] == '\n') {
 			// Explicit newline: move to next physical line and return to column 0
-			if (terse_write_text(handle->terse, "\r\n") < 0) {
-				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+			terse_error_t terr = terse_write_text(handle->terse, "\r\n");
+			if (terr != TERSE_OK) {
+				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 					"Failed to write newline character at byte offset %zu", i);
 				return -1;
 			}
@@ -1977,8 +2005,9 @@ int tprompt_display_render(tprompt_handle_t handle)
 				marker[spaces_before + 1] = ' ';
 				marker[spaces_before + 2] = '\0';
 
-				if (terse_write_text(handle->terse, marker) < 0) {
-					tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+				terse_error_t terr = terse_write_text(handle->terse, marker);
+				if (terr != TERSE_OK) {
+					tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 						"Failed to write continuation marker");
 					return -1;
 				}
@@ -1992,8 +2021,9 @@ int tprompt_display_render(tprompt_handle_t handle)
 		// Check if we need to wrap to next line (auto-wrap)
 		if (current_col >= terminal_width) {
 			// Move to next physical line and return to column 0
-			if (terse_write_text(handle->terse, "\r\n") < 0) {
-				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+			terse_error_t terr = terse_write_text(handle->terse, "\r\n");
+			if (terr != TERSE_OK) {
+				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 					"Failed to write auto-wrap newline at column %zu", current_col);
 				return -1;
 			}
@@ -2014,8 +2044,9 @@ int tprompt_display_render(tprompt_handle_t handle)
 			memcpy(temp, &handle->buffer.data[i], char_len);
 			temp[char_len] = '\0';
 
-			if (terse_write_text(handle->terse, temp) < 0) {
-				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+			terse_error_t terr = terse_write_text(handle->terse, temp);
+			if (terr != TERSE_OK) {
+				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 					"Failed to write character at byte offset %zu", i);
 				return -1;
 			}
@@ -2044,7 +2075,8 @@ int tprompt_display_render(tprompt_handle_t handle)
 	// DEBUG: Display cursor position
 	// Move to debug line (one line below the last input line)
 	int debug_row = base_row + (int)handle->display.total_physical_lines;
-	if (terse_move_to(handle->terse, debug_row, 0) < 0) {
+	terse_error_t terr = terse_move_to(handle->terse, debug_row, 0);
+	if (terr != TERSE_OK) {
 		// If we can't move to debug line, skip debug output
 	} else {
 		// Clear the debug line
@@ -2100,16 +2132,18 @@ int tprompt_display_update_cursor(tprompt_handle_t handle)
 
 	// Move cursor to calculated position using 0-based coordinates
 	int target_col = (int)handle->display.physical_column;
-	if (terse_move_to(handle->terse, target_row, target_col) < 0) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+	terse_error_t terr = terse_move_to(handle->terse, target_row, target_col);
+	if (terr != TERSE_OK) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 			"Failed to move cursor to position (row=%d, col=%zu)",
 			target_row, handle->display.physical_column);
 		return -1;
 	}
 
 	// Flush to ensure cursor is visible
-	if (terse_flush(handle->terse) < 0) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+	terr = terse_flush(handle->terse);
+	if (terr != TERSE_OK) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 			"Failed to flush output after cursor update");
 		return -1;
 	}
@@ -2124,8 +2158,9 @@ int tprompt_display_clear(tprompt_handle_t handle)
 	}
 
 	// Clear the current line
-	if (terse_clear_line(handle->terse, TERSE_CLEAR_ALL) < 0) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+	terse_error_t terr = terse_clear_line(handle->terse, TERSE_CLEAR_ALL);
+	if (terr != TERSE_OK) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 			"Failed to clear current display line");
 		return -1;
 	}
@@ -2133,15 +2168,17 @@ int tprompt_display_clear(tprompt_handle_t handle)
 	// Move cursor to start of line
 	terse_cursor_position_t pos = terse_get_cursor_position(handle->terse);
 	int row = pos.known ? pos.row : 0;
-	if (terse_move_to(handle->terse, row, 0) < 0) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+	terr = terse_move_to(handle->terse, row, 0);
+	if (terr != TERSE_OK) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 			"Failed to move cursor to line start");
 		return -1;
 	}
 
 	// Flush
-	if (terse_flush(handle->terse) < 0) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+	terr = terse_flush(handle->terse);
+	if (terr != TERSE_OK) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 			"Failed to flush output after display clear");
 		return -1;
 	}
@@ -2167,8 +2204,9 @@ int tprompt_display_render_completion(tprompt_handle_t handle)
 	terse_cursor_position_t saved_pos = terse_get_cursor_position(handle->terse);
 
 	// Move cursor to next line after input
-	if (terse_move_by(handle->terse, 1, 0) < 0) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+	terse_error_t terr = terse_move_by(handle->terse, 1, 0);
+	if (terr != TERSE_OK) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 			"Failed to move cursor down to render completion list");
 		return -1;
 	}
@@ -2176,7 +2214,8 @@ int tprompt_display_render_completion(tprompt_handle_t handle)
 	// Render each candidate
 	for (size_t i = 0; i < candidate_count; i++) {
 		// Clear the line first
-		if (terse_clear_line(handle->terse, TERSE_CLEAR_ALL) < 0) {
+		terr = terse_clear_line(handle->terse, TERSE_CLEAR_ALL);
+		if (terr != TERSE_OK) {
 			return -1;
 		}
 
@@ -2188,7 +2227,8 @@ int tprompt_display_render_completion(tprompt_handle_t handle)
 		} else if (saved_pos.known) {
 			row = saved_pos.row + 1 + (int)i;
 		}
-		if (terse_move_to(handle->terse, row, 0) < 0) {
+		terr = terse_move_to(handle->terse, row, 0);
+		if (terr != TERSE_OK) {
 			return -1;
 		}
 
@@ -2199,22 +2239,25 @@ int tprompt_display_render_completion(tprompt_handle_t handle)
 		}
 
 		// Write prefix
-		if (terse_write_text(handle->terse, prefix) < 0) {
-			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+		terr = terse_write_text(handle->terse, prefix);
+		if (terr != TERSE_OK) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 				"Failed to write completion prefix for candidate %zu", i);
 			return -1;
 		}
 
 		// Write candidate text
-		if (terse_write_text(handle->terse, candidates[i]) < 0) {
-			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+		terr = terse_write_text(handle->terse, candidates[i]);
+		if (terr != TERSE_OK) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 				"Failed to write completion candidate %zu: '%s'", i, candidates[i]);
 			return -1;
 		}
 
 		// Move to next line if not the last candidate
 		if (i < candidate_count - 1) {
-			if (terse_move_by(handle->terse, 1, 0) < 0) {
+			terr = terse_move_by(handle->terse, 1, 0);
+			if (terr != TERSE_OK) {
 				return -1;
 			}
 		}
@@ -2222,14 +2265,16 @@ int tprompt_display_render_completion(tprompt_handle_t handle)
 
 	// Restore cursor to input position
 	if (saved_pos.known) {
-		if (terse_move_to(handle->terse, saved_pos.row, saved_pos.col) < 0) {
+		terr = terse_move_to(handle->terse, saved_pos.row, saved_pos.col);
+		if (terr != TERSE_OK) {
 			return -1;
 		}
 	}
 
 	// Flush output
-	if (terse_flush(handle->terse) < 0) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+	terr = terse_flush(handle->terse);
+	if (terr != TERSE_OK) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 			"Failed to flush output after rendering %zu completion candidates", candidate_count);
 		return -1;
 	}
@@ -2989,6 +3034,11 @@ char *tprompt(const char *prompt_text)
 	// Read one line
 	char *result = tprompt_readline(handle, NULL);
 
+	// If readline failed, copy the error to global error before closing handle
+	if (result == NULL && handle->last_error.category != TPROMPT_ERROR_NONE) {
+		tprompt_global_error = handle->last_error;
+	}
+
 	// Close handle
 	tprompt_close(handle);
 
@@ -3319,9 +3369,9 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 	while (1) {
 		// Wait for next event
 		terse_event_t event;
-		int result = terse_read_event(handle->terse, -1, &event); // -1 = wait indefinitely
-		if (result < 0) {
-			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, errno,
+		terse_error_t result = terse_read_event(handle->terse, -1, &event); // -1 = wait indefinitely
+		if (result != TERSE_OK) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)result,
 				"Failed to read event");
 			return NULL;
 		}
@@ -3652,6 +3702,18 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 	// In raw mode, we need \r\n to move to the beginning of the next line
 	terse_write_text(handle->terse, "\r\n");
 	terse_flush(handle->terse);
+
+	// Update start_row for next readline call if cursor position is not available
+	// This tracks where the cursor is after moving to the next line
+	if (handle->display.start_row_known) {
+		int lines_used = (int)handle->display.total_physical_lines;
+		handle->display.start_row += lines_used + 1; // +1 for the \r\n we just wrote
+
+		// Wrap around if we exceed terminal height
+		if (handle->display.start_row >= (int)handle->display.terminal_height) {
+			handle->display.start_row = handle->display.terminal_height - 1;
+		}
+	}
 
 	// Add to history if not empty
 	if (handle->buffer.length > 0 && !(handle->options.flags & TPROMPT_FLAG_DISABLE_HISTORY)) {
