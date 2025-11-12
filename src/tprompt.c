@@ -1870,7 +1870,7 @@ int tprompt_display_render(tprompt_handle_t handle)
 	if (handle->display.is_dirty &&
 	    !handle->display.force_full_redraw &&
 	    handle->display.total_physical_lines == handle->display.prev_total_physical_lines &&
-	    handle->display.total_physical_lines == 0) {  // Single line (0 = first line)
+	    handle->display.total_physical_lines <= 1) {  // Single line only
 
 		// Check if this looks like a simple insertion (dirty region is small)
 		size_t dirty_size = handle->display.dirty_end_byte - handle->display.dirty_start_byte;
