@@ -1862,13 +1862,9 @@ int tprompt_display_render(tprompt_handle_t handle)
 	// Calculate layout first to know how many physical lines we need
 	tprompt_display_calculate_layout(handle);
 
-	// Early exit if nothing is dirty (no changes since last render)
-	if (!handle->display.is_dirty) {
-		return 0;
-	}
-
-	// Check if we can use differential rendering (single-line, simple edits)
-	bool use_differential = tprompt_display_can_use_differential(handle);
+	// TODO: Differential rendering temporarily disabled for debugging
+	// Always use full redraw for now
+	bool use_differential = false;
 
 	if (use_differential) {
 		// === DIFFERENTIAL RENDERING PATH ===
