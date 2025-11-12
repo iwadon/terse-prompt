@@ -1862,9 +1862,22 @@ int tprompt_display_render(tprompt_handle_t handle)
 	// Calculate layout first to know how many physical lines we need
 	tprompt_display_calculate_layout(handle);
 
-	// TODO: Differential rendering temporarily disabled for debugging
-	// Always use full redraw for now
+	// Check if we can use differential rendering (single-line, simple edits)
+	// Note: Currently limited to character insertions only for debugging
 	bool use_differential = false;
+
+	// Only enable differential rendering for simple character insertions
+	if (handle->display.is_dirty &&
+	    !handle->display.force_full_redraw &&
+	    handle->display.total_physical_lines == handle->display.prev_total_physical_lines &&
+	    handle->display.total_physical_lines == 0) {  // Single line (0 = first line)
+
+		// Check if this looks like a simple insertion (dirty region is small)
+		size_t dirty_size = handle->display.dirty_end_byte - handle->display.dirty_start_byte;
+		if (dirty_size <= 10) {  // Small change, likely a character insertion
+			use_differential = true;
+		}
+	}
 
 	if (use_differential) {
 		// === DIFFERENTIAL RENDERING PATH ===
