@@ -1863,19 +1863,19 @@ int tprompt_display_render(tprompt_handle_t handle)
 	tprompt_display_calculate_layout(handle);
 
 	// Check if we can use differential rendering (single-line, simple edits)
-	// Note: Currently limited to character insertions only for debugging
 	bool use_differential = false;
 
-	// Only enable differential rendering for simple character insertions
+	// Enable differential rendering for simple edits on single line
 	if (handle->display.is_dirty &&
 	    !handle->display.force_full_redraw &&
 	    handle->display.total_physical_lines == handle->display.prev_total_physical_lines &&
 	    handle->display.total_physical_lines <= 1) {  // Single line only
 
-		// Check if this looks like a simple insertion (dirty region is small)
+		// Allow differential rendering for small changes
+		// This includes character insertions and deletions
 		size_t dirty_size = handle->display.dirty_end_byte - handle->display.dirty_start_byte;
-		if (dirty_size <= 10) {  // Small change, likely a character insertion
-			use_differential = true;
+		if (dirty_size <= handle->buffer.length) {  // Any size, as long as single line
+			use_differential = tprompt_display_can_use_differential(handle);
 		}
 	}
 
@@ -2951,9 +2951,8 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 		size_t old_length = handle->buffer.length;
 		size_t deleted_bytes = tprompt_buffer_delete_before(&handle->buffer, 1);
 		if (deleted_bytes > 0) {
-			// Force full redraw for backspace to ensure correct display
-			// TODO: Optimize with differential rendering once the issue is resolved
-			tprompt_display_mark_all_dirty(handle);
+			// Mark from new cursor position to old end as dirty (characters shift left)
+			tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
 		}
 		handle->input_state.last_key_type = event->type;
 		handle->input_state.last_cursor_pos = handle->buffer.cursor;
@@ -2966,9 +2965,8 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 		size_t old_length = handle->buffer.length;
 		size_t deleted_bytes = tprompt_buffer_delete_at(&handle->buffer, 1);
 		if (deleted_bytes > 0) {
-			// Force full redraw for delete to ensure correct display
-			// TODO: Optimize with differential rendering once the issue is resolved
-			tprompt_display_mark_all_dirty(handle);
+			// Mark from cursor to old end as dirty (characters shift left)
+			tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
 		}
 		handle->input_state.last_key_type = event->type;
 		handle->input_state.last_cursor_pos = handle->buffer.cursor;
