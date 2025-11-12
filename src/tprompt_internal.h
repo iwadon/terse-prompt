@@ -534,6 +534,13 @@ void tprompt_display_calculate_layout(tprompt_handle_t handle);
 int tprompt_display_render(tprompt_handle_t handle);
 
 /**
+ * @brief Render the input buffer to terminal using buffer-based differential rendering
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_display_render_buffered(tprompt_handle_t handle);
+
+/**
  * @brief Update cursor position on screen
  * @param handle Prompt handle
  * @return 0 on success, -1 on failure

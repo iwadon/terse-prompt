@@ -3643,7 +3643,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 #endif
 
 	// Initial render
-	if (tprompt_display_render(handle) != 0) {
+	if (tprompt_display_render_buffered(handle) != 0) {
 		// Restore terminal on error
 #if defined(__unix__) || defined(__APPLE__)
 		if (handle->raw_mode_active) {
@@ -3879,7 +3879,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 					terse_flush(handle->terse);
 					// TODO: Display validation error message if provided
 					// Re-render display before continuing
-					if (tprompt_display_render(handle) != 0) {
+					if (tprompt_display_render_buffered(handle) != 0) {
 						// Restore terminal on error
 #if defined(__unix__) || defined(__APPLE__)
 						if (handle->raw_mode_active) {
@@ -3904,7 +3904,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 							return NULL;
 						}
 						// Re-render display before continuing
-						if (tprompt_display_render(handle) != 0) {
+						if (tprompt_display_render_buffered(handle) != 0) {
 							// Restore terminal on error
 #if defined(__unix__) || defined(__APPLE__)
 							if (handle->raw_mode_active) {
@@ -3920,7 +3920,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 						terse_write_text(handle->terse, "\x07"); // Bell character (beep)
 						terse_flush(handle->terse);
 						// Re-render display before continuing
-						if (tprompt_display_render(handle) != 0) {
+						if (tprompt_display_render_buffered(handle) != 0) {
 							// Restore terminal on error
 #if defined(__unix__) || defined(__APPLE__)
 							if (handle->raw_mode_active) {
@@ -3947,7 +3947,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 						return NULL;
 					}
 					// Re-render display before continuing
-					if (tprompt_display_render(handle) != 0) {
+					if (tprompt_display_render_buffered(handle) != 0) {
 						// Restore terminal on error
 #if defined(__unix__) || defined(__APPLE__)
 						if (handle->raw_mode_active) {
@@ -3967,7 +3967,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 		}
 
 		// Re-render display after each event (if not already handled by validation logic)
-		if (tprompt_display_render(handle) != 0) {
+		if (tprompt_display_render_buffered(handle) != 0) {
 			// Restore terminal on error
 #if defined(__unix__) || defined(__APPLE__)
 			if (handle->raw_mode_active) {
@@ -4997,7 +4997,7 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 /**
  * @brief Main buffer-based rendering coordinator
  */
-static int tprompt_display_render_buffered(tprompt_handle_t handle)
+int tprompt_display_render_buffered(tprompt_handle_t handle)
 {
 	if (!handle || !handle->display.buffer_based_rendering_active) {
 		return -1;
