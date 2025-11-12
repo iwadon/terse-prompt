@@ -1983,6 +1983,9 @@ int tprompt_display_render(tprompt_handle_t handle)
 			return -1;
 		}
 
+		// Update previous line count for next redraw
+		handle->display.prev_total_physical_lines = handle->display.total_physical_lines;
+
 		// Clear dirty flags
 		tprompt_display_clear_dirty(handle);
 
@@ -4386,4 +4389,379 @@ int tprompt_key_handle_ctrl_e(tprompt_handle_t handle)
 	handle->buffer.cursor = line_end;
 
 	return 0;
+}
+
+/* ========================================================================
+ * Screen Buffer Management (Buffer-based Differential Rendering)
+ * ======================================================================== */
+
+int tprompt_screen_buffer_init(tprompt_screen_buffer_t *buffer, size_t rows, size_t cols)
+{
+	if (!buffer || rows == 0 || cols == 0) {
+		return -1;
+	}
+
+	size_t total_cells = rows * cols;
+	buffer->cells = (tprompt_screen_cell_t *)calloc(total_cells, sizeof(tprompt_screen_cell_t));
+	if (!buffer->cells) {
+		return -1;
+	}
+
+	buffer->rows = rows;
+	buffer->cols = cols;
+
+	// Initialize all cells to empty
+	for (size_t i = 0; i < total_cells; i++) {
+		buffer->cells[i].char_len = 0;
+		buffer->cells[i].display_width = 1;
+		buffer->cells[i].is_continuation = false;
+		buffer->cells[i].utf8_char[0] = '\0';
+	}
+
+	return 0;
+}
+
+void tprompt_screen_buffer_free(tprompt_screen_buffer_t *buffer)
+{
+	if (!buffer) {
+		return;
+	}
+
+	if (buffer->cells) {
+		free(buffer->cells);
+		buffer->cells = NULL;
+	}
+
+	buffer->rows = 0;
+	buffer->cols = 0;
+}
+
+void tprompt_screen_buffer_clear(tprompt_screen_buffer_t *buffer)
+{
+	if (!buffer || !buffer->cells) {
+		return;
+	}
+
+	size_t total_cells = buffer->rows * buffer->cols;
+	for (size_t i = 0; i < total_cells; i++) {
+		buffer->cells[i].char_len = 0;
+		buffer->cells[i].display_width = 1;
+		buffer->cells[i].is_continuation = false;
+		buffer->cells[i].utf8_char[0] = '\0';
+	}
+}
+
+int tprompt_screen_buffer_resize(tprompt_screen_buffer_t *buffer, size_t new_rows, size_t new_cols)
+{
+	if (!buffer || new_rows == 0 || new_cols == 0) {
+		return -1;
+	}
+
+	// If size unchanged, just clear
+	if (buffer->rows == new_rows && buffer->cols == new_cols) {
+		tprompt_screen_buffer_clear(buffer);
+		return 0;
+	}
+
+	// Reallocate
+	size_t new_total = new_rows * new_cols;
+	tprompt_screen_cell_t *new_cells = (tprompt_screen_cell_t *)calloc(new_total, sizeof(tprompt_screen_cell_t));
+	if (!new_cells) {
+		return -1;
+	}
+
+	// Initialize new cells
+	for (size_t i = 0; i < new_total; i++) {
+		new_cells[i].char_len = 0;
+		new_cells[i].display_width = 1;
+		new_cells[i].is_continuation = false;
+		new_cells[i].utf8_char[0] = '\0';
+	}
+
+	// Free old buffer and update
+	if (buffer->cells) {
+		free(buffer->cells);
+	}
+
+	buffer->cells = new_cells;
+	buffer->rows = new_rows;
+	buffer->cols = new_cols;
+
+	return 0;
+}
+
+int tprompt_screen_buffer_write_char(tprompt_screen_buffer_t *buffer,
+	size_t row, size_t col,
+	const char *utf8_char, size_t char_len, size_t display_width)
+{
+	if (!buffer || !buffer->cells || !utf8_char) {
+		return -1;
+	}
+
+	if (row >= buffer->rows || col >= buffer->cols) {
+		return -1; // Out of bounds
+	}
+
+	if (char_len > 4) {
+		return -1; // Invalid UTF-8 length
+	}
+
+	size_t index = row * buffer->cols + col;
+
+	// Copy UTF-8 character
+	if (char_len > 0) {
+		memcpy(buffer->cells[index].utf8_char, utf8_char, char_len);
+	}
+	buffer->cells[index].utf8_char[char_len] = '\0';
+	buffer->cells[index].char_len = (uint8_t)char_len;
+	buffer->cells[index].display_width = (uint8_t)display_width;
+	buffer->cells[index].is_continuation = false;
+
+	// Handle wide characters (2 columns)
+	if (display_width == 2 && col + 1 < buffer->cols) {
+		size_t next_index = index + 1;
+		buffer->cells[next_index].char_len = 0;
+		buffer->cells[next_index].utf8_char[0] = '\0';
+		buffer->cells[next_index].display_width = 0;
+		buffer->cells[next_index].is_continuation = true;
+	}
+
+	return 0;
+}
+
+int tprompt_screen_buffer_write_string(tprompt_handle_t handle,
+	tprompt_screen_buffer_t *buffer,
+	size_t row, size_t col,
+	const char *str)
+{
+	if (!handle || !buffer || !str) {
+		return -1;
+	}
+
+	size_t current_col = col;
+	size_t i = 0;
+	size_t str_len = strlen(str);
+
+	while (i < str_len && current_col < buffer->cols) {
+		// Get UTF-8 character length
+		size_t char_len = tprompt_utf8_char_length((unsigned char)str[i]);
+		if (char_len == 0 || i + char_len > str_len) {
+			i++;
+			continue;
+		}
+
+		// Decode character to get scalar value
+		unsigned int scalar = tprompt_utf8_decode((const unsigned char *)&str[i], char_len);
+
+		// Get display width
+		int char_width = tprompt_get_char_width(scalar);
+		if (char_width < 0) {
+			char_width = 1;
+		}
+
+		// Check if character fits
+		if (current_col + (size_t)char_width > buffer->cols) {
+			break; // Would overflow line
+		}
+
+		// Write character to buffer
+		if (tprompt_screen_buffer_write_char(buffer, row, current_col,
+			&str[i], char_len, (size_t)char_width) != 0) {
+			return -1;
+		}
+
+		current_col += (size_t)char_width;
+		i += char_len;
+	}
+
+	return (int)(current_col - col); // Return number of columns advanced
+}
+
+void tprompt_screen_buffer_diff(const tprompt_screen_buffer_t *prev,
+	const tprompt_screen_buffer_t *curr,
+	bool *dirty_cells)
+{
+	if (!prev || !curr || !dirty_cells) {
+		return;
+	}
+
+	// Buffers must have same dimensions
+	if (prev->rows != curr->rows || prev->cols != curr->cols) {
+		// Mark all as dirty if dimensions changed
+		size_t total = curr->rows * curr->cols;
+		for (size_t i = 0; i < total; i++) {
+			dirty_cells[i] = true;
+		}
+		return;
+	}
+
+	size_t total_cells = prev->rows * prev->cols;
+
+	for (size_t i = 0; i < total_cells; i++) {
+		// Compare cell contents
+		if (prev->cells[i].char_len != curr->cells[i].char_len ||
+			prev->cells[i].display_width != curr->cells[i].display_width ||
+			prev->cells[i].is_continuation != curr->cells[i].is_continuation) {
+			dirty_cells[i] = true;
+		} else if (prev->cells[i].char_len > 0 &&
+				   memcmp(prev->cells[i].utf8_char, curr->cells[i].utf8_char,
+					   prev->cells[i].char_len) != 0) {
+			dirty_cells[i] = true;
+		} else {
+			dirty_cells[i] = false;
+		}
+	}
+}
+
+void tprompt_screen_buffer_swap(tprompt_screen_buffer_t *buffer1,
+	tprompt_screen_buffer_t *buffer2)
+{
+	if (!buffer1 || !buffer2) {
+		return;
+	}
+
+	// Swap pointers and dimensions
+	tprompt_screen_cell_t *temp_cells = buffer1->cells;
+	size_t temp_rows = buffer1->rows;
+	size_t temp_cols = buffer1->cols;
+
+	buffer1->cells = buffer2->cells;
+	buffer1->rows = buffer2->rows;
+	buffer1->cols = buffer2->cols;
+
+	buffer2->cells = temp_cells;
+	buffer2->rows = temp_rows;
+	buffer2->cols = temp_cols;
+}
+
+int tprompt_screen_buffer_flush_diff(tprompt_handle_t handle)
+{
+	if (!handle || !handle->display.buffer_based_rendering_active) {
+		return -1;
+	}
+
+	tprompt_screen_buffer_t *buf = &handle->display.current_buffer;
+	bool *dirty = handle->display.dirty_cells;
+	int base_row = handle->display.start_row;
+
+	// Iterate through each row and find contiguous dirty regions
+	for (size_t row = 0; row < buf->rows; row++) {
+		size_t col = 0;
+		while (col < buf->cols) {
+			// Skip clean cells
+			while (col < buf->cols && !dirty[row * buf->cols + col]) {
+				col++;
+			}
+
+			if (col >= buf->cols) {
+				break; // End of row
+			}
+
+			// Found start of dirty region
+			size_t dirty_start = col;
+
+			// Find end of contiguous dirty region
+			while (col < buf->cols && dirty[row * buf->cols + col]) {
+				col++;
+			}
+
+			size_t dirty_end = col;
+
+			// Move cursor to start of dirty region
+			terse_error_t terr = terse_move_to(handle->terse, base_row + (int)row, (int)dirty_start);
+			if (terr != TERSE_OK) {
+				return -1;
+			}
+
+			// Write all dirty cells in this region
+			for (size_t c = dirty_start; c < dirty_end; c++) {
+				size_t index = row * buf->cols + c;
+				tprompt_screen_cell_t *cell = &buf->cells[index];
+
+				// Skip continuation cells (already handled by wide char)
+				if (cell->is_continuation) {
+					continue;
+				}
+
+				// Write character or space for empty cell
+				if (cell->char_len > 0) {
+					terr = terse_write_text(handle->terse, cell->utf8_char);
+				} else {
+					terr = terse_write_text(handle->terse, " ");
+				}
+
+				if (terr != TERSE_OK) {
+					return -1;
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
+int tprompt_buffer_based_rendering_init(tprompt_handle_t handle)
+{
+	if (!handle) {
+		return -1;
+	}
+
+	// Already initialized
+	if (handle->display.buffer_based_rendering_active) {
+		return 0;
+	}
+
+	// Determine buffer dimensions
+	// Use current terminal dimensions or reasonable defaults
+	size_t rows = handle->display.terminal_height > 0 ? handle->display.terminal_height : 24;
+	size_t cols = handle->display.terminal_width > 0 ? handle->display.terminal_width : 80;
+
+	// We only need a few rows for the prompt area (input + status line + completion)
+	// Start with a reasonable size (10 rows should be plenty for most cases)
+	rows = 10;
+
+	// Initialize current buffer
+	if (tprompt_screen_buffer_init(&handle->display.current_buffer, rows, cols) != 0) {
+		return -1;
+	}
+
+	// Initialize previous buffer
+	if (tprompt_screen_buffer_init(&handle->display.previous_buffer, rows, cols) != 0) {
+		tprompt_screen_buffer_free(&handle->display.current_buffer);
+		return -1;
+	}
+
+	// Allocate dirty cells array
+	size_t total_cells = rows * cols;
+	handle->display.dirty_cells = (bool *)calloc(total_cells, sizeof(bool));
+	if (!handle->display.dirty_cells) {
+		tprompt_screen_buffer_free(&handle->display.current_buffer);
+		tprompt_screen_buffer_free(&handle->display.previous_buffer);
+		return -1;
+	}
+
+	handle->display.buffer_based_rendering_active = true;
+
+	return 0;
+}
+
+void tprompt_buffer_based_rendering_free(tprompt_handle_t handle)
+{
+	if (!handle) {
+		return;
+	}
+
+	if (!handle->display.buffer_based_rendering_active) {
+		return;
+	}
+
+	tprompt_screen_buffer_free(&handle->display.current_buffer);
+	tprompt_screen_buffer_free(&handle->display.previous_buffer);
+
+	if (handle->display.dirty_cells) {
+		free(handle->display.dirty_cells);
+		handle->display.dirty_cells = NULL;
+	}
+
+	handle->display.buffer_based_rendering_active = false;
 }
