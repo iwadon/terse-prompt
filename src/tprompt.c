@@ -3546,6 +3546,12 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 		tprompt_clear_error(&handle->last_error);
 	}
 
+	// Initialize buffer-based rendering (Phase 1-3)
+	if (tprompt_buffer_based_rendering_init(handle) != 0) {
+		// Non-fatal: buffer-based rendering is optional optimization
+		// Continue without it
+	}
+
 	return handle;
 }
 
@@ -3560,6 +3566,9 @@ void tprompt_close(tprompt_handle_t handle)
 		tprompt_history_save_internal(&handle->history, handle->history_file_path);
 		// Ignore errors on save
 	}
+
+	// Free buffer-based rendering resources (Phase 1-3)
+	tprompt_buffer_based_rendering_free(handle);
 
 	// Free resources
 	free(handle->history_file_path);
@@ -4764,4 +4773,322 @@ void tprompt_buffer_based_rendering_free(tprompt_handle_t handle)
 	}
 
 	handle->display.buffer_based_rendering_active = false;
+}
+
+/* ========================================================================
+ * Buffer-based Rendering Functions (Phase 3)
+ * ======================================================================== */
+
+/**
+ * @brief Render prompt string to buffer
+ */
+static int tprompt_render_to_buffer_prompt(tprompt_handle_t handle, size_t *out_row, size_t *out_col)
+{
+	if (!handle || !out_row || !out_col) {
+		return -1;
+	}
+
+	tprompt_screen_buffer_t *buf = &handle->display.current_buffer;
+
+	// Start at row 0, column 0
+	size_t row = 0;
+	size_t col = 0;
+
+	// Write prompt if present
+	if (handle->prompt) {
+		int cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, handle->prompt);
+		if (cols_written < 0) {
+			return -1;
+		}
+		col += (size_t)cols_written;
+	}
+
+	*out_row = row;
+	*out_col = col;
+	return 0;
+}
+
+/**
+ * @brief Render input text with wrapping to buffer
+ */
+static int tprompt_render_to_buffer_input(tprompt_handle_t handle, size_t start_row, size_t start_col,
+	size_t *out_end_row, size_t *out_end_col)
+{
+	if (!handle || !out_end_row || !out_end_col) {
+		return -1;
+	}
+
+	tprompt_screen_buffer_t *buf = &handle->display.current_buffer;
+	size_t terminal_width = handle->display.terminal_width;
+
+	size_t row = start_row;
+	size_t col = start_col;
+
+	// Iterate through buffer and write characters
+	size_t i = 0;
+	while (i < handle->buffer.length) {
+		// Check for explicit newline
+		if (handle->buffer.data[i] == '\n') {
+			// Move to next row, column 0
+			row++;
+			col = 0;
+
+			// Write continuation marker if configured
+			size_t marker_width = tprompt_get_continuation_marker_width(handle);
+			if (marker_width > 0 && marker_width < terminal_width) {
+				// Build marker: spaces + '|' + space
+				char marker[256];
+				size_t spaces_before = marker_width >= 2 ? marker_width - 2 : 0;
+				if (spaces_before + 2 >= sizeof(marker)) {
+					spaces_before = sizeof(marker) - 3;
+				}
+				memset(marker, ' ', spaces_before);
+				marker[spaces_before] = '|';
+				marker[spaces_before + 1] = ' ';
+				marker[spaces_before + 2] = '\0';
+
+				int cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, marker);
+				if (cols_written < 0) {
+					return -1;
+				}
+				col += (size_t)cols_written;
+			}
+
+			i++;
+			continue;
+		}
+
+		// Check if we need to wrap to next physical line
+		if (col >= terminal_width) {
+			row++;
+			col = 0;
+
+			// Check buffer bounds
+			if (row >= buf->rows) {
+				break; // No more room
+			}
+		}
+
+		// Get character length
+		size_t char_len = tprompt_utf8_char_length((unsigned char)handle->buffer.data[i]);
+		if (char_len == 0 || i + char_len > handle->buffer.length) {
+			i++;
+			continue;
+		}
+
+		// Decode character to get scalar value
+		unsigned int scalar = tprompt_utf8_decode((const unsigned char *)&handle->buffer.data[i], char_len);
+
+		// Get display width
+		int char_width = tprompt_get_char_width(scalar);
+		if (char_width < 0) {
+			char_width = 1;
+		}
+
+		// Check if character fits on current line
+		if (col + (size_t)char_width > terminal_width) {
+			// Wrap to next line
+			row++;
+			col = 0;
+
+			if (row >= buf->rows) {
+				break;
+			}
+		}
+
+		// Write character to buffer
+		if (tprompt_screen_buffer_write_char(buf, row, col,
+			&handle->buffer.data[i], char_len, (size_t)char_width) != 0) {
+			return -1;
+		}
+
+		col += (size_t)char_width;
+		i += char_len;
+	}
+
+	*out_end_row = row;
+	*out_end_col = col;
+	return 0;
+}
+
+/**
+ * @brief Render debug status line to buffer
+ */
+static int tprompt_render_to_buffer_status_line(tprompt_handle_t handle, size_t row)
+{
+	if (!handle) {
+		return -1;
+	}
+
+	tprompt_screen_buffer_t *buf = &handle->display.current_buffer;
+
+	// Check buffer bounds
+	if (row >= buf->rows) {
+		return -1;
+	}
+
+	// Build debug info string
+	char debug_info[128];
+	int target_col = (int)handle->display.physical_column;
+	if (handle->input_state.has_goal_column) {
+		snprintf(debug_info, sizeof(debug_info), "x=%d y=%d goal=%zu",
+			target_col, (int)handle->display.physical_line, handle->input_state.goal_column);
+	} else {
+		snprintf(debug_info, sizeof(debug_info), "x=%d y=%d goal=-",
+			target_col, (int)handle->display.physical_line);
+	}
+
+	// Write debug info to buffer
+	int cols_written = tprompt_screen_buffer_write_string(handle, buf, row, 0, debug_info);
+	if (cols_written < 0) {
+		return -1;
+	}
+
+	return 0;
+}
+
+/**
+ * @brief Render completion list to buffer (basic implementation)
+ */
+static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t start_row)
+{
+	if (!handle) {
+		return -1;
+	}
+
+	// Only render if completion is active
+	if (!handle->completion_state.active) {
+		return 0;
+	}
+
+	tprompt_screen_buffer_t *buf = &handle->display.current_buffer;
+	size_t candidate_count = handle->completion_state.candidate_count;
+
+	if (candidate_count == 0) {
+		return 0;
+	}
+
+	char **candidates = handle->completion_state.candidates;
+	size_t selected_index = handle->completion_state.selected_index;
+
+	// Render each candidate on a separate row
+	for (size_t i = 0; i < candidate_count && start_row + i < buf->rows; i++) {
+		size_t row = start_row + i;
+		size_t col = 0;
+
+		// Write selection indicator
+		const char *prefix = (i == selected_index) ? "> " : "  ";
+		int cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, prefix);
+		if (cols_written < 0) {
+			return -1;
+		}
+		col += (size_t)cols_written;
+
+		// Write candidate text
+		cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, candidates[i]);
+		if (cols_written < 0) {
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+/**
+ * @brief Main buffer-based rendering coordinator
+ */
+static int tprompt_display_render_buffered(tprompt_handle_t handle)
+{
+	if (!handle || !handle->display.buffer_based_rendering_active) {
+		return -1;
+	}
+
+	// Ensure we know our starting row
+	if (!handle->display.start_row_known) {
+		terse_cursor_position_t start_pos = terse_get_cursor_position(handle->terse);
+		if (start_pos.known) {
+			handle->display.start_row = start_pos.row;
+			handle->display.start_row_known = true;
+		} else {
+			handle->display.start_row = 0;
+			handle->display.start_row_known = true;
+		}
+	}
+
+	// Calculate layout to get total_physical_lines
+	tprompt_display_calculate_layout(handle);
+
+	// Clear current buffer
+	tprompt_screen_buffer_clear(&handle->display.current_buffer);
+
+	// Render components to buffer
+	size_t row = 0, col = 0;
+
+	// 1. Render prompt
+	if (tprompt_render_to_buffer_prompt(handle, &row, &col) != 0) {
+		return -1;
+	}
+
+	// 2. Render input text (starts where prompt ended)
+	size_t end_row = 0, end_col = 0;
+	if (tprompt_render_to_buffer_input(handle, row, col, &end_row, &end_col) != 0) {
+		return -1;
+	}
+
+	// 3. Render completion list if active (starts after input)
+	if (handle->completion_state.active) {
+		size_t completion_start_row = end_row + 1;
+		if (tprompt_render_to_buffer_completion(handle, completion_start_row) != 0) {
+			return -1;
+		}
+	}
+
+	// 4. Render debug status line
+	size_t status_row = handle->display.total_physical_lines;
+	if (tprompt_render_to_buffer_status_line(handle, status_row) != 0) {
+		// Non-fatal, continue
+	}
+
+	// 5. Detect differences with previous buffer
+	tprompt_screen_buffer_diff(&handle->display.previous_buffer,
+		&handle->display.current_buffer,
+		handle->display.dirty_cells);
+
+	// 6. Flush only dirty regions to terminal
+	if (tprompt_screen_buffer_flush_diff(handle) != 0) {
+		return -1;
+	}
+
+	// 7. Swap buffers (current becomes previous for next frame)
+	tprompt_screen_buffer_swap(&handle->display.current_buffer,
+		&handle->display.previous_buffer);
+
+	// 8. Update cursor position
+	size_t cursor_line, cursor_col;
+	tprompt_calculate_physical_position(handle, handle->buffer.cursor,
+		true, &cursor_line, &cursor_col);
+
+	int base_row = handle->display.start_row;
+	terse_error_t terr = terse_move_to(handle->terse, base_row + (int)cursor_line, (int)cursor_col);
+	if (terr != TERSE_OK) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
+			"Failed to position cursor after buffered render");
+		return -1;
+	}
+
+	// 9. Flush terminal output
+	terr = terse_flush(handle->terse);
+	if (terr != TERSE_OK) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
+			"Failed to flush output after buffered render");
+		return -1;
+	}
+
+	// Update previous line count
+	handle->display.prev_total_physical_lines = handle->display.total_physical_lines;
+
+	// Clear dirty flags
+	tprompt_display_clear_dirty(handle);
+
+	return 0;
 }
