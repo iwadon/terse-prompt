@@ -1862,6 +1862,128 @@ int tprompt_display_render(tprompt_handle_t handle)
 	// Calculate layout first to know how many physical lines we need
 	tprompt_display_calculate_layout(handle);
 
+	// Early exit if nothing is dirty (no changes since last render)
+	if (!handle->display.is_dirty) {
+		return 0;
+	}
+
+	// Check if we can use differential rendering (single-line, simple edits)
+	bool use_differential = tprompt_display_can_use_differential(handle);
+
+	if (use_differential) {
+		// === DIFFERENTIAL RENDERING PATH ===
+		// Only redraw the changed portion of the line
+
+		// Ensure we know our starting row
+		int base_row = handle->display.start_row;
+		if (!handle->display.start_row_known) {
+			terse_cursor_position_t start_pos = terse_get_cursor_position(handle->terse);
+			if (start_pos.known) {
+				handle->display.start_row = start_pos.row;
+				handle->display.start_row_known = true;
+				base_row = start_pos.row;
+			} else {
+				base_row = 0;
+				handle->display.start_row = base_row;
+				handle->display.start_row_known = true;
+			}
+		}
+
+		// Calculate physical position of dirty region start
+		size_t dirty_line, dirty_col_start;
+		tprompt_calculate_physical_position(handle, handle->display.dirty_start_byte,
+			true, &dirty_line, &dirty_col_start);
+
+		// Move to the dirty region on the screen
+		int target_row = base_row + (int)dirty_line;
+		terse_error_t terr = terse_move_to(handle->terse, target_row, (int)dirty_col_start);
+		if (terr != TERSE_OK) {
+			// Fall back to full redraw on error
+			tprompt_display_mark_all_dirty(handle);
+			goto full_redraw;
+		}
+
+		// Clear from this position to end of line
+		terr = terse_clear_line(handle->terse, TERSE_CLEAR_AFTER);
+		if (terr != TERSE_OK) {
+			// Fallback: manually write spaces to clear
+			size_t terminal_width = handle->display.terminal_width;
+			size_t chars_to_clear = terminal_width - dirty_col_start;
+			for (size_t i = 0; i < chars_to_clear; i++) {
+				terse_write_text(handle->terse, " ");
+			}
+			// Move back to start of dirty region
+			terse_move_to(handle->terse, target_row, (int)dirty_col_start);
+		}
+
+		// Render from dirty_start_byte to end of current physical line
+		size_t current_col = dirty_col_start;
+		size_t terminal_width = handle->display.terminal_width;
+		size_t i = handle->display.dirty_start_byte;
+
+		// Find where the physical line ends
+		while (i < handle->buffer.length && current_col < terminal_width) {
+			// Check for newline (should not happen in validated differential case)
+			if (handle->buffer.data[i] == '\n') {
+				break;
+			}
+
+			// Get character length
+			size_t char_len = tprompt_utf8_char_length((unsigned char)handle->buffer.data[i]);
+			if (char_len == 0 || i + char_len > handle->buffer.length) {
+				i++;
+				current_col++;
+				continue;
+			}
+
+			// Extract and write the character
+			char temp[5] = { 0 };
+			memcpy(temp, &handle->buffer.data[i], char_len);
+			temp[char_len] = '\0';
+
+			terr = terse_write_text(handle->terse, temp);
+			if (terr != TERSE_OK) {
+				// On error, fall back to full redraw
+				tprompt_display_mark_all_dirty(handle);
+				goto full_redraw;
+			}
+
+			// Get character display width
+			unsigned int scalar = tprompt_utf8_decode((const unsigned char *)temp, char_len);
+			int char_width = tprompt_get_char_width(scalar);
+			current_col += char_width;
+			i += char_len;
+		}
+
+		// Position cursor at the correct location
+		size_t cursor_line, cursor_col;
+		tprompt_calculate_physical_position(handle, handle->buffer.cursor,
+			true, &cursor_line, &cursor_col);
+		terr = terse_move_to(handle->terse, base_row + (int)cursor_line, (int)cursor_col);
+		if (terr != TERSE_OK) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
+				"Failed to position cursor after differential render");
+			return -1;
+		}
+
+		// Flush output
+		terr = terse_flush(handle->terse);
+		if (terr != TERSE_OK) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
+				"Failed to flush output after differential render");
+			return -1;
+		}
+
+		// Clear dirty flags
+		tprompt_display_clear_dirty(handle);
+
+		return 0;
+	}
+
+full_redraw:
+	// === FULL REDRAW PATH (existing implementation) ===
+	;  // C11 requires a statement after a label
+
 	// Capture the starting row (0-based) if we have not done so yet
 	int base_row = handle->display.start_row;
 	if (!handle->display.start_row_known) {
@@ -2103,6 +2225,9 @@ int tprompt_display_render(tprompt_handle_t handle)
 	// Update previous line count for next redraw
 	handle->display.prev_total_physical_lines = handle->display.total_physical_lines;
 
+	// Clear dirty flags after successful full redraw
+	tprompt_display_clear_dirty(handle);
+
 	return 0;
 }
 
@@ -2283,6 +2408,119 @@ int tprompt_display_render_completion(tprompt_handle_t handle)
 }
 
 /* ========================================================================
+ * Dirty Region Tracking for Differential Rendering
+ * ======================================================================== */
+
+void tprompt_display_mark_dirty_range(tprompt_handle_t handle,
+	size_t start_byte,
+	size_t end_byte)
+{
+	if (!handle) {
+		return;
+	}
+
+	// Clamp to valid range
+	if (end_byte > handle->buffer.length) {
+		end_byte = handle->buffer.length;
+	}
+	if (start_byte > end_byte) {
+		start_byte = end_byte;
+	}
+
+	if (!handle->display.is_dirty) {
+		// First dirty region
+		handle->display.is_dirty = true;
+		handle->display.dirty_start_byte = start_byte;
+		handle->display.dirty_end_byte = end_byte;
+	} else {
+		// Expand existing dirty region to include new range
+		if (start_byte < handle->display.dirty_start_byte) {
+			handle->display.dirty_start_byte = start_byte;
+		}
+		if (end_byte > handle->display.dirty_end_byte) {
+			handle->display.dirty_end_byte = end_byte;
+		}
+	}
+}
+
+void tprompt_display_mark_all_dirty(tprompt_handle_t handle)
+{
+	if (!handle) {
+		return;
+	}
+
+	handle->display.is_dirty = true;
+	handle->display.force_full_redraw = true;
+}
+
+void tprompt_display_clear_dirty(tprompt_handle_t handle)
+{
+	if (!handle) {
+		return;
+	}
+
+	handle->display.is_dirty = false;
+	handle->display.dirty_start_byte = 0;
+	handle->display.dirty_end_byte = 0;
+	handle->display.force_full_redraw = false;
+}
+
+bool tprompt_display_can_use_differential(tprompt_handle_t handle)
+{
+	if (!handle || !handle->display.is_dirty) {
+		return false;
+	}
+
+	// Forced full redraw requested
+	if (handle->display.force_full_redraw) {
+		return false;
+	}
+
+	// Physical line count changed - need full redraw
+	if (handle->display.total_physical_lines != handle->display.prev_total_physical_lines) {
+		return false;
+	}
+
+	// Calculate which physical lines are affected by the dirty region
+	size_t dirty_start_line, dirty_start_col;
+	size_t dirty_end_line, dirty_end_col;
+
+	// Clamp dirty region to current buffer bounds
+	size_t dirty_start = handle->display.dirty_start_byte;
+	size_t dirty_end = handle->display.dirty_end_byte;
+	if (dirty_start > handle->buffer.length) {
+		dirty_start = handle->buffer.length;
+	}
+	if (dirty_end > handle->buffer.length) {
+		dirty_end = handle->buffer.length;
+	}
+
+	tprompt_calculate_physical_position(handle, dirty_start,
+		true, &dirty_start_line, &dirty_start_col);
+	tprompt_calculate_physical_position(handle, dirty_end,
+		true, &dirty_end_line, &dirty_end_col);
+
+	// Dirty region spans multiple physical lines - use full redraw
+	// (Differential rendering across lines is complex due to wrapping)
+	if (dirty_start_line != dirty_end_line) {
+		return false;
+	}
+
+	// Check if the dirty region affects a logical line with newlines
+	// (Multi-line logic is complex, safer to do full redraw)
+	// (dirty_start and dirty_end already clamped above)
+
+	// Check for newlines in dirty region
+	for (size_t i = dirty_start; i < dirty_end && i < handle->buffer.length; i++) {
+		if (handle->buffer.data[i] == '\n') {
+			return false; // Contains newline, use full redraw
+		}
+	}
+
+	return true; // Safe for differential rendering
+}
+
+/* ========================================================================
  * Key Event Handlers - Internal Helpers
  * ======================================================================== */
 
@@ -2298,9 +2536,13 @@ int tprompt_handle_char_input(tprompt_handle_t handle, const char *ch, int width
 		if (!handle->completion_state.active) {
 			// Insert the character first
 			size_t ch_len = strlen(ch);
+			size_t insert_pos = handle->buffer.cursor;
 			if (tprompt_buffer_insert(&handle->buffer, ch, ch_len) != 0) {
 				return -1;
 			}
+
+			// Mark the inserted region as dirty
+			tprompt_display_mark_dirty_range(handle, insert_pos, handle->buffer.cursor);
 
 			// Activate completion at the current cursor position
 			if (tprompt_completion_activate(handle, ch[0], handle->buffer.cursor - ch_len) != 0) {
@@ -2313,9 +2555,13 @@ int tprompt_handle_char_input(tprompt_handle_t handle, const char *ch, int width
 
 	// Normal character insertion
 	size_t ch_len = strlen(ch);
+	size_t insert_pos = handle->buffer.cursor;
 	if (tprompt_buffer_insert(&handle->buffer, ch, ch_len) != 0) {
 		return -1;
 	}
+
+	// Mark the inserted region as dirty
+	tprompt_display_mark_dirty_range(handle, insert_pos, handle->buffer.cursor);
 
 	// If completion is active, update candidates with new input
 	if (handle->completion_state.active) {
@@ -2404,6 +2650,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 					const char *entry = tprompt_history_prev(&handle->history);
 					if (entry) {
 						tprompt_buffer_set(&handle->buffer, entry);
+						tprompt_display_mark_all_dirty(handle);
 					}
 				} else {
 					// Not at first line, navigate up within buffer
@@ -2601,6 +2848,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 				const char *entry = tprompt_history_prev(&handle->history);
 				if (entry) {
 					tprompt_buffer_set(&handle->buffer, entry);
+					tprompt_display_mark_all_dirty(handle);
 				}
 			} else {
 				// Not at first line, navigate up within buffer
@@ -2618,6 +2866,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 			const char *entry = tprompt_history_prev(&handle->history);
 			if (entry) {
 				tprompt_buffer_set(&handle->buffer, entry);
+				tprompt_display_mark_all_dirty(handle);
 			}
 		}
 		return 0;
@@ -2638,6 +2887,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 				const char *entry = tprompt_history_next(&handle->history);
 				if (entry) {
 					tprompt_buffer_set(&handle->buffer, entry);
+					tprompt_display_mark_all_dirty(handle);
 				} else {
 					// At the end of history, restore saved input
 					if (handle->history.saved_input) {
@@ -2645,6 +2895,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 					} else {
 						tprompt_buffer_clear(&handle->buffer);
 					}
+					tprompt_display_mark_all_dirty(handle);
 				}
 			} else {
 				// Not at last line, navigate down within buffer
@@ -2655,6 +2906,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 			const char *entry = tprompt_history_next(&handle->history);
 			if (entry) {
 				tprompt_buffer_set(&handle->buffer, entry);
+				tprompt_display_mark_all_dirty(handle);
 			} else {
 				// At the end of history, restore saved input
 				if (handle->history.saved_input) {
@@ -2662,6 +2914,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 				} else {
 					tprompt_buffer_clear(&handle->buffer);
 				}
+				tprompt_display_mark_all_dirty(handle);
 			}
 		}
 		return 0;
@@ -2686,7 +2939,13 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 
 	// Handle backspace key
 	if (event->type == TERSE_EVENT_BACKSPACE) {
-		tprompt_buffer_delete_before(&handle->buffer, 1);
+		size_t old_length = handle->buffer.length;
+		size_t deleted_bytes = tprompt_buffer_delete_before(&handle->buffer, 1);
+		if (deleted_bytes > 0) {
+			// Mark from new cursor position to old end as dirty (characters shift left)
+			// Need to redraw everything from deletion point to cover the shift
+			tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
+		}
 		handle->input_state.last_key_type = event->type;
 		handle->input_state.last_cursor_pos = handle->buffer.cursor;
 		handle->input_state.has_goal_column = false;
@@ -2695,7 +2954,12 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 
 	// Handle delete key
 	if (event->type == TERSE_EVENT_DELETE) {
-		tprompt_buffer_delete_at(&handle->buffer, 1);
+		size_t old_length = handle->buffer.length;
+		size_t deleted_bytes = tprompt_buffer_delete_at(&handle->buffer, 1);
+		if (deleted_bytes > 0) {
+			// Mark from cursor to old end as dirty (characters shift left)
+			tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
+		}
 		handle->input_state.last_key_type = event->type;
 		handle->input_state.last_cursor_pos = handle->buffer.cursor;
 		handle->input_state.has_goal_column = false;
@@ -2711,6 +2975,8 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 				handle->buffer.length, handle->buffer.size);
 			return -1;
 		}
+		// Tab affects display width, force full redraw
+		tprompt_display_mark_all_dirty(handle);
 		handle->input_state.last_key_type = event->type;
 		handle->input_state.last_cursor_pos = handle->buffer.cursor;
 		handle->input_state.has_goal_column = false;
@@ -3325,6 +3591,9 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 	// Reset display state for new readline session
 	handle->display.start_row = 0; // Will be set on first render
 	handle->display.start_row_known = false;
+
+	// Mark display as needing full render for initial draw
+	tprompt_display_mark_all_dirty(handle);
 
 	// Update prompt if override is provided
 	if (prompt_override) {

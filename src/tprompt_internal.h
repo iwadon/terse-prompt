@@ -83,6 +83,12 @@ typedef struct tprompt_display_state {
 	size_t terminal_height;			  /**< Terminal height in rows */
 	int start_row;					  /**< Starting row for rendering (0-based absolute terminal row) */
 	bool start_row_known;			  /**< Whether start_row has been initialized */
+
+	/* Dirty region tracking for differential rendering */
+	bool is_dirty;					  /**< Whether any region needs redrawing */
+	size_t dirty_start_byte;		  /**< Start byte offset of dirty region */
+	size_t dirty_end_byte;			  /**< End byte offset of dirty region (exclusive) */
+	bool force_full_redraw;			  /**< Force full redraw on next render */
 } tprompt_display_state_t;
 
 /**
@@ -521,6 +527,42 @@ size_t tprompt_get_continuation_marker_width(tprompt_handle_t handle);
  * @return 0 on success, -1 on failure
  */
 int tprompt_display_render_completion(tprompt_handle_t handle);
+
+/**
+ * @brief Mark a byte range as dirty (needs redrawing)
+ * @param handle Prompt handle
+ * @param start_byte Start byte offset (inclusive)
+ * @param end_byte End byte offset (exclusive)
+ */
+void tprompt_display_mark_dirty_range(tprompt_handle_t handle,
+	size_t start_byte,
+	size_t end_byte);
+
+/**
+ * @brief Mark entire display as dirty (full redraw needed)
+ * @param handle Prompt handle
+ */
+void tprompt_display_mark_all_dirty(tprompt_handle_t handle);
+
+/**
+ * @brief Clear dirty flags after successful render
+ * @param handle Prompt handle
+ */
+void tprompt_display_clear_dirty(tprompt_handle_t handle);
+
+/**
+ * @brief Check if differential rendering is feasible
+ *
+ * Differential rendering is only feasible when:
+ * - Display is marked as dirty
+ * - No forced full redraw requested
+ * - Total physical line count hasn't changed
+ * - Dirty region doesn't span multiple physical lines
+ *
+ * @param handle Prompt handle
+ * @return true if differential rendering can be used, false for full redraw
+ */
+bool tprompt_display_can_use_differential(tprompt_handle_t handle);
 
 /* ========================================================================
  * Internal Helper Functions - Error Handling
