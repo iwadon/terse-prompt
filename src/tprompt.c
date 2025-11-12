@@ -2942,9 +2942,9 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 		size_t old_length = handle->buffer.length;
 		size_t deleted_bytes = tprompt_buffer_delete_before(&handle->buffer, 1);
 		if (deleted_bytes > 0) {
-			// Mark from new cursor position to old end as dirty (characters shift left)
-			// Need to redraw everything from deletion point to cover the shift
-			tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
+			// Force full redraw for backspace to ensure correct display
+			// TODO: Optimize with differential rendering once the issue is resolved
+			tprompt_display_mark_all_dirty(handle);
 		}
 		handle->input_state.last_key_type = event->type;
 		handle->input_state.last_cursor_pos = handle->buffer.cursor;
@@ -2957,8 +2957,9 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 		size_t old_length = handle->buffer.length;
 		size_t deleted_bytes = tprompt_buffer_delete_at(&handle->buffer, 1);
 		if (deleted_bytes > 0) {
-			// Mark from cursor to old end as dirty (characters shift left)
-			tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
+			// Force full redraw for delete to ensure correct display
+			// TODO: Optimize with differential rendering once the issue is resolved
+			tprompt_display_mark_all_dirty(handle);
 		}
 		handle->input_state.last_key_type = event->type;
 		handle->input_state.last_cursor_pos = handle->buffer.cursor;
