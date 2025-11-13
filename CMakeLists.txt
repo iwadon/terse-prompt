@@ -34,6 +34,8 @@ endif()
 # tpromptライブラリの作成
 add_library(tprompt STATIC
 	src/tprompt.c
+	src/tprompt_error.c
+	src/tprompt_utf8.c
 )
 
 target_include_directories(tprompt

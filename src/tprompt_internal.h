@@ -459,6 +459,21 @@ bool tprompt_utf8_validate(const char *text, size_t length);
  */
 size_t tprompt_utf8_char_count(const char *text, size_t length);
 
+/**
+ * @brief Decode UTF-8 bytes to Unicode scalar value
+ * @param bytes UTF-8 byte sequence
+ * @param len Number of bytes in sequence
+ * @return Unicode scalar value (code point)
+ */
+unsigned int tprompt_utf8_decode(const unsigned char *bytes, size_t len);
+
+/**
+ * @brief Get display width of a Unicode character
+ * @param scalar Unicode scalar value
+ * @return Display width (0 for control/combining, 1 for narrow, 2 for wide)
+ */
+int tprompt_get_char_width(unsigned int scalar);
+
 /* ========================================================================
  * Internal Helper Functions - Completion
  * ======================================================================== */
