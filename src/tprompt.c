@@ -4726,8 +4726,8 @@ int tprompt_buffer_based_rendering_init(tprompt_handle_t handle)
 	size_t cols = handle->display.terminal_width > 0 ? handle->display.terminal_width : 80;
 
 	// We only need a few rows for the prompt area (input + status line + completion)
-	// Start with a reasonable size (10 rows should be plenty for most cases)
-	rows = 10;
+	// Start with a reasonable size (20 rows covers most typical inputs, will grow dynamically if needed)
+	rows = 20;
 
 	// Initialize current buffer
 	if (tprompt_screen_buffer_init(&handle->display.current_buffer, rows, cols) != 0) {
@@ -4773,6 +4773,55 @@ void tprompt_buffer_based_rendering_free(tprompt_handle_t handle)
 	}
 
 	handle->display.buffer_based_rendering_active = false;
+}
+
+int tprompt_display_resize_buffers(tprompt_handle_t handle, size_t new_rows, size_t new_cols)
+{
+	if (!handle || !handle->display.buffer_based_rendering_active) {
+		return -1;
+	}
+
+	if (new_rows == 0 || new_cols == 0) {
+		return -1;
+	}
+
+	// Check if resize is actually needed
+	if (handle->display.current_buffer.rows >= new_rows &&
+		handle->display.current_buffer.cols >= new_cols) {
+		return 0; // Already large enough
+	}
+
+	// Resize current_buffer
+	if (tprompt_screen_buffer_resize(&handle->display.current_buffer, new_rows, new_cols) != 0) {
+		return -1;
+	}
+
+	// Resize previous_buffer
+	if (tprompt_screen_buffer_resize(&handle->display.previous_buffer, new_rows, new_cols) != 0) {
+		// Rollback: try to restore original size (best effort)
+		// In practice, if this fails we're in trouble anyway
+		return -1;
+	}
+
+	// Resize dirty_cells array
+	size_t new_total = new_rows * new_cols;
+	bool *new_dirty = (bool *)realloc(handle->display.dirty_cells, new_total * sizeof(bool));
+	if (!new_dirty) {
+		// Critical: can't resize dirty_cells
+		// The buffers are already resized, so we're in an inconsistent state
+		// Best we can do is fail and let caller handle it
+		return -1;
+	}
+
+	// Initialize new dirty cells to false
+	size_t old_total = handle->display.current_buffer.rows * handle->display.current_buffer.cols;
+	if (new_total > old_total) {
+		memset(&new_dirty[old_total], 0, (new_total - old_total) * sizeof(bool));
+	}
+
+	handle->display.dirty_cells = new_dirty;
+
+	return 0;
 }
 
 /* ========================================================================
@@ -4833,6 +4882,16 @@ static int tprompt_render_to_buffer_input(tprompt_handle_t handle, size_t start_
 			row++;
 			col = 0;
 
+			// Check if we need to resize buffer (leave 1 row margin)
+			if (row >= buf->rows - 1) {
+				size_t new_rows = buf->rows * 2; // Double the size
+				if (tprompt_display_resize_buffers(handle, new_rows, buf->cols) != 0) {
+					// Resize failed - cannot continue
+					return -1;
+				}
+				buf = &handle->display.current_buffer; // Update pointer after resize
+			}
+
 			// Write continuation marker if configured
 			size_t marker_width = tprompt_get_continuation_marker_width(handle);
 			if (marker_width > 0 && marker_width < terminal_width) {
@@ -4863,9 +4922,14 @@ static int tprompt_render_to_buffer_input(tprompt_handle_t handle, size_t start_
 			row++;
 			col = 0;
 
-			// Check buffer bounds
-			if (row >= buf->rows) {
-				break; // No more room
+			// Check if we need to resize buffer (leave 1 row margin)
+			if (row >= buf->rows - 1) {
+				size_t new_rows = buf->rows * 2; // Double the size
+				if (tprompt_display_resize_buffers(handle, new_rows, buf->cols) != 0) {
+					// Resize failed - cannot continue
+					return -1;
+				}
+				buf = &handle->display.current_buffer; // Update pointer after resize
 			}
 		}
 
@@ -4891,8 +4955,14 @@ static int tprompt_render_to_buffer_input(tprompt_handle_t handle, size_t start_
 			row++;
 			col = 0;
 
-			if (row >= buf->rows) {
-				break;
+			// Check if we need to resize buffer (leave 1 row margin)
+			if (row >= buf->rows - 1) {
+				size_t new_rows = buf->rows * 2; // Double the size
+				if (tprompt_display_resize_buffers(handle, new_rows, buf->cols) != 0) {
+					// Resize failed - cannot continue
+					return -1;
+				}
+				buf = &handle->display.current_buffer; // Update pointer after resize
 			}
 		}
 
@@ -4972,9 +5042,19 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 	size_t selected_index = handle->completion_state.selected_index;
 
 	// Render each candidate on a separate row
-	for (size_t i = 0; i < candidate_count && start_row + i < buf->rows; i++) {
+	for (size_t i = 0; i < candidate_count; i++) {
 		size_t row = start_row + i;
 		size_t col = 0;
+
+		// Check if we need to resize buffer for completion list
+		if (row >= buf->rows - 1) {
+			size_t new_rows = buf->rows * 2; // Double the size
+			if (tprompt_display_resize_buffers(handle, new_rows, buf->cols) != 0) {
+				// Resize failed - stop rendering completion list
+				break;
+			}
+			buf = &handle->display.current_buffer; // Update pointer after resize
+		}
 
 		// Write selection indicator
 		const char *prefix = (i == selected_index) ? "> " : "  ";

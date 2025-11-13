@@ -710,6 +710,15 @@ int tprompt_buffer_based_rendering_init(tprompt_handle_t handle);
  */
 void tprompt_buffer_based_rendering_free(tprompt_handle_t handle);
 
+/**
+ * @brief Resize all display buffers (current, previous, dirty_cells) synchronously
+ * @param handle Prompt handle
+ * @param new_rows New number of rows
+ * @param new_cols New number of columns
+ * @return 0 on success, -1 on allocation failure
+ */
+int tprompt_display_resize_buffers(tprompt_handle_t handle, size_t new_rows, size_t new_cols);
+
 /* ========================================================================
  * Internal Helper Functions - Error Handling
  * ======================================================================== */
