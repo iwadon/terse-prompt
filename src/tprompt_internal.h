@@ -13,6 +13,8 @@
 
 #include "tprompt.h"
 #include "tprompt_buffer.h"
+#include "tprompt_completion.h"
+#include "tprompt_history.h"
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -40,38 +42,6 @@ typedef struct tprompt_buffer {
 	size_t cursor; /**< Cursor position in bytes (byte offset) */
 } tprompt_buffer_t;
 
-/**
- * @brief History entry node (linked list)
- */
-typedef struct tprompt_history_entry {
-	char *text;							/**< History entry text */
-	struct tprompt_history_entry *next; /**< Next entry (older) */
-	struct tprompt_history_entry *prev; /**< Previous entry (newer) */
-} tprompt_history_entry_t;
-
-/**
- * @brief History management structure
- */
-typedef struct tprompt_history {
-	tprompt_history_entry_t *head;	  /**< Most recent entry */
-	tprompt_history_entry_t *tail;	  /**< Oldest entry */
-	size_t count;					  /**< Number of entries */
-	size_t max_size;				  /**< Maximum number of entries (0 = unlimited) */
-	tprompt_history_entry_t *current; /**< Current position during navigation */
-	char *saved_input;				  /**< Saved input buffer when entering history navigation */
-} tprompt_history_t;
-
-/**
- * @brief Completion state
- */
-typedef struct tprompt_completion_state {
-	bool active;			/**< Whether completion is active */
-	char **candidates;		/**< Current candidate list (NULL-terminated) */
-	size_t candidate_count; /**< Number of candidates */
-	size_t selected_index;	/**< Currently selected candidate index */
-	size_t trigger_offset;	/**< Byte offset of completion trigger character */
-	char trigger_char;		/**< Character that triggered completion */
-} tprompt_completion_state_t;
 
 /**
  * @brief Screen cell for virtual buffer-based rendering
@@ -218,67 +188,6 @@ void tprompt_calculate_physical_position(tprompt_handle_t handle, size_t byte_of
 	bool include_prompt, size_t *out_physical_line, size_t *out_physical_col);
 
 /* ========================================================================
- * Internal Helper Functions - History Management
- * ======================================================================== */
-
-/**
- * @brief Initialize history structure
- * @param history History structure to initialize
- * @param max_size Maximum number of entries (0 = unlimited)
- */
-void tprompt_history_init(tprompt_history_t *history, size_t max_size);
-
-/**
- * @brief Free all history resources
- * @param history History structure to free
- */
-void tprompt_history_free(tprompt_history_t *history);
-
-/**
- * @brief Add entry to history (internal implementation)
- * @param history History structure
- * @param text Entry text
- * @return 0 on success, -1 on failure
- */
-int tprompt_history_add_internal(tprompt_history_t *history, const char *text);
-
-/**
- * @brief Get previous history entry (navigate backward)
- * @param history History structure
- * @return Previous entry text, or NULL if at beginning
- */
-const char *tprompt_history_prev(tprompt_history_t *history);
-
-/**
- * @brief Get next history entry (navigate forward)
- * @param history History structure
- * @return Next entry text, or NULL if at end
- */
-const char *tprompt_history_next(tprompt_history_t *history);
-
-/**
- * @brief Reset history navigation position
- * @param history History structure
- */
-void tprompt_history_reset_position(tprompt_history_t *history);
-
-/**
- * @brief Load history from file (internal implementation)
- * @param history History structure
- * @param file_path File path
- * @return 0 on success, -1 on failure
- */
-int tprompt_history_load_internal(tprompt_history_t *history, const char *file_path);
-
-/**
- * @brief Save history to file (internal implementation)
- * @param history History structure
- * @param file_path File path
- * @return 0 on success, -1 on failure
- */
-int tprompt_history_save_internal(tprompt_history_t *history, const char *file_path);
-
-/* ========================================================================
  * Internal Helper Functions - UTF-8 Utilities
  * ======================================================================== */
 
@@ -337,62 +246,6 @@ unsigned int tprompt_utf8_decode(const unsigned char *bytes, size_t len);
  */
 int tprompt_get_char_width(unsigned int scalar);
 
-/* ========================================================================
- * Internal Helper Functions - Completion
- * ======================================================================== */
-
-/**
- * @brief Initialize completion state
- * @param state Completion state to initialize
- */
-void tprompt_completion_init(tprompt_completion_state_t *state);
-
-/**
- * @brief Free completion state resources
- * @param state Completion state to free
- */
-void tprompt_completion_free(tprompt_completion_state_t *state);
-
-/**
- * @brief Activate completion and fetch candidates
- * @param handle Prompt handle
- * @param trigger_char Character that triggered completion
- * @param trigger_offset Byte offset of trigger character
- * @return 0 on success, -1 on failure
- */
-int tprompt_completion_activate(tprompt_handle_t handle, char trigger_char, size_t trigger_offset);
-
-/**
- * @brief Deactivate completion and clean up
- * @param handle Prompt handle
- */
-void tprompt_completion_deactivate(tprompt_handle_t handle);
-
-/**
- * @brief Update completion candidates based on current input
- * @param handle Prompt handle
- * @return 0 on success, -1 on failure
- */
-int tprompt_completion_update(tprompt_handle_t handle);
-
-/**
- * @brief Select next completion candidate
- * @param state Completion state
- */
-void tprompt_completion_select_next(tprompt_completion_state_t *state);
-
-/**
- * @brief Select previous completion candidate
- * @param state Completion state
- */
-void tprompt_completion_select_prev(tprompt_completion_state_t *state);
-
-/**
- * @brief Confirm selected completion candidate
- * @param handle Prompt handle
- * @return 0 on success, -1 on failure
- */
-int tprompt_completion_confirm(tprompt_handle_t handle);
 
 /* ========================================================================
  * Internal Helper Functions - Display and Rendering
@@ -641,13 +494,6 @@ int tprompt_handle_char_input(tprompt_handle_t handle, const char *ch, int width
  */
 int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event);
 
-/**
- * @brief Check if character is a completion trigger
- * @param handle Prompt handle
- * @param ch Character to check
- * @return true if trigger, false otherwise
- */
-bool tprompt_is_completion_trigger(tprompt_handle_t handle, char ch);
 
 /**
  * @brief Check if buffer contains newline characters

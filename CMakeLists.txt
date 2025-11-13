@@ -35,7 +35,10 @@ endif()
 add_library(tprompt STATIC
 	src/tprompt.c
 	src/tprompt_buffer.c
+	src/tprompt_completion.c
+	src/tprompt_display.c
 	src/tprompt_error.c
+	src/tprompt_history.c
 	src/tprompt_utf8.c
 )
 
