@@ -15,7 +15,9 @@ terse-prompt is a C library that provides multi-line text input capabilities for
 
 ## Build System
 
-**CMake Configuration**:
+### Unix-like Systems (macOS, Linux)
+
+**CMake Configuration with Ninja**:
 ```bash
 # Configure build
 cmake -B build -G Ninja
@@ -29,6 +31,35 @@ ctest --test-dir build
 # Clean build
 rm -rf build
 ```
+
+### Windows (MSVC)
+
+**CMake Configuration with Visual Studio**:
+```powershell
+# Configure build (Visual Studio 2019 or later)
+cmake -B build -G "Visual Studio 16 2019"
+
+# Or for Visual Studio 2022
+cmake -B build -G "Visual Studio 17 2022"
+
+# Build library and tests (Debug configuration)
+cmake --build build --config Debug
+
+# Build library and tests (Release configuration)
+cmake --build build --config Release
+
+# Run tests
+ctest --test-dir build -C Debug
+
+# Clean build
+rmdir /s /q build
+```
+
+**Notes for Windows**:
+- Requires Visual Studio 2019 or later with C++ development tools
+- CMake will detect the installed Visual Studio version automatically
+- Debug and Release configurations are separate in MSVC
+- Use `-C Debug` or `-C Release` with ctest to specify configuration
 
 **Project Structure**:
 - `include/tprompt.h`: Public API
