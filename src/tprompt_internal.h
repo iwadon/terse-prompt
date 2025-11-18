@@ -516,7 +516,7 @@ bool tprompt_buffer_has_newlines(tprompt_handle_t handle);
  * @param event Terse event to match
  * @return Action code (TPROMPT_ACTION_*) or TPROMPT_ACTION_NONE
  */
-int tprompt_find_keybinding_action(tprompt_handle_t handle, const terse_event_t *event);
+tprompt_action_t tprompt_find_keybinding_action(tprompt_handle_t handle, const terse_event_t *event);
 
 /**
  * @brief Validate keybindings array

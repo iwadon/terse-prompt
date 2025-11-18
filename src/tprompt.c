@@ -328,7 +328,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 	}
 
 	// Check custom keybindings first (takes precedence over default behavior)
-	int custom_action = tprompt_find_keybinding_action(handle, event);
+	tprompt_action_t custom_action = tprompt_find_keybinding_action(handle, event);
 	if (custom_action != TPROMPT_ACTION_NONE) {
 		switch (custom_action) {
 		case TPROMPT_ACTION_CONFIRM_INPUT:
@@ -564,7 +564,7 @@ bool tprompt_buffer_has_newlines(tprompt_handle_t handle)
  * Custom Keybindings - Internal Helpers
  * ======================================================================== */
 
-int tprompt_find_keybinding_action(tprompt_handle_t handle, const terse_event_t *event)
+tprompt_action_t tprompt_find_keybinding_action(tprompt_handle_t handle, const terse_event_t *event)
 {
 	if (!handle || !event || !handle->keybindings) {
 		return TPROMPT_ACTION_NONE;
@@ -1207,7 +1207,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 			int mods = event.data.ch.mods;
 
 			// Check custom keybindings first (before built-in Ctrl shortcuts)
-			int custom_action = tprompt_find_keybinding_action(handle, &event);
+			tprompt_action_t custom_action = tprompt_find_keybinding_action(handle, &event);
 			if (custom_action != TPROMPT_ACTION_NONE) {
 				int key_result = tprompt_handle_key_event(handle, &event);
 				if (key_result == 1) {

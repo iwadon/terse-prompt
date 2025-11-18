@@ -108,6 +108,18 @@ typedef tprompt_completion_result_t (*tprompt_completion_fn)(
 	void *user_data);
 
 /**
+ * @brief Keybinding action enumeration
+ *
+ * Defines actions that can be bound to keys in custom keybindings.
+ */
+typedef enum tprompt_action {
+	TPROMPT_ACTION_NONE = 0,		 /**< No action (use default behavior) */
+	TPROMPT_ACTION_CONFIRM_INPUT = 1,  /**< Confirm input and return to caller */
+	TPROMPT_ACTION_INSERT_NEWLINE = 2  /**< Insert newline at cursor position */
+	/* Future expansion: TPROMPT_ACTION_CANCEL, TPROMPT_ACTION_COMPLETE, etc. */
+} tprompt_action_t;
+
+/**
  * @brief Keybinding structure for custom key actions
  *
  * Allows customization of key behavior such as input confirmation and newline insertion.
@@ -133,7 +145,7 @@ struct tprompt_keybinding {
 		unsigned int scalar; /**< For TERSE_EVENT_CHAR: Unicode code point (e.g., 'J' = 0x4A) */
 		int function_num;	 /**< For TERSE_EVENT_FUNCTION: Function key number (F1=1, F2=2, etc.) */
 	} data;
-	int action; /**< Action to perform (TPROMPT_ACTION_*) */
+	tprompt_action_t action; /**< Action to perform (TPROMPT_ACTION_*) */
 };
 
 /**
@@ -205,26 +217,6 @@ typedef struct tprompt_error_info {
  */
 #define TPROMPT_FLAG_NO_AUTO_SAVE (1 << 2)
 
-/* ========================================================================
- * Keybinding Actions
- * ======================================================================== */
-
-/**
- * @brief No action (use default behavior)
- */
-#define TPROMPT_ACTION_NONE 0
-
-/**
- * @brief Confirm input and return to caller
- */
-#define TPROMPT_ACTION_CONFIRM_INPUT 1
-
-/**
- * @brief Insert newline at cursor position
- */
-#define TPROMPT_ACTION_INSERT_NEWLINE 2
-
-/* Future expansion: TPROMPT_ACTION_CANCEL, TPROMPT_ACTION_COMPLETE, etc. */
 
 /* ========================================================================
  * Keybinding Helper Macros
