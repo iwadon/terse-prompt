@@ -1523,6 +1523,14 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 	}
 #endif
 
+	// Move cursor to end of buffer to ensure clean output positioning
+	// This prevents output from appearing in the middle of multi-line editing area
+	if (handle->buffer.cursor < handle->buffer.length) {
+		handle->buffer.cursor = handle->buffer.length;
+		// Render one final time to position cursor at end
+		tprompt_display_render_buffered(handle);
+	}
+
 	// Move to new line after input is confirmed
 	// In raw mode, we need \r\n to move to the beginning of the next line
 	terse_write_text(handle->terse, "\r\n");
