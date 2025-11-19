@@ -5,6 +5,7 @@ A lightweight, modern C library for multi-line text input in CLI applications. T
 ## Features
 
 - **Multi-line editing**: Full support for multi-line text input with word wrapping
+- **Customizable continuation prompts**: Configure how continuation lines are displayed
 - **UTF-8 support**: Native UTF-8 handling for international text
 - **Command history**: Persistent history with file storage and LRU eviction
 - **Tab completion**: Trigger-based completion system with incremental filtering
@@ -138,6 +139,22 @@ void tprompt_set_keybindings(
 ```
 
 ## Advanced Features
+
+### Custom Continuation Prompts
+
+Customize how continuation lines are displayed in multi-line mode:
+
+```c
+tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
+opts.prompt = ">>> ";
+opts.continuation_prompt = "... ";  // Python-style continuation
+
+// Or use default "| " if not specified
+```
+
+The continuation prompt is automatically padded or truncated to match the initial prompt width:
+- **Shorter**: Right-padded with spaces to align text
+- **Longer**: Truncated with a warning to prevent display issues
 
 ### Tab Completion
 

@@ -35,8 +35,134 @@ tprompt_error_info_t tprompt_global_error = {
 
 #define DEFAULT_BUFFER_SIZE 256
 #define DEFAULT_PROMPT "> "
+#define DEFAULT_CONTINUATION_PROMPT "| "
 
+/* ========================================================================
+ * Continuation Prompt Helpers
+ * ======================================================================== */
 
+/**
+ * @brief Calculate display width of a prompt string (UTF-8 aware)
+ */
+size_t tprompt_get_prompt_width(tprompt_handle_t handle, const char *prompt)
+{
+	if (!handle || !prompt) {
+		return 0;
+	}
+
+	size_t width = 0;
+	size_t len = strlen(prompt);
+	size_t i = 0;
+
+	while (i < len) {
+		unsigned char byte = (unsigned char)prompt[i];
+		size_t char_len = tprompt_utf8_char_length(byte);
+
+		if (char_len == 0 || i + char_len > len) {
+			// Invalid UTF-8 or truncated sequence, treat as single-byte
+			width++;
+			i++;
+			continue;
+		}
+
+		// Decode UTF-8 character
+		unsigned int scalar = tprompt_utf8_decode((const unsigned char *)&prompt[i], char_len);
+		int char_width = tprompt_get_char_width(scalar);
+
+		// Add character width (0 for control/combining, 1 for narrow, 2 for wide)
+		width += (char_width > 0) ? char_width : 1;
+		i += char_len;
+	}
+
+	return width;
+}
+
+/**
+ * @brief Get the formatted continuation line prompt
+ *
+ * Returns the continuation prompt, padded or truncated to match the initial prompt width.
+ * Thread-unsafe: uses static buffer.
+ */
+const char *tprompt_get_continuation_prompt(tprompt_handle_t handle)
+{
+	static char formatted_prompt[512];
+
+	if (!handle || !handle->prompt) {
+		return "";
+	}
+
+	// Use default continuation prompt if not set
+	const char *cont_prompt = handle->continuation_prompt ? handle->continuation_prompt : DEFAULT_CONTINUATION_PROMPT;
+
+	// Calculate widths
+	size_t initial_width = tprompt_get_prompt_width(handle, handle->prompt);
+	size_t cont_width = tprompt_get_prompt_width(handle, cont_prompt);
+
+	if (cont_width == initial_width) {
+		// Perfect match, return as-is
+		return cont_prompt;
+	} else if (cont_width < initial_width) {
+		// Right-pad with spaces
+		size_t padding = initial_width - cont_width;
+		size_t cont_len = strlen(cont_prompt);
+
+		if (padding + cont_len >= sizeof(formatted_prompt)) {
+			// Truncate if too long
+			padding = sizeof(formatted_prompt) - cont_len - 1;
+		}
+
+		// Build padded prompt: spaces + continuation_prompt
+		memset(formatted_prompt, ' ', padding);
+		memcpy(formatted_prompt + padding, cont_prompt, cont_len);
+		formatted_prompt[padding + cont_len] = '\0';
+
+		return formatted_prompt;
+	} else {
+		// Truncate (cont_width > initial_width)
+		// Emit warning once (use static flag)
+		static bool warning_emitted = false;
+		if (!warning_emitted) {
+			fprintf(stderr, "tprompt warning: continuation_prompt is longer than initial prompt, truncating\n");
+			warning_emitted = true;
+		}
+
+		// Truncate to initial_width by copying bytes until we reach the width limit
+		size_t byte_count = 0;
+		size_t current_width = 0;
+		size_t cont_len = strlen(cont_prompt);
+
+		while (byte_count < cont_len && current_width < initial_width) {
+			unsigned char byte = (unsigned char)cont_prompt[byte_count];
+			size_t char_len = tprompt_utf8_char_length(byte);
+
+			if (char_len == 0 || byte_count + char_len > cont_len) {
+				// Invalid UTF-8, stop here
+				break;
+			}
+
+			unsigned int scalar = tprompt_utf8_decode((const unsigned char *)&cont_prompt[byte_count], char_len);
+			int char_width = tprompt_get_char_width(scalar);
+			int actual_width = (char_width > 0) ? char_width : 1;
+
+			// Check if adding this character would exceed width
+			if (current_width + actual_width > initial_width) {
+				break;
+			}
+
+			current_width += actual_width;
+			byte_count += char_len;
+		}
+
+		// Copy truncated prompt
+		if (byte_count >= sizeof(formatted_prompt)) {
+			byte_count = sizeof(formatted_prompt) - 1;
+		}
+		memcpy(formatted_prompt, cont_prompt, byte_count);
+		formatted_prompt[byte_count] = '\0';
+
+		return formatted_prompt;
+	}
+}
 
 /* ========================================================================
  * Display and Rendering - Internal Helpers
@@ -877,6 +1003,7 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 	// Use default options if none provided
 	tprompt_options_t default_opts = {
 		.prompt = DEFAULT_PROMPT,
+		.continuation_prompt = DEFAULT_CONTINUATION_PROMPT,
 		.history_file = NULL,
 		.max_input_size = 1024 * 1024,
 		.max_history_size = 100,
@@ -1024,6 +1151,25 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 		return NULL;
 	}
 
+	// Store continuation prompt (use default if NULL)
+	const char *cont_prompt = options->continuation_prompt ? options->continuation_prompt : DEFAULT_CONTINUATION_PROMPT;
+	handle->continuation_prompt = strdup(cont_prompt);
+	if (!handle->continuation_prompt) {
+		tprompt_set_error(&tprompt_global_error, TPROMPT_ERROR_MEMORY, errno,
+			"Failed to allocate continuation prompt string");
+		free(handle->prompt);
+		free(handle->completion_prefixes);
+		tprompt_completion_free(&handle->completion_state);
+		free(handle->history_file_path);
+		tprompt_history_free(&handle->history);
+		tprompt_buffer_free(&handle->buffer);
+		if (handle->owns_terse) {
+			terse_close(handle->terse);
+		}
+		free(handle);
+		return NULL;
+	}
+
 	// Initialize status line callback based on flags and options
 	handle->status_line_callback = NULL;
 	handle->status_line_user_data = NULL;
@@ -1123,6 +1269,7 @@ void tprompt_close(tprompt_handle_t handle)
 	// Free resources
 	free(handle->history_file_path);
 	free(handle->prompt);
+	free(handle->continuation_prompt);
 	free(handle->completion_prefixes);
 	free(handle->keybindings);
 	free(handle->validation_error_msg);

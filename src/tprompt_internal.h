@@ -141,6 +141,7 @@ struct tprompt_handle {
 	/* Display */
 	tprompt_display_state_t display; /**< Display state for rendering */
 	char *prompt;					 /**< Current prompt string */
+	char *continuation_prompt;		 /**< Continuation line prompt string */
 
 	/* Input state */
 	tprompt_input_state_t input_state; /**< Input state for key sequence tracking */
@@ -281,6 +282,29 @@ int tprompt_display_update_cursor(tprompt_handle_t handle);
  * @return 0 on success, -1 on failure
  */
 int tprompt_display_clear(tprompt_handle_t handle);
+
+/**
+ * @brief Calculate display width of a prompt string (UTF-8 aware)
+ *
+ * Calculates the visual width of a prompt string, accounting for wide characters.
+ *
+ * @param handle Prompt handle (for UTF-8 processing)
+ * @param prompt Prompt string (UTF-8 encoded)
+ * @return Display width in columns
+ */
+size_t tprompt_get_prompt_width(tprompt_handle_t handle, const char *prompt);
+
+/**
+ * @brief Get the formatted continuation line prompt
+ *
+ * Returns the continuation prompt, padded or truncated to match the initial prompt width.
+ * If continuation_prompt is shorter, it's right-padded with spaces.
+ * If continuation_prompt is longer, it's truncated with a warning.
+ *
+ * @param handle Prompt handle
+ * @return Formatted continuation prompt (statically allocated, do not free)
+ */
+const char *tprompt_get_continuation_prompt(tprompt_handle_t handle);
 
 /**
  * @brief Get the width (in columns) of the continuation line marker

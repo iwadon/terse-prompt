@@ -199,6 +199,7 @@ struct tprompt_keybinding {
  */
 typedef struct tprompt_options {
 	const char *prompt;								/**< Prompt string (NULL = "> ") */
+	const char *continuation_prompt;				/**< Continuation line prompt (NULL = "| ") */
 	const char *history_file;						/**< History file path (NULL = memory only) */
 	size_t max_input_size;							/**< Max input size in bytes (0 = unlimited) */
 	size_t max_history_size;						/**< Max history entries (0 = unlimited) */
@@ -328,6 +329,7 @@ typedef struct tprompt_error_info {
  */
 #define TPROMPT_OPTIONS_DEFAULT {      \
 	.prompt = "> ",                    \
+	.continuation_prompt = "| ",       \
 	.history_file = NULL,              \
 	.max_input_size = 1024 * 1024,     \
 	.max_history_size = 100,           \

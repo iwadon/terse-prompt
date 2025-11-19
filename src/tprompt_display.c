@@ -187,11 +187,9 @@ void tprompt_calculate_physical_position(tprompt_handle_t handle, size_t byte_of
 /**
  * @brief Get the width of the continuation line marker
  *
- * Returns the width (in columns) of the continuation marker that should be
+ * Returns the width (in columns) of the continuation prompt that should be
  * displayed at the start of continuation lines (lines after the first logical line).
- * The marker format is: spaces for (prompt_width - 2) + '|' + space
- * For example, if prompt is "tprompt> " (9 chars), marker is "       | " (7 spaces + | + space)
- * This aligns the '|' with the '>' in the prompt.
+ * The continuation prompt is formatted to match the initial prompt width.
  *
  * @param handle Prompt handle
  * @return Width in columns (same as prompt width), or 0 if no prompt
@@ -201,7 +199,8 @@ size_t tprompt_get_continuation_marker_width(tprompt_handle_t handle)
 	if (!handle || !handle->prompt) {
 		return 0;
 	}
-	return strlen(handle->prompt);
+	// Return initial prompt width (continuation prompt is formatted to match)
+	return tprompt_get_prompt_width(handle, handle->prompt);
 }
 
 void tprompt_display_calculate_layout(tprompt_handle_t handle)
@@ -887,21 +886,10 @@ static int tprompt_render_to_buffer_input(tprompt_handle_t handle, size_t start_
 				buf = &handle->display.current_buffer; // Update pointer after resize
 			}
 
-			// Write continuation marker if configured
-			size_t marker_width = tprompt_get_continuation_marker_width(handle);
-			if (marker_width > 0 && marker_width < terminal_width) {
-				// Build marker: spaces + '|' + space
-				char marker[256];
-				size_t spaces_before = marker_width >= 2 ? marker_width - 2 : 0;
-				if (spaces_before + 2 >= sizeof(marker)) {
-					spaces_before = sizeof(marker) - 3;
-				}
-				memset(marker, ' ', spaces_before);
-				marker[spaces_before] = '|';
-				marker[spaces_before + 1] = ' ';
-				marker[spaces_before + 2] = '\0';
-
-				int cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, marker);
+			// Write continuation prompt
+			const char *cont_prompt = tprompt_get_continuation_prompt(handle);
+			if (cont_prompt && cont_prompt[0] != '\0') {
+				int cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, cont_prompt);
 				if (cols_written < 0) {
 					return -1;
 				}
