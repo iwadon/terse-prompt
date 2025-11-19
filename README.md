@@ -20,7 +20,7 @@ A lightweight, modern C library for multi-line text input in CLI applications. T
 
 ```bash
 # Clone with submodules
-git clone --recursive https://github.com/yourusername/terse-prompt.git
+git clone --recursive https://github.com/iwadon/terse-prompt.git
 cd terse-prompt
 
 # Configure and build
@@ -289,4 +289,4 @@ Contributions welcome! Please:
 
 ## Credits
 
-Built on top of [terse](https://github.com/yourusername/terse), a minimal terminal control library.
+Built on top of [terse](https://github.com/iwadon/terse), a minimal terminal control library.
