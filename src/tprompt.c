@@ -1287,6 +1287,293 @@ void tprompt_close(tprompt_handle_t handle)
 }
 
 /* ========================================================================
+ * Public API - Framework: Editing Session - Helper Functions
+ * ======================================================================== */
+
+/**
+ * @brief Enable raw terminal mode for editing
+ *
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on error
+ */
+static int tprompt_readline_enable_raw_mode(tprompt_handle_t handle)
+{
+#if defined(__unix__) || defined(__APPLE__)
+	if (!handle) {
+		return -1;
+	}
+
+	if (tcgetattr(STDIN_FILENO, &handle->original_termios) == 0) {
+		struct termios raw = handle->original_termios;
+		raw.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
+		raw.c_oflag &= ~(OPOST);
+		raw.c_cflag |= CS8;
+		raw.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
+		raw.c_cc[VMIN] = 1;
+		raw.c_cc[VTIME] = 0;
+		if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) == 0) {
+			handle->raw_mode_active = true;
+			return 0;
+		}
+	}
+	return -1;
+#else
+	(void)handle; // Unused on non-POSIX platforms
+	return 0;
+#endif
+}
+
+/**
+ * @brief Disable raw terminal mode and restore original settings
+ *
+ * @param handle Prompt handle
+ */
+static void tprompt_readline_disable_raw_mode(tprompt_handle_t handle)
+{
+#if defined(__unix__) || defined(__APPLE__)
+	if (handle && handle->raw_mode_active) {
+		tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
+		handle->raw_mode_active = false;
+	}
+#else
+	(void)handle; // Unused on non-POSIX platforms
+#endif
+}
+
+/**
+ * @brief Handle TERSE_EVENT_CHAR events in the main editing loop
+ *
+ * Processes character input events, including:
+ * - Custom keybindings (checked first)
+ * - Built-in Ctrl shortcuts (Ctrl+W, Ctrl+K, Ctrl+U, Ctrl+A, Ctrl+E, Ctrl+P, Ctrl+N, Ctrl+D)
+ * - Regular character insertion (UTF-8 encoded)
+ *
+ * @param handle Prompt handle
+ * @param event The character event to process
+ * @param should_break Output: set to true if input should be confirmed (e.g., Ctrl+D on empty buffer)
+ * @return 0 on success, -1 on error
+ */
+static int tprompt_handle_char_event(tprompt_handle_t handle, const terse_event_t *event, bool *should_break)
+{
+	if (!handle || !event || !should_break) {
+		return -1;
+	}
+
+	*should_break = false;
+
+	unsigned int scalar = event->data.ch.scalar;
+	int mods = event->data.ch.mods;
+
+	// Check custom keybindings first (before built-in Ctrl shortcuts)
+	tprompt_action_t custom_action = tprompt_find_keybinding_action(handle, event);
+	if (custom_action != TPROMPT_ACTION_NONE) {
+		int key_result = tprompt_handle_key_event(handle, event);
+		if (key_result == 1) {
+			*should_break = true; // Confirm input
+		} else if (key_result == -1) {
+			return -1; // Error
+		}
+		// key_result == 0: continue editing
+		return 0;
+	}
+
+	// Handle Ctrl+W - delete word backward
+	if (scalar == 'w' && (mods & TERSE_MOD_CTRL)) {
+		tprompt_key_handle_ctrl_w(handle);
+		handle->input_state.has_goal_column = false;
+		return 0;
+	}
+
+	// Handle Ctrl+K - delete to end of line
+	if (scalar == 'k' && (mods & TERSE_MOD_CTRL)) {
+		tprompt_key_handle_ctrl_k(handle);
+		handle->input_state.has_goal_column = false;
+		return 0;
+	}
+
+	// Handle Ctrl+U - delete to start of line
+	if (scalar == 'u' && (mods & TERSE_MOD_CTRL)) {
+		tprompt_key_handle_ctrl_u(handle);
+		handle->input_state.has_goal_column = false;
+		return 0;
+	}
+
+	// Handle Ctrl+A - move to start of line
+	if (scalar == 'a' && (mods & TERSE_MOD_CTRL)) {
+		tprompt_key_handle_ctrl_a(handle);
+		handle->input_state.has_goal_column = false;
+		return 0;
+	}
+
+	// Handle Ctrl+E - move to end of line
+	if (scalar == 'e' && (mods & TERSE_MOD_CTRL)) {
+		tprompt_key_handle_ctrl_e(handle);
+		handle->input_state.has_goal_column = false;
+		return 0;
+	}
+
+	// Handle Ctrl+P - previous history (Emacs-style)
+	if (scalar == 'p' && (mods & TERSE_MOD_CTRL)) {
+		int key_result = tprompt_handle_key_event(handle, event);
+		if (key_result == 1) {
+			*should_break = true; // Confirm input
+		} else if (key_result == -1) {
+			return -1; // Error
+		}
+		// key_result == 0: continue editing
+		return 0;
+	}
+
+	// Handle Ctrl+N - next history (Emacs-style)
+	if (scalar == 'n' && (mods & TERSE_MOD_CTRL)) {
+		int key_result = tprompt_handle_key_event(handle, event);
+		if (key_result == 1) {
+			*should_break = true; // Confirm input
+		} else if (key_result == -1) {
+			return -1; // Error
+		}
+		// key_result == 0: continue editing
+		return 0;
+	}
+
+	// Handle Ctrl+D (EOF-like behavior)
+	if (scalar == 'd' && (mods & TERSE_MOD_CTRL)) {
+		if (handle->buffer.length == 0) {
+			tprompt_clear_error(&handle->last_error); // EOF is not an error
+			*should_break = true; // Signal EOF
+		}
+		// If buffer is not empty, ignore Ctrl+D
+		return 0;
+	}
+
+	// Regular character input - convert scalar to UTF-8
+	if (!(mods & TERSE_MOD_CTRL)) { // Ignore unhandled Ctrl combinations
+		char utf8_buf[5];
+		int len = 0;
+
+		// Simple UTF-8 encoding
+		if (scalar < 0x80) {
+			utf8_buf[len++] = (char)scalar;
+		} else if (scalar < 0x800) {
+			utf8_buf[len++] = (char)(0xC0 | (scalar >> 6));
+			utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+		} else if (scalar < 0x10000) {
+			utf8_buf[len++] = (char)(0xE0 | (scalar >> 12));
+			utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
+			utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+		} else if (scalar < 0x110000) {
+			utf8_buf[len++] = (char)(0xF0 | (scalar >> 18));
+			utf8_buf[len++] = (char)(0x80 | ((scalar >> 12) & 0x3F));
+			utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
+			utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+		}
+		utf8_buf[len] = '\0';
+
+		// Use char input handler for completion trigger detection
+		if (tprompt_handle_char_input(handle, utf8_buf, event->data.ch.width) != 0) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+				"Failed to insert character (scalar=0x%X) into buffer", scalar);
+			return -1;
+		}
+		handle->input_state.has_goal_column = false;
+	}
+
+	return 0;
+}
+
+/**
+ * @brief Handle pending input confirmation with validation
+ *
+ * Called when user attempts to confirm input (e.g., Enter key).
+ * Runs validation callback if configured and handles the result.
+ *
+ * @param handle Prompt handle
+ * @param should_break Output: set to true if input should be confirmed and loop exited
+ * @return 0 on success (continue or break), -1 on error
+ */
+static int tprompt_handle_pending_confirmation(tprompt_handle_t handle, bool *should_break)
+{
+	if (!handle || !should_break) {
+		return -1;
+	}
+
+	*should_break = false;
+
+	// Call validation callback if configured
+	if (handle->options.validation_callback) {
+		tprompt_validation_result_t validation_result = handle->options.validation_callback(
+			handle->buffer.data,
+			handle->buffer.length,
+			handle->options.validation_user_data);
+
+		if (validation_result == TPROMPT_VALIDATION_REJECT) {
+			// Validation rejected - play beep, render, and continue editing
+			terse_write_text(handle->terse, "\x07"); // Bell character (beep)
+			terse_flush(handle->terse);
+			// TODO: Display validation error message if provided
+			// Re-render display before continuing
+			if (tprompt_display_render_buffered(handle) != 0) {
+				return -1;
+			}
+			return 0; // Continue editing
+
+		} else if (validation_result == TPROMPT_VALIDATION_CONTINUE) {
+			// Validation wants to continue editing with newline
+			bool is_multiline = (handle->options.flags & TPROMPT_FLAG_MULTILINE) != 0;
+
+			if (is_multiline) {
+				// Insert newline and continue editing
+				if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
+					tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+						"Failed to insert newline after validation: buffer at %zu/%zu bytes",
+						handle->buffer.length, handle->buffer.size);
+					return -1;
+				}
+				// Re-render display before continuing
+				if (tprompt_display_render_buffered(handle) != 0) {
+					return -1;
+				}
+				return 0; // Continue editing
+			} else {
+				// Single-line mode: CONTINUE treated as REJECT (can't insert newline)
+				terse_write_text(handle->terse, "\x07"); // Bell character (beep)
+				terse_flush(handle->terse);
+				// Re-render display before continuing
+				if (tprompt_display_render_buffered(handle) != 0) {
+					return -1;
+				}
+				return 0; // Continue editing
+			}
+		}
+		// TPROMPT_VALIDATION_ACCEPT: fall through to confirm input
+		*should_break = true;
+		return 0;
+
+	} else {
+		// No validation callback - behavior depends on mode
+		bool is_multiline = (handle->options.flags & TPROMPT_FLAG_MULTILINE) != 0;
+
+		if (is_multiline) {
+			// Multiline mode without validation: insert newline
+			if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
+				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+					"Failed to insert newline: buffer at %zu/%zu bytes",
+					handle->buffer.length, handle->buffer.size);
+				return -1;
+			}
+			// Re-render display before continuing
+			if (tprompt_display_render_buffered(handle) != 0) {
+				return -1;
+			}
+			return 0; // Continue editing
+		}
+		// Single-line mode without validation: confirm input
+		*should_break = true;
+		return 0;
+	}
+}
+
+/* ========================================================================
  * Public API - Framework: Editing Session
  * ======================================================================== */
 
@@ -1324,30 +1611,12 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 	}
 
 	// Enable raw mode
-#if defined(__unix__) || defined(__APPLE__)
-	if (tcgetattr(STDIN_FILENO, &handle->original_termios) == 0) {
-		struct termios raw = handle->original_termios;
-		raw.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | IXON);
-		raw.c_oflag &= ~(OPOST);
-		raw.c_cflag |= CS8;
-		raw.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
-		raw.c_cc[VMIN] = 1;
-		raw.c_cc[VTIME] = 0;
-		if (tcsetattr(STDIN_FILENO, TCSANOW, &raw) == 0) {
-			handle->raw_mode_active = true;
-		}
-	}
-#endif
+	tprompt_readline_enable_raw_mode(handle);
 
 	// Initial render
 	if (tprompt_display_render_buffered(handle) != 0) {
 		// Restore terminal on error
-#if defined(__unix__) || defined(__APPLE__)
-		if (handle->raw_mode_active) {
-			tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
-			handle->raw_mode_active = false;
-		}
-#endif
+		tprompt_readline_disable_raw_mode(handle);
 		return NULL;
 	}
 
@@ -1364,110 +1633,14 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 
 		// Handle different event types
 		if (event.type == TERSE_EVENT_CHAR) {
-			unsigned int scalar = event.data.ch.scalar;
-			int mods = event.data.ch.mods;
-
-			// Check custom keybindings first (before built-in Ctrl shortcuts)
-			tprompt_action_t custom_action = tprompt_find_keybinding_action(handle, &event);
-			if (custom_action != TPROMPT_ACTION_NONE) {
-				int key_result = tprompt_handle_key_event(handle, &event);
-				if (key_result == 1) {
-					break; // Confirm input
-				} else if (key_result == -1) {
-					return NULL; // Error
-				}
-				// key_result == 0: continue editing
+			bool should_break = false;
+			if (tprompt_handle_char_event(handle, &event, &should_break) != 0) {
+				// Error occurred
+				tprompt_readline_disable_raw_mode(handle);
+				return NULL;
 			}
-			// Handle Ctrl+W - delete word backward
-			else if (scalar == 'w' && (mods & TERSE_MOD_CTRL)) { // Ctrl+W
-				tprompt_key_handle_ctrl_w(handle);
-				handle->input_state.has_goal_column = false;
-			}
-			// Handle Ctrl+K - delete to end of line
-			else if (scalar == 'k' && (mods & TERSE_MOD_CTRL)) { // Ctrl+K
-				tprompt_key_handle_ctrl_k(handle);
-				handle->input_state.has_goal_column = false;
-			}
-			// Handle Ctrl+U - delete to start of line
-			else if (scalar == 'u' && (mods & TERSE_MOD_CTRL)) { // Ctrl+U
-				tprompt_key_handle_ctrl_u(handle);
-				handle->input_state.has_goal_column = false;
-			}
-			// Handle Ctrl+A - move to start of line
-			else if (scalar == 'a' && (mods & TERSE_MOD_CTRL)) { // Ctrl+A
-				tprompt_key_handle_ctrl_a(handle);
-				handle->input_state.has_goal_column = false;
-			}
-			// Handle Ctrl+E - move to end of line
-			else if (scalar == 'e' && (mods & TERSE_MOD_CTRL)) { // Ctrl+E
-				tprompt_key_handle_ctrl_e(handle);
-				handle->input_state.has_goal_column = false;
-			}
-			// Handle Ctrl+P - previous history (Emacs-style)
-			else if (scalar == 'p' && (mods & TERSE_MOD_CTRL)) { // Ctrl+P
-				int key_result = tprompt_handle_key_event(handle, &event);
-				if (key_result == 1) {
-					break; // Confirm input
-				} else if (key_result == -1) {
-					return NULL; // Error
-				}
-				// key_result == 0: continue editing
-			}
-			// Handle Ctrl+N - next history (Emacs-style)
-			else if (scalar == 'n' && (mods & TERSE_MOD_CTRL)) { // Ctrl+N
-				int key_result = tprompt_handle_key_event(handle, &event);
-				if (key_result == 1) {
-					break; // Confirm input
-				} else if (key_result == -1) {
-					return NULL; // Error
-				}
-				// key_result == 0: continue editing
-			}
-			// Handle Ctrl+D (EOF-like behavior)
-			else if (scalar == 'd' && (mods & TERSE_MOD_CTRL)) { // Ctrl+D
-				if (handle->buffer.length == 0) {
-					tprompt_clear_error(&handle->last_error); // EOF is not an error
-															  // Restore terminal before returning
-#if defined(__unix__) || defined(__APPLE__)
-					if (handle->raw_mode_active) {
-						tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
-						handle->raw_mode_active = false;
-					}
-#endif
-					return NULL;
-				}
-				// If buffer is not empty, ignore Ctrl+D
-			}
-			// Regular character input - convert scalar to UTF-8
-			else if (!(mods & TERSE_MOD_CTRL)) { // Ignore unhandled Ctrl combinations
-				char utf8_buf[5];
-				int len = 0;
-
-				// Simple UTF-8 encoding
-				if (scalar < 0x80) {
-					utf8_buf[len++] = (char)scalar;
-				} else if (scalar < 0x800) {
-					utf8_buf[len++] = (char)(0xC0 | (scalar >> 6));
-					utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
-				} else if (scalar < 0x10000) {
-					utf8_buf[len++] = (char)(0xE0 | (scalar >> 12));
-					utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
-					utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
-				} else if (scalar < 0x110000) {
-					utf8_buf[len++] = (char)(0xF0 | (scalar >> 18));
-					utf8_buf[len++] = (char)(0x80 | ((scalar >> 12) & 0x3F));
-					utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
-					utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
-				}
-				utf8_buf[len] = '\0';
-
-				// Use char input handler for completion trigger detection
-				if (tprompt_handle_char_input(handle, utf8_buf, event.data.ch.width) != 0) {
-					tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-						"Failed to insert character (scalar=0x%X) into buffer", scalar);
-					return NULL;
-				}
-				handle->input_state.has_goal_column = false;
+			if (should_break) {
+				break; // Confirm input (e.g., Ctrl+D on empty buffer)
 			}
 		} else if (event.type == TERSE_EVENT_ENTER) {
 			// Handle Enter key through tprompt_handle_key_event (supports custom keybindings)
@@ -1507,40 +1680,15 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 				return NULL; // Error
 			}
 			// key_result == 0: continue editing
-		} else if (event.type == TERSE_EVENT_HOME) {
-			// Staged Home key behavior (Claude Code style)
-			// First press: move to physical line start, second press: move to logical line start
-			bool is_consecutive = (handle->input_state.last_key_type == TERSE_EVENT_HOME && handle->input_state.last_cursor_pos == handle->buffer.cursor);
-
-			if (is_consecutive) {
-				// Second press: move to logical line start
-				tprompt_cursor_move_to_logical_line_start(handle);
-			} else {
-				// First press: move to physical line start
-				tprompt_cursor_move_to_physical_line_start(handle);
+		} else if (event.type == TERSE_EVENT_HOME || event.type == TERSE_EVENT_END) {
+			// Handle Home/End keys through tprompt_handle_key_event (supports staged movement)
+			int key_result = tprompt_handle_key_event(handle, &event);
+			if (key_result == 1) {
+				break; // Confirm input (shouldn't happen for Home/End, but handle it)
+			} else if (key_result == -1) {
+				return NULL; // Error
 			}
-
-			// Update input state for next key press
-			handle->input_state.last_key_type = event.type;
-			handle->input_state.last_cursor_pos = handle->buffer.cursor;
-			handle->input_state.has_goal_column = false;
-		} else if (event.type == TERSE_EVENT_END) {
-			// Staged End key behavior (Claude Code style)
-			// First press: move to physical line end, second press: move to logical line end
-			bool is_consecutive = (handle->input_state.last_key_type == TERSE_EVENT_END && handle->input_state.last_cursor_pos == handle->buffer.cursor);
-
-			if (is_consecutive) {
-				// Second press: move to logical line end
-				tprompt_cursor_move_to_logical_line_end(handle);
-			} else {
-				// First press: move to physical line end
-				tprompt_cursor_move_to_physical_line_end(handle);
-			}
-
-			// Update input state for next key press
-			handle->input_state.last_key_type = event.type;
-			handle->input_state.last_cursor_pos = handle->buffer.cursor;
-			handle->input_state.has_goal_column = false;
+			// key_result == 0: continue editing
 		} else if (event.type == TERSE_EVENT_TAB) {
 			// Handle Tab key through tprompt_handle_key_event (supports completion)
 			int key_result = tprompt_handle_key_event(handle, &event);
@@ -1563,126 +1711,31 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 		if (handle->pending_confirmation) {
 			handle->pending_confirmation = false; // Reset flag
 
-			// Call validation callback if configured
-			if (handle->options.validation_callback) {
-				tprompt_validation_result_t validation_result = handle->options.validation_callback(
-					handle->buffer.data,
-					handle->buffer.length,
-					handle->options.validation_user_data);
-
-				if (validation_result == TPROMPT_VALIDATION_REJECT) {
-					// Validation rejected - play beep, render, and continue editing
-					terse_write_text(handle->terse, "\x07"); // Bell character (beep)
-					terse_flush(handle->terse);
-					// TODO: Display validation error message if provided
-					// Re-render display before continuing
-					if (tprompt_display_render_buffered(handle) != 0) {
-						// Restore terminal on error
-#if defined(__unix__) || defined(__APPLE__)
-						if (handle->raw_mode_active) {
-							tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
-							handle->raw_mode_active = false;
-						}
-#endif
-						return NULL;
-					}
-					continue; // Stay in editing loop
-
-				} else if (validation_result == TPROMPT_VALIDATION_CONTINUE) {
-					// Validation wants to continue editing with newline
-					bool is_multiline = (handle->options.flags & TPROMPT_FLAG_MULTILINE) != 0;
-
-					if (is_multiline) {
-						// Insert newline and continue editing
-						if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
-							tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-								"Failed to insert newline after validation: buffer at %zu/%zu bytes",
-								handle->buffer.length, handle->buffer.size);
-							return NULL;
-						}
-						// Re-render display before continuing
-						if (tprompt_display_render_buffered(handle) != 0) {
-							// Restore terminal on error
-#if defined(__unix__) || defined(__APPLE__)
-							if (handle->raw_mode_active) {
-								tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
-								handle->raw_mode_active = false;
-							}
-#endif
-							return NULL;
-						}
-						continue; // Stay in editing loop
-					} else {
-						// Single-line mode: CONTINUE treated as REJECT (can't insert newline)
-						terse_write_text(handle->terse, "\x07"); // Bell character (beep)
-						terse_flush(handle->terse);
-						// Re-render display before continuing
-						if (tprompt_display_render_buffered(handle) != 0) {
-							// Restore terminal on error
-#if defined(__unix__) || defined(__APPLE__)
-							if (handle->raw_mode_active) {
-								tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
-								handle->raw_mode_active = false;
-							}
-#endif
-							return NULL;
-						}
-						continue; // Stay in editing loop
-					}
-				}
-				// TPROMPT_VALIDATION_ACCEPT: fall through to break from loop
-			} else {
-				// No validation callback - behavior depends on mode
-				bool is_multiline = (handle->options.flags & TPROMPT_FLAG_MULTILINE) != 0;
-
-				if (is_multiline) {
-					// Multiline mode without validation: insert newline
-					if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
-						tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-							"Failed to insert newline: buffer at %zu/%zu bytes",
-							handle->buffer.length, handle->buffer.size);
-						return NULL;
-					}
-					// Re-render display before continuing
-					if (tprompt_display_render_buffered(handle) != 0) {
-						// Restore terminal on error
-#if defined(__unix__) || defined(__APPLE__)
-						if (handle->raw_mode_active) {
-							tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
-							handle->raw_mode_active = false;
-						}
-#endif
-						return NULL;
-					}
-					continue; // Stay in editing loop
-				}
-				// Single-line mode without validation: confirm input
+			bool should_break = false;
+			int result = tprompt_handle_pending_confirmation(handle, &should_break);
+			if (result == -1) {
+				// Error occurred
+				tprompt_readline_disable_raw_mode(handle);
+				return NULL;
 			}
 
-			// Validation passed or no validation callback in single-line mode - confirm input
-			break;
+			if (should_break) {
+				break; // Confirm input
+			}
+			// Continue editing (validation handled rendering)
+			continue;
 		}
 
 		// Re-render display after each event (if not already handled by validation logic)
 		if (tprompt_display_render_buffered(handle) != 0) {
 			// Restore terminal on error
-#if defined(__unix__) || defined(__APPLE__)
-			if (handle->raw_mode_active) {
-				tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
-				handle->raw_mode_active = false;
-			}
-#endif
+			tprompt_readline_disable_raw_mode(handle);
 			return NULL;
 		}
 	}
 
 	// Restore terminal mode before returning
-#if defined(__unix__) || defined(__APPLE__)
-	if (handle->raw_mode_active) {
-		tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
-		handle->raw_mode_active = false;
-	}
-#endif
+	tprompt_readline_disable_raw_mode(handle);
 
 	// Move cursor to end of buffer to ensure clean output positioning
 	// This prevents output from appearing in the middle of multi-line editing area
