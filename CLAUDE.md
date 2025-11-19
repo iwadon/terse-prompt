@@ -4,10 +4,12 @@
 
 terse-prompt is a C library that provides multi-line text input capabilities for CLI REPL tools, similar to GNU readline or linenoise but optimized for modern CLI interfaces like Claude Code.
 
-**Current Stage**: Framework implementation
-- API design complete (`include/tprompt.h`)
-- Basic structure implemented
-- Core editing features in progress
+**Current Stage**: Feature-complete (v0.1)
+- API design complete and implemented (`include/tprompt.h`)
+- All core editing features implemented and tested
+- All 8 test suites passing (100% pass rate)
+- Status line support implemented
+- Buffer-based differential rendering implemented
 
 **Dependencies**:
 - **terse**: Terminal control library (in `external/terse/`)
@@ -281,14 +283,18 @@ opts.keybinding_count = 3;
 
 ### Current Implementation Status
 
-This is an early-stage project. Many features are stubbed with TODO comments:
-- Core editing loop (`tprompt_readline()`)
-- UTF-8 navigation helpers
-- History file I/O
-- Completion logic
-- Display rendering
+**v0.1 Feature-Complete (2025-11-19)**
 
-Refer to TODO comments in source for implementation priorities.
+All core features are fully implemented and tested:
+- ✅ Core editing loop (`tprompt_readline()`) - Complete with validation support
+- ✅ UTF-8 navigation helpers - Full character boundary handling
+- ✅ History file I/O - Load/save with LRU eviction
+- ✅ Completion logic - Incremental filtering with callback system
+- ✅ Display rendering - Buffer-based differential rendering
+- ✅ Status line support - Customizable with debug mode
+- ✅ All 8 test suites passing (100%)
+
+See `docs/implementation-status.md` for detailed information.
 
 ### Platform Support
 
@@ -340,18 +346,48 @@ Refer to TODO comments in source for implementation priorities.
 - Simple navigation pointer
 - Low memory overhead for typical sizes
 
+### Status Line System
+
+**Architecture**: Callback-based status line rendering
+- **Custom callback**: Application provides `tprompt_status_line_fn` callback
+- **Debug mode**: Built-in debug status with `TPROMPT_FLAG_SHOW_DEBUG_STATUS`
+- **Helper functions**: `tprompt_get_cursor_line()`, `tprompt_get_cursor_column()`
+
+**UI Flow**:
+1. Application sets status line callback via `tprompt_set_status_line_callback()`
+2. Callback called during each render cycle
+3. Callback returns formatted text (with optional ANSI colors)
+4. Status line displayed below editing area, above completion candidates
+
+**Design Choice**: Callback architecture allows application-specific status information without library coupling.
+
+### Buffer-Based Differential Rendering
+
+**Architecture**: Virtual screen buffer with frame diffing
+- **Current/Previous buffers**: Two screen buffers for frame comparison
+- **Dirty cell tracking**: Per-cell dirty flags for minimal updates
+- **Dynamic resizing**: Buffers grow as needed (initial 20 rows, doubles when full)
+
+**Performance Benefits**:
+- Eliminates flicker on slow terminals (e.g., Human68k)
+- Reduces escape sequence overhead
+- Handles complex multi-line layouts efficiently
+
+**Design Choice**: Screen buffer abstraction separates logical editing from physical rendering.
+
 ## Getting Started as a Claude Instance
 
 1. **Read** `docs/requirements.md` to understand what the library should do
 2. **Read** `include/tprompt.h` to understand the public API
 3. **Examine** `src/tprompt_internal.h` for internal architecture
-4. **Check** TODO comments in `src/tprompt.c` for implementation priorities
+4. **Check** `docs/implementation-status.md` for current implementation status
 5. **Refer back** to this document for architectural principles
 
-When implementing features:
+When implementing new features:
 - Maintain the established error handling patterns
 - Keep UTF-8 awareness in all text operations
 - Test thoroughly with the attest framework
 - Follow the existing code style
+- Update documentation to reflect changes
 
 When in doubt about requirements or expected behavior, consult `docs/requirements.md` or `docs/api-design.md`.
