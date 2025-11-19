@@ -15,3 +15,7 @@ target_link_libraries(status_line_demo PRIVATE tprompt)
 # Continuation prompt demo - demonstrates custom continuation prompts
 add_executable(continuation_prompt_demo continuation_prompt_demo.c)
 target_link_libraries(continuation_prompt_demo PRIVATE tprompt)
+
+# Deft integration example - complete REPL example with validation
+add_executable(deft_integration_example deft_integration_example.c)
+target_link_libraries(deft_integration_example PRIVATE tprompt)
