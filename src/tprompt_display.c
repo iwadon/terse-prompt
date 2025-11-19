@@ -634,14 +634,20 @@ full_redraw:
 		terse_clear_line(handle->terse, TERSE_CLEAR_ALL);
 
 		// Write debug info
-		char debug_info[128];
+		char debug_info[256];
 		int target_col = (int)handle->display.physical_column;
 		if (handle->input_state.has_goal_column) {
-			snprintf(debug_info, sizeof(debug_info), "x=%d y=%d goal=%zu",
-				target_col, (int)handle->display.physical_line, handle->input_state.goal_column);
+			snprintf(debug_info, sizeof(debug_info),
+				"x=%d y=%d goal=%zu term=%zux%zu virt=%zux%zu",
+				target_col, (int)handle->display.physical_line, handle->input_state.goal_column,
+				handle->display.terminal_width, handle->display.terminal_height,
+				handle->display.current_buffer.cols, handle->display.current_buffer.rows);
 		} else {
-			snprintf(debug_info, sizeof(debug_info), "x=%d y=%d goal=-",
-				target_col, (int)handle->display.physical_line);
+			snprintf(debug_info, sizeof(debug_info),
+				"x=%d y=%d goal=- term=%zux%zu virt=%zux%zu",
+				target_col, (int)handle->display.physical_line,
+				handle->display.terminal_width, handle->display.terminal_height,
+				handle->display.current_buffer.cols, handle->display.current_buffer.rows);
 		}
 		terse_write_text(handle->terse, debug_info);
 

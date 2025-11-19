@@ -54,8 +54,8 @@ int main(void)
 		.completion_callback = NULL,
 		.completion_user_data = NULL,
 		.completion_prefixes = NULL,
-		.terse_handle = NULL,			 // Let tprompt create its own
-		.flags = TPROMPT_FLAG_MULTILINE, // Multi-line mode
+		.terse_handle = NULL, // Let tprompt create its own
+		.flags = TPROMPT_FLAG_MULTILINE | TPROMPT_FLAG_SHOW_DEBUG_STATUS,
 		.custom_keybindings = custom_bindings,
 		.keybinding_count = 3
 	};

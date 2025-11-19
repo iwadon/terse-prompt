@@ -1982,14 +1982,24 @@ int tprompt_internal_debug_status_callback(
 
 	int target_col = (int)handle->display.physical_column;
 	if (handle->input_state.has_goal_column) {
-		snprintf(buffer, buffer_size, "x=%d y=%d goal=%zu",
+		snprintf(buffer, buffer_size,
+			"x=%d y=%d goal=%zu term=%zux%zu virt=%zux%zu",
 			target_col,
 			(int)handle->display.physical_line,
-			handle->input_state.goal_column);
+			handle->input_state.goal_column,
+			handle->display.terminal_width,
+			handle->display.terminal_height,
+			handle->display.current_buffer.cols,
+			handle->display.current_buffer.rows);
 	} else {
-		snprintf(buffer, buffer_size, "x=%d y=%d goal=-",
+		snprintf(buffer, buffer_size,
+			"x=%d y=%d goal=- term=%zux%zu virt=%zux%zu",
 			target_col,
-			(int)handle->display.physical_line);
+			(int)handle->display.physical_line,
+			handle->display.terminal_width,
+			handle->display.terminal_height,
+			handle->display.current_buffer.cols,
+			handle->display.current_buffer.rows);
 	}
 
 	return 1; // 1 line written
