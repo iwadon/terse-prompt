@@ -5,6 +5,8 @@
  * @date 2025-11-13
  */
 
+#define _POSIX_C_SOURCE 200809L
+
 #include "tprompt_history.h"
 #include <errno.h>
 #include <stdbool.h>
