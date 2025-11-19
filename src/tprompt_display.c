@@ -1531,39 +1531,110 @@ static int tprompt_render_to_buffer_input(tprompt_handle_t handle, size_t start_
 }
 
 /**
- * @brief Render debug status line to buffer
+ * @brief Render status line to screen buffer (callback-based, multi-line supported)
+ *
+ * Priority order:
+ * 1. TPROMPT_FLAG_HIDE_STATUS_LINE → skip rendering
+ * 2. TPROMPT_FLAG_SHOW_DEBUG_STATUS → use internal debug callback
+ * 3. Custom callback (handle->status_line_callback) → use custom callback
+ * 4. No callback → skip rendering
  */
-static int tprompt_render_to_buffer_status_line(tprompt_handle_t handle, size_t row)
+int tprompt_render_status_line(tprompt_handle_t handle, size_t start_row)
 {
 	if (!handle) {
 		return -1;
 	}
 
+	// Check if status line should be hidden
+	if (handle->options.flags & TPROMPT_FLAG_HIDE_STATUS_LINE) {
+		return 0; // 0 rows rendered
+	}
+
+	// Determine which callback to use
+	tprompt_status_line_fn callback = NULL;
+	void *user_data = NULL;
+
+	if (handle->options.flags & TPROMPT_FLAG_SHOW_DEBUG_STATUS) {
+		// Debug mode takes precedence
+		callback = tprompt_internal_debug_status_callback;
+		user_data = NULL;
+	} else if (handle->status_line_callback) {
+		// Use custom callback
+		callback = handle->status_line_callback;
+		user_data = handle->status_line_user_data;
+	}
+
+	// No callback, no status line
+	if (!callback) {
+		return 0; // 0 rows rendered
+	}
+
+	// Allocate buffer for status line text
+	char status_buffer[TPROMPT_STATUS_LINE_BUFFER_SIZE];
+	status_buffer[0] = '\0';
+
+	// Call the callback
+	int num_lines = callback(handle, status_buffer, sizeof(status_buffer), user_data);
+
+	if (num_lines < 0) {
+		// Error in callback
+		return -1;
+	}
+
+	if (num_lines == 0) {
+		// Callback requested to hide status line this time
+		return 0; // 0 rows rendered
+	}
+
+	// Limit to maximum rows
+	if (num_lines > TPROMPT_STATUS_LINE_MAX_ROWS) {
+		num_lines = TPROMPT_STATUS_LINE_MAX_ROWS;
+	}
+
+	// Split status buffer into lines and render each
 	tprompt_screen_buffer_t *buf = &handle->display.current_buffer;
+	const char *line_start = status_buffer;
+	size_t current_row = start_row;
+	int lines_rendered = 0;
 
-	// Check buffer bounds
-	if (row >= buf->rows) {
-		return -1;
+	for (int i = 0; i < num_lines && current_row < buf->rows; i++) {
+		// Find end of current line
+		const char *line_end = strchr(line_start, '\n');
+		size_t line_len;
+
+		if (line_end) {
+			line_len = (size_t)(line_end - line_start);
+		} else {
+			line_len = strlen(line_start);
+		}
+
+		// Copy line to temporary buffer (for NUL termination)
+		char line_buffer[TPROMPT_STATUS_LINE_BUFFER_SIZE];
+		if (line_len >= sizeof(line_buffer)) {
+			line_len = sizeof(line_buffer) - 1;
+		}
+		memcpy(line_buffer, line_start, line_len);
+		line_buffer[line_len] = '\0';
+
+		// Write line to buffer
+		int cols_written = tprompt_screen_buffer_write_string(handle, buf, current_row, 0, line_buffer);
+		if (cols_written < 0) {
+			// Non-fatal, just stop rendering more lines
+			break;
+		}
+
+		lines_rendered++;
+		current_row++;
+
+		// Move to next line
+		if (line_end) {
+			line_start = line_end + 1; // Skip the newline
+		} else {
+			break; // No more lines
+		}
 	}
 
-	// Build debug info string
-	char debug_info[128];
-	int target_col = (int)handle->display.physical_column;
-	if (handle->input_state.has_goal_column) {
-		snprintf(debug_info, sizeof(debug_info), "x=%d y=%d goal=%zu",
-			target_col, (int)handle->display.physical_line, handle->input_state.goal_column);
-	} else {
-		snprintf(debug_info, sizeof(debug_info), "x=%d y=%d goal=-",
-			target_col, (int)handle->display.physical_line);
-	}
-
-	// Write debug info to buffer
-	int cols_written = tprompt_screen_buffer_write_string(handle, buf, row, 0, debug_info);
-	if (cols_written < 0) {
-		return -1;
-	}
-
-	return 0;
+	return lines_rendered;
 }
 
 /**
@@ -1664,18 +1735,20 @@ int tprompt_display_render_buffered(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// 3. Render completion list if active (starts after input)
+	// 3. Render status line (starts after input)
+	size_t status_start_row = end_row + 1;
+	int status_lines_rendered = tprompt_render_status_line(handle, status_start_row);
+	if (status_lines_rendered < 0) {
+		// Non-fatal error, continue without status line
+		status_lines_rendered = 0;
+	}
+
+	// 4. Render completion list if active (starts after status line)
 	if (handle->completion_state.active) {
-		size_t completion_start_row = end_row + 1;
+		size_t completion_start_row = status_start_row + (size_t)status_lines_rendered;
 		if (tprompt_render_to_buffer_completion(handle, completion_start_row) != 0) {
 			return -1;
 		}
-	}
-
-	// 4. Render debug status line
-	size_t status_row = handle->display.total_physical_lines;
-	if (tprompt_render_to_buffer_status_line(handle, status_row) != 0) {
-		// Non-fatal, continue
 	}
 
 	// 5. Detect differences with previous buffer

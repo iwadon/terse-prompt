@@ -1024,6 +1024,20 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 		return NULL;
 	}
 
+	// Initialize status line callback based on flags and options
+	handle->status_line_callback = NULL;
+	handle->status_line_user_data = NULL;
+
+	if (options->flags & TPROMPT_FLAG_SHOW_DEBUG_STATUS) {
+		// Debug mode takes precedence
+		handle->status_line_callback = tprompt_internal_debug_status_callback;
+		handle->status_line_user_data = NULL;
+	} else if (options->status_line_callback) {
+		// Use custom callback if provided
+		handle->status_line_callback = options->status_line_callback;
+		handle->status_line_user_data = options->status_line_user_data;
+	}
+
 	// Copy and validate custom keybindings
 	handle->keybindings = NULL;
 	handle->keybinding_count = 0;
@@ -1942,6 +1956,78 @@ int tprompt_key_handle_ctrl_e(tprompt_handle_t handle)
 	handle->buffer.cursor = line_end;
 
 	return 0;
+}
+
+/* ========================================================================
+ * Status Line - Internal Debug Callback
+ * ======================================================================== */
+
+/**
+ * @brief Internal debug status line callback
+ *
+ * Generates debug information for display in the status line.
+ * Shows cursor position (physical x/y) and goal column if active.
+ */
+int tprompt_internal_debug_status_callback(
+	tprompt_handle_t handle,
+	char *buffer,
+	size_t buffer_size,
+	void *user_data)
+{
+	(void)user_data; // Unused
+
+	if (!handle || !buffer || buffer_size == 0) {
+		return -1;
+	}
+
+	int target_col = (int)handle->display.physical_column;
+	if (handle->input_state.has_goal_column) {
+		snprintf(buffer, buffer_size, "x=%d y=%d goal=%zu",
+			target_col,
+			(int)handle->display.physical_line,
+			handle->input_state.goal_column);
+	} else {
+		snprintf(buffer, buffer_size, "x=%d y=%d goal=-",
+			target_col,
+			(int)handle->display.physical_line);
+	}
+
+	return 1; // 1 line written
+}
+
+/* ========================================================================
+ * Status Line - Public API
+ * ======================================================================== */
+
+void tprompt_set_status_line_callback(
+	tprompt_handle_t handle,
+	tprompt_status_line_fn callback,
+	void *user_data)
+{
+	if (!handle) {
+		return;
+	}
+
+	handle->status_line_callback = callback;
+	handle->status_line_user_data = user_data;
+}
+
+size_t tprompt_get_cursor_line(tprompt_handle_t handle)
+{
+	if (!handle) {
+		return 0;
+	}
+
+	return handle->display.physical_line;
+}
+
+size_t tprompt_get_cursor_column(tprompt_handle_t handle)
+{
+	if (!handle) {
+		return 0;
+	}
+
+	return handle->display.physical_column;
 }
 
 /* ========================================================================

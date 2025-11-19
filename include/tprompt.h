@@ -89,6 +89,52 @@ typedef tprompt_validation_result_t (*tprompt_validation_fn)(
 	void *user_data);
 
 /**
+ * @brief Status line callback function type
+ *
+ * Called during each render cycle to generate status line content.
+ * The callback should write status line text to the buffer. Multiple lines
+ * can be written by separating them with newlines.
+ *
+ * The status line is displayed below the editing area and above the completion
+ * candidates list. It can contain ANSI escape sequences for colors and formatting.
+ *
+ * @param handle Prompt handle (for accessing current state via helper functions)
+ * @param buffer Output buffer for status line text
+ * @param buffer_size Size of output buffer in bytes
+ * @param user_data User-defined data passed to the callback
+ * @return Number of lines written (0 to hide status line this time), or -1 on error
+ *
+ * Example (simple character counter):
+ * @code
+ * int my_status(tprompt_handle_t handle, char *buffer, size_t size, void *user_data) {
+ *     size_t line = tprompt_get_cursor_line(handle);
+ *     size_t col = tprompt_get_cursor_column(handle);
+ *     snprintf(buffer, size, "Line %zu, Col %zu", line + 1, col + 1);
+ *     return 1; // 1 line written
+ * }
+ * @endcode
+ *
+ * Example (multi-line status with ANSI colors):
+ * @code
+ * int app_status(tprompt_handle_t handle, char *buffer, size_t size, void *user_data) {
+ *     struct app_state *state = (struct app_state *)user_data;
+ *     snprintf(buffer, size,
+ *         "\x1b[1mMode:\x1b[0m %s\n"
+ *         "\x1b[1mFile:\x1b[0m %s %s",
+ *         state->mode,
+ *         state->filename,
+ *         state->modified ? "[Modified]" : "");
+ *     return 2; // 2 lines written
+ * }
+ * @endcode
+ */
+typedef int (*tprompt_status_line_fn)(
+	tprompt_handle_t handle,
+	char *buffer,
+	size_t buffer_size,
+	void *user_data);
+
+/**
  * @brief Completion callback function type
  *
  * @param text Current input text (entire buffer)
@@ -165,6 +211,8 @@ typedef struct tprompt_options {
 	size_t keybinding_count;						/**< Number of custom keybindings */
 	tprompt_validation_fn validation_callback;		/**< Validation callback (NULL = no validation) */
 	void *validation_user_data;						/**< User data for validation callback */
+	tprompt_status_line_fn status_line_callback;	/**< Status line callback (NULL = no status line) */
+	void *status_line_user_data;					/**< User data for status line callback */
 } tprompt_options_t;
 
 /**
@@ -217,6 +265,32 @@ typedef struct tprompt_error_info {
  */
 #define TPROMPT_FLAG_NO_AUTO_SAVE (1 << 2)
 
+/**
+ * @brief Show debug information in status line
+ *
+ * When set, displays cursor position and other debug information in the status line.
+ * This overrides custom status_line_callback if both are set.
+ */
+#define TPROMPT_FLAG_SHOW_DEBUG_STATUS (1 << 3)
+
+/**
+ * @brief Hide status line completely
+ *
+ * When set, no status line is displayed regardless of other settings.
+ * This takes precedence over TPROMPT_FLAG_SHOW_DEBUG_STATUS and status_line_callback.
+ */
+#define TPROMPT_FLAG_HIDE_STATUS_LINE (1 << 4)
+
+/**
+ * @brief Maximum number of rows for status line
+ */
+#define TPROMPT_STATUS_LINE_MAX_ROWS 10
+
+/**
+ * @brief Buffer size for status line text
+ */
+#define TPROMPT_STATUS_LINE_BUFFER_SIZE 4096
+
 
 /* ========================================================================
  * Keybinding Helper Macros
@@ -252,20 +326,22 @@ typedef struct tprompt_error_info {
 /**
  * @brief Default options initializer
  */
-#define TPROMPT_OPTIONS_DEFAULT {    \
-	.prompt = "> ",                  \
-	.history_file = NULL,            \
-	.max_input_size = 1024 * 1024,   \
-	.max_history_size = 100,         \
-	.completion_callback = NULL,     \
-	.completion_user_data = NULL,    \
-	.completion_prefixes = NULL,     \
-	.terse_handle = NULL,            \
-	.flags = TPROMPT_FLAG_MULTILINE, \
-	.custom_keybindings = NULL,      \
-	.keybinding_count = 0,           \
-	.validation_callback = NULL,     \
-	.validation_user_data = NULL     \
+#define TPROMPT_OPTIONS_DEFAULT {      \
+	.prompt = "> ",                    \
+	.history_file = NULL,              \
+	.max_input_size = 1024 * 1024,     \
+	.max_history_size = 100,           \
+	.completion_callback = NULL,       \
+	.completion_user_data = NULL,      \
+	.completion_prefixes = NULL,       \
+	.terse_handle = NULL,              \
+	.flags = TPROMPT_FLAG_MULTILINE,   \
+	.custom_keybindings = NULL,        \
+	.keybinding_count = 0,             \
+	.validation_callback = NULL,       \
+	.validation_user_data = NULL,      \
+	.status_line_callback = NULL,      \
+	.status_line_user_data = NULL      \
 }
 
 /* ========================================================================
@@ -554,6 +630,63 @@ void tprompt_set_validation_callback(
 int tprompt_set_keybindings(tprompt_handle_t handle,
 	const tprompt_keybinding_t *bindings,
 	size_t count);
+
+/* ========================================================================
+ * Framework API - Status Line
+ * ======================================================================== */
+
+/**
+ * @brief Set status line callback at runtime
+ *
+ * Updates the status line callback for the session. This allows dynamic
+ * modification of status line display during runtime.
+ *
+ * The status line is displayed below the editing area and above the completion
+ * candidates list (if active). It can contain multiple lines and ANSI escape
+ * sequences for colors and formatting.
+ *
+ * @param handle Session handle
+ * @param callback Status line callback function (NULL to disable status line)
+ * @param user_data User data passed to callback
+ *
+ * Example:
+ * @code
+ * int show_stats(tprompt_handle_t handle, char *buffer, size_t size, void *user_data) {
+ *     size_t line = tprompt_get_cursor_line(handle);
+ *     size_t col = tprompt_get_cursor_column(handle);
+ *     snprintf(buffer, size, "Ln %zu, Col %zu", line + 1, col + 1);
+ *     return 1; // 1 line
+ * }
+ *
+ * tprompt_set_status_line_callback(handle, show_stats, NULL);
+ * @endcode
+ */
+void tprompt_set_status_line_callback(
+	tprompt_handle_t handle,
+	tprompt_status_line_fn callback,
+	void *user_data);
+
+/**
+ * @brief Get current cursor line (physical)
+ *
+ * Returns the current physical line number of the cursor (0-based).
+ * Physical lines are lines as they appear on the screen after wrapping.
+ *
+ * @param handle Session handle
+ * @return Physical line number (0-based), or 0 if handle is NULL
+ */
+size_t tprompt_get_cursor_line(tprompt_handle_t handle);
+
+/**
+ * @brief Get current cursor column (physical)
+ *
+ * Returns the current physical column position of the cursor (0-based).
+ * This is the column position within the current physical line.
+ *
+ * @param handle Session handle
+ * @return Physical column number (0-based), or 0 if handle is NULL
+ */
+size_t tprompt_get_cursor_column(tprompt_handle_t handle);
 
 /* ========================================================================
  * Framework API - Error Handling
