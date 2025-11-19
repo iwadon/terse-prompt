@@ -63,3 +63,8 @@ endif()
 if(TPROMPT_BUILD_EXAMPLES)
 	add_subdirectory(examples)
 endif()
+
+# Development tools (always built when building as top-level project)
+if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
+	add_subdirectory(tools)
+endif()
