@@ -691,6 +691,13 @@ int tprompt_screen_buffer_flush_diff(tprompt_handle_t handle)
 					return -1;
 				}
 			}
+
+			// Sync terse's internal cursor position with the end of the dirty region.
+			// terse doesn't automatically update cursor tracking when writing text.
+			terr = terse_move_to(handle->terse, base_row + (int)row, (int)dirty_end);
+			if (terr != TERSE_OK) {
+				return -1;
+			}
 		}
 	}
 
