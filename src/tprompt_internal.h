@@ -262,13 +262,6 @@ int tprompt_get_char_width(unsigned int scalar);
 void tprompt_display_calculate_layout(tprompt_handle_t handle);
 
 /**
- * @brief Render the input buffer to terminal
- * @param handle Prompt handle
- * @return 0 on success, -1 on failure
- */
-int tprompt_display_render(tprompt_handle_t handle);
-
-/**
  * @brief Render the input buffer to terminal using buffer-based differential rendering
  * @param handle Prompt handle
  * @return 0 on success, -1 on failure
@@ -330,20 +323,6 @@ void tprompt_display_mark_all_dirty(tprompt_handle_t handle);
  * @param handle Prompt handle
  */
 void tprompt_display_clear_dirty(tprompt_handle_t handle);
-
-/**
- * @brief Check if differential rendering is feasible
- *
- * Differential rendering is only feasible when:
- * - Display is marked as dirty
- * - No forced full redraw requested
- * - Total physical line count hasn't changed
- * - Dirty region doesn't span multiple physical lines
- *
- * @param handle Prompt handle
- * @return true if differential rendering can be used, false for full redraw
- */
-bool tprompt_display_can_use_differential(tprompt_handle_t handle);
 
 /* ========================================================================
  * Internal Helper Functions - Screen Buffer Management

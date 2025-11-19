@@ -52,13 +52,6 @@ size_t tprompt_get_continuation_marker_width(tprompt_handle_t handle);
 void tprompt_display_calculate_layout(tprompt_handle_t handle);
 
 /**
- * @brief Render the input buffer to terminal
- * @param handle Prompt handle
- * @return 0 on success, -1 on failure
- */
-int tprompt_display_render(tprompt_handle_t handle);
-
-/**
  * @brief Render the input buffer to terminal using buffer-based differential rendering
  * @param handle Prompt handle
  * @return 0 on success, -1 on failure
@@ -78,13 +71,6 @@ int tprompt_display_update_cursor(tprompt_handle_t handle);
  * @return 0 on success, -1 on failure
  */
 int tprompt_display_clear(tprompt_handle_t handle);
-
-/**
- * @brief Render completion candidate list
- * @param handle Prompt handle
- * @return 0 on success, -1 on failure
- */
-int tprompt_display_render_completion(tprompt_handle_t handle);
 
 /* ========================================================================
  * Dirty Region Tracking
@@ -111,13 +97,6 @@ void tprompt_display_mark_all_dirty(tprompt_handle_t handle);
  * @param handle Prompt handle
  */
 void tprompt_display_clear_dirty(tprompt_handle_t handle);
-
-/**
- * @brief Check if differential rendering is feasible
- * @param handle Prompt handle
- * @return true if differential rendering can be used, false for full redraw
- */
-bool tprompt_display_can_use_differential(tprompt_handle_t handle);
 
 /* ========================================================================
  * Screen Buffer Management
