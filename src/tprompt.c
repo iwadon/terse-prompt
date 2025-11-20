@@ -77,7 +77,7 @@ static const tprompt_keybinding_t default_keybindings[] = {
 	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'e'}, TPROMPT_ACTION_MOVE_TO_LINE_END},
 	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'p'}, TPROMPT_ACTION_HISTORY_PREV},
 	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'n'}, TPROMPT_ACTION_HISTORY_NEXT},
-	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'd'}, TPROMPT_ACTION_CONFIRM_INPUT}, /* Ctrl+D (EOF) */
+	/* Ctrl+D is handled specially in tprompt_handle_char_event() for EOF behavior */
 };
 
 static const size_t default_keybindings_count = sizeof(default_keybindings) / sizeof(default_keybindings[0]);
@@ -2437,62 +2437,16 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 			if (should_break) {
 				break; // Confirm input (e.g., Ctrl+D on empty buffer)
 			}
-		} else if (event.type == TERSE_EVENT_ENTER) {
-			// Handle Enter key through tprompt_handle_key_event (supports custom keybindings)
+		} else {
+			// Route all other events through tprompt_handle_key_event
+			// This includes: ENTER, BACKSPACE, DELETE, ARROW_*, HOME, END, TAB
 			int key_result = tprompt_handle_key_event(handle, &event);
 			if (key_result == 1) {
 				break; // Confirm input
 			} else if (key_result == -1) {
 				return NULL; // Error
 			}
-			// key_result == 0: continue editing (newline was inserted)
-		} else if (event.type == TERSE_EVENT_BACKSPACE) {
-			tprompt_buffer_delete_before(&handle->buffer, 1);
-			handle->input_state.has_goal_column = false;
-		} else if (event.type == TERSE_EVENT_DELETE) {
-			tprompt_buffer_delete_at(&handle->buffer, 1);
-			handle->input_state.has_goal_column = false;
-		} else if (event.type == TERSE_EVENT_ARROW_LEFT) {
-			if (event.data.key.mods & TERSE_MOD_CTRL) {
-				tprompt_cursor_move_word_backward(&handle->buffer);
-			} else {
-				tprompt_cursor_move_left(&handle->buffer, 1);
-			}
-			handle->input_state.has_goal_column = false;
-		} else if (event.type == TERSE_EVENT_ARROW_RIGHT) {
-			if (event.data.key.mods & TERSE_MOD_CTRL) {
-				tprompt_cursor_move_word_forward(&handle->buffer);
-			} else {
-				tprompt_cursor_move_right(&handle->buffer, 1);
-			}
-			handle->input_state.has_goal_column = false;
-		} else if (event.type == TERSE_EVENT_ARROW_UP || event.type == TERSE_EVENT_ARROW_DOWN) {
-			// Handle UP/DOWN through tprompt_handle_key_event (supports history navigation)
-			int key_result = tprompt_handle_key_event(handle, &event);
-			if (key_result == 1) {
-				break; // Confirm input (should not happen for arrows, but handle it)
-			} else if (key_result == -1) {
-				return NULL; // Error
-			}
 			// key_result == 0: continue editing
-		} else if (event.type == TERSE_EVENT_HOME || event.type == TERSE_EVENT_END) {
-			// Handle Home/End keys through tprompt_handle_key_event (supports staged movement)
-			int key_result = tprompt_handle_key_event(handle, &event);
-			if (key_result == 1) {
-				break; // Confirm input (shouldn't happen for Home/End, but handle it)
-			} else if (key_result == -1) {
-				return NULL; // Error
-			}
-			// key_result == 0: continue editing
-		} else if (event.type == TERSE_EVENT_TAB) {
-			// Handle Tab key through tprompt_handle_key_event (supports completion)
-			int key_result = tprompt_handle_key_event(handle, &event);
-			if (key_result == 1) {
-				break; // Confirm input (shouldn't happen for Tab, but handle it)
-			} else if (key_result == -1) {
-				return NULL; // Error
-			}
-			// key_result == 0: Tab was handled (completion confirmed or tab inserted)
 		}
 
 		// Track last event for staging behavior (unless already tracked by Home/End handlers)
