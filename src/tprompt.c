@@ -504,7 +504,9 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 		switch (custom_action) {
 		case TPROMPT_ACTION_CONFIRM_INPUT:
 			// Mark confirmation as pending (will be validated in main loop)
+			// Set force_confirmation to bypass default multiline behavior
 			handle->pending_confirmation = true;
+			handle->force_confirmation = true;
 			return 0;
 
 		case TPROMPT_ACTION_INSERT_NEWLINE:
@@ -1897,13 +1899,20 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 #endif
 
 	// Enable enhanced keyboard features if supported
+	// In test mode, skip keyboard protocol setup to avoid escape sequences in test output
 	unsigned int keyboard_supported = terse_keyboard_get_supported(handle->terse);
+#ifndef TERSE_ENABLE_TEST_MODE
 	if (keyboard_supported & TERSE_KEYBOARD_FEATURE_MODIFY_OTHER_KEYS) {
 		terse_keyboard_enable(handle->terse, TERSE_KEYBOARD_FEATURE_MODIFY_OTHER_KEYS);
 	}
 	if (keyboard_supported & TERSE_KEYBOARD_FEATURE_KITTY_PROTOCOL) {
 		terse_keyboard_enable(handle->terse, TERSE_KEYBOARD_FEATURE_KITTY_PROTOCOL);
 	}
+#else
+	// In test mode, avoid enabling keyboard protocols to prevent escape sequences
+	// from appearing in verbose test output (ctest -V)
+	(void)keyboard_supported;
+#endif
 
 	// Initialize buffer
 	if (tprompt_buffer_init(&handle->buffer, DEFAULT_BUFFER_SIZE) != 0) {
@@ -1975,6 +1984,7 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 
 	// Initialize validation state
 	handle->pending_confirmation = false;
+	handle->force_confirmation = false;
 	handle->validation_error_msg = NULL;
 
 	// Store prompt
@@ -2286,7 +2296,7 @@ int tprompt_handle_char_event(tprompt_handle_t handle, const terse_event_t *even
  * @param should_break Output: set to true if input should be confirmed and loop exited
  * @return 0 on success (continue or break), -1 on error
  */
-static int tprompt_handle_pending_confirmation(tprompt_handle_t handle, bool *should_break)
+int tprompt_handle_pending_confirmation(tprompt_handle_t handle, bool *should_break)
 {
 	if (!handle || !should_break) {
 		return -1;
@@ -2345,8 +2355,14 @@ static int tprompt_handle_pending_confirmation(tprompt_handle_t handle, bool *sh
 		return 0;
 
 	} else {
-		// No validation callback - behavior depends on mode
+		// No validation callback - behavior depends on mode and force_confirmation flag
 		bool is_multiline = (handle->options.flags & TPROMPT_FLAG_MULTILINE) != 0;
+
+		// If force_confirmation is set (from custom keybinding), always confirm
+		if (handle->force_confirmation) {
+			*should_break = true;
+			return 0;
+		}
 
 		if (is_multiline) {
 			// Multiline mode without validation: insert newline
@@ -2386,6 +2402,10 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 
 	// Reset history navigation
 	tprompt_history_reset_position(&handle->history);
+
+	// Reset validation state for new readline session
+	handle->pending_confirmation = false;
+	handle->force_confirmation = false;
 
 	// Reset display state for new readline session
 	handle->display.start_row = 0; // Will be set on first render
@@ -2459,6 +2479,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 		// Check if input confirmation is pending (before rendering)
 		if (handle->pending_confirmation) {
 			handle->pending_confirmation = false; // Reset flag
+			handle->force_confirmation = false;   // Reset force flag
 
 			bool should_break = false;
 			int result = tprompt_handle_pending_confirmation(handle, &should_break);

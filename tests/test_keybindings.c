@@ -640,6 +640,253 @@ TEST(KeybindingsCtrlD, DeleteInMultilineBuffer)
 }
 
 /* ========================================================================
+ * Custom Keybinding Tests (Regression tests for custom Enter behavior)
+ * ======================================================================== */
+
+/**
+ * @brief Create a test handle with custom keybindings
+ * @param bindings Array of custom keybindings
+ * @param count Number of bindings
+ * @return Prompt handle, or NULL on failure
+ */
+static tprompt_handle_t create_test_handle_with_keybindings(
+	const tprompt_keybinding_t *bindings,
+	size_t count)
+{
+	// Create mock terse handle for test mode
+	terse_handle_t terse_h = test_create_terse_handle();
+	if (!terse_h) {
+		return NULL;
+	}
+
+	tprompt_options_t opts = {
+		.prompt = "> ",
+		.history_file = NULL,
+		.max_input_size = 1024,
+		.max_history_size = 100,
+		.completion_callback = NULL,
+		.completion_user_data = NULL,
+		.completion_prefixes = NULL,
+		.terse_handle = terse_h,  // Use mock terse handle
+		.flags = TPROMPT_FLAG_MULTILINE,
+		.custom_keybindings = (tprompt_keybinding_t *)bindings,
+		.keybinding_count = count
+	};
+
+	tprompt_handle_t handle = tprompt_open(&opts);
+	if (!handle) {
+		terse_close(terse_h);
+		return NULL;
+	}
+
+	return handle;
+}
+
+/**
+ * @brief Execute a custom key event through the full event handling pipeline
+ * @param handle Prompt handle
+ * @param event Event to execute
+ * @return Result from tprompt_handle_key_event
+ */
+static int execute_key_event(tprompt_handle_t handle, const terse_event_t *event)
+{
+	return tprompt_handle_key_event(handle, event);
+}
+
+TEST(CustomKeybindings, EnterConfirmsInMultilineMode)
+{
+	// Regression test: Custom keybinding to confirm with Enter in multiline mode
+	// Previously, Enter would insert newline regardless of custom keybinding
+
+	// Define custom keybinding: Enter = confirm
+	tprompt_keybinding_t custom_bindings[] = {
+		TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
+	};
+
+	tprompt_handle_t handle = create_test_handle_with_keybindings(custom_bindings, 1);
+	ASSERT_NE(handle, NULL);
+
+	// Insert some text
+	tprompt_buffer_insert(&handle->buffer, "test input", 10);
+
+	// Simulate Enter key (no modifiers)
+	terse_event_t enter_event = {
+		.type = TERSE_EVENT_ENTER,
+		.data = {
+			.key = {
+				.mods = 0
+			}
+		}
+	};
+
+	// Execute Enter key event
+	int result = execute_key_event(handle, &enter_event);
+
+	// Should set pending_confirmation and force_confirmation
+	EXPECT_EQ(result, 0); // Continue editing (confirmation pending)
+	EXPECT_TRUE(handle->pending_confirmation);
+	EXPECT_TRUE(handle->force_confirmation);
+
+	// Buffer should be unchanged (no newline inserted)
+	EXPECT_STREQ(handle->buffer.data, "test input");
+	EXPECT_EQ(handle->buffer.length, 10);
+
+	tprompt_close(handle);
+}
+
+TEST(CustomKeybindings, ShiftEnterInsertsNewline)
+{
+	// Test that Shift+Enter inserts newline as configured
+
+	tprompt_keybinding_t custom_bindings[] = {
+		TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
+		TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, TERSE_MOD_SHIFT, TPROMPT_ACTION_INSERT_NEWLINE),
+	};
+
+	tprompt_handle_t handle = create_test_handle_with_keybindings(custom_bindings, 2);
+	ASSERT_NE(handle, NULL);
+
+	tprompt_buffer_insert(&handle->buffer, "line1", 5);
+
+	// Simulate Shift+Enter
+	terse_event_t shift_enter = {
+		.type = TERSE_EVENT_ENTER,
+		.data = {
+			.key = {
+				.mods = TERSE_MOD_SHIFT
+			}
+		}
+	};
+
+	int result = execute_key_event(handle, &shift_enter);
+
+	// Should insert newline and continue editing
+	EXPECT_EQ(result, 0);
+	EXPECT_STREQ(handle->buffer.data, "line1\n");
+	EXPECT_EQ(handle->buffer.length, 6);
+	EXPECT_FALSE(handle->pending_confirmation); // No confirmation pending
+
+	tprompt_close(handle);
+}
+
+TEST(CustomKeybindings, NoValidationCallbackStillConfirms)
+{
+	// Regression test: With custom CONFIRM_INPUT binding and no validation callback,
+	// input should still be confirmed (not insert newline)
+
+	tprompt_keybinding_t custom_bindings[] = {
+		TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
+	};
+
+	tprompt_handle_t handle = create_test_handle_with_keybindings(custom_bindings, 1);
+	ASSERT_NE(handle, NULL);
+
+	tprompt_buffer_insert(&handle->buffer, "test", 4);
+
+	// Simulate Enter
+	terse_event_t enter_event = {
+		.type = TERSE_EVENT_ENTER,
+		.data = {
+			.key = {
+				.mods = 0
+			}
+		}
+	};
+
+	execute_key_event(handle, &enter_event);
+
+	// Should have pending_confirmation and force_confirmation set
+	EXPECT_TRUE(handle->pending_confirmation);
+	EXPECT_TRUE(handle->force_confirmation);
+
+	// Now simulate the pending confirmation handling
+	bool should_break = false;
+	int result = tprompt_handle_pending_confirmation(handle, &should_break);
+
+	// Should confirm input (break=true), not insert newline
+	EXPECT_EQ(result, 0);
+	EXPECT_TRUE(should_break);
+	EXPECT_STREQ(handle->buffer.data, "test"); // No newline added
+
+	tprompt_close(handle);
+}
+
+TEST(CustomKeybindings, DefaultBehaviorWithoutCustomBinding)
+{
+	// Test that without custom keybinding, default behavior applies
+	// (multiline mode: Enter inserts newline when no validation callback)
+
+	// Use existing helper without custom keybindings
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	tprompt_buffer_insert(&handle->buffer, "test", 4);
+
+	// Simulate Enter
+	terse_event_t enter_event = {
+		.type = TERSE_EVENT_ENTER,
+		.data = {
+			.key = {
+				.mods = 0
+			}
+		}
+	};
+
+	execute_key_event(handle, &enter_event);
+
+	// Should have pending_confirmation but NOT force_confirmation
+	EXPECT_TRUE(handle->pending_confirmation);
+	EXPECT_FALSE(handle->force_confirmation);
+
+	// Simulate pending confirmation handling
+	bool should_break = false;
+	int result = tprompt_handle_pending_confirmation(handle, &should_break);
+
+	// Default multiline behavior: insert newline
+	EXPECT_EQ(result, 0);
+	EXPECT_FALSE(should_break); // Continue editing
+	EXPECT_STREQ(handle->buffer.data, "test\n"); // Newline added
+
+	tprompt_close(handle);
+}
+
+TEST(CustomKeybindings, CtrlJInsertsNewline)
+{
+	// Test Ctrl+J custom binding (character-based keybinding)
+
+	tprompt_keybinding_t custom_bindings[] = {
+		TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
+		TPROMPT_BIND_CHAR('j', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),
+	};
+
+	tprompt_handle_t handle = create_test_handle_with_keybindings(custom_bindings, 2);
+	ASSERT_NE(handle, NULL);
+
+	tprompt_buffer_insert(&handle->buffer, "line1", 5);
+
+	// Simulate Ctrl+J (CHAR event with scalar='j' and CTRL modifier)
+	terse_event_t ctrl_j = {
+		.type = TERSE_EVENT_CHAR,
+		.data = {
+			.ch = {
+				.scalar = 'j',
+				.mods = TERSE_MOD_CTRL,
+				.width = 1
+			}
+		}
+	};
+
+	int result = execute_key_event(handle, &ctrl_j);
+
+	// Should insert newline
+	EXPECT_EQ(result, 0);
+	EXPECT_STREQ(handle->buffer.data, "line1\n");
+	EXPECT_FALSE(handle->pending_confirmation);
+
+	tprompt_close(handle);
+}
+
+/* ========================================================================
  * Main
  * ======================================================================== */
 

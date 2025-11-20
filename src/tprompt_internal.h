@@ -152,6 +152,7 @@ struct tprompt_handle {
 
 	/* Validation */
 	bool pending_confirmation;	 /**< Whether input confirmation is pending validation */
+	bool force_confirmation;	 /**< Whether confirmation is forced by custom keybinding (bypass default multiline behavior) */
 	char *validation_error_msg;	 /**< Validation error message to display (NULL if none) */
 
 	/* Status line */
@@ -512,6 +513,14 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
  * @return 0 on success, -1 on error
  */
 int tprompt_handle_char_event(tprompt_handle_t handle, const terse_event_t *event, bool *should_break);
+
+/**
+ * @brief Handle pending input confirmation (validation and mode-dependent behavior)
+ * @param handle Prompt handle
+ * @param should_break Output parameter: set to true if input should be confirmed
+ * @return 0 on success, -1 on error
+ */
+int tprompt_handle_pending_confirmation(tprompt_handle_t handle, bool *should_break);
 
 /**
  * @brief Check if buffer contains newline characters
