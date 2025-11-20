@@ -255,6 +255,15 @@ unsigned int tprompt_utf8_decode(const unsigned char *bytes, size_t len);
  */
 int tprompt_get_char_width(unsigned int scalar);
 
+/**
+ * @brief Encode Unicode scalar value to UTF-8 bytes
+ * @param scalar Unicode scalar value (0x0 to 0x10FFFF, excluding surrogates)
+ * @param out_buf Output buffer for UTF-8 bytes (must be at least 4 bytes)
+ * @param max_buf_size Size of output buffer
+ * @return Number of bytes written (1-4), or -1 on error
+ */
+int tprompt_utf8_encode(unsigned int scalar, char *out_buf, size_t max_buf_size);
+
 
 /* ========================================================================
  * Internal Helper Functions - Display and Rendering

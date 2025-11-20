@@ -278,3 +278,58 @@ size_t tprompt_utf8_char_count(const char *text, size_t length)
 
 	return count;
 }
+
+/**
+ * @brief Encode Unicode scalar value to UTF-8 bytes
+ *
+ * Converts a Unicode scalar value to its UTF-8 byte sequence representation.
+ * Validates the scalar value and ensures proper encoding.
+ *
+ * @param scalar Unicode scalar value (0x0 to 0x10FFFF, excluding surrogates)
+ * @param out_buf Output buffer for UTF-8 bytes (must be at least 4 bytes)
+ * @param max_buf_size Size of output buffer
+ * @return Number of bytes written (1-4), or -1 on error
+ */
+int tprompt_utf8_encode(unsigned int scalar, char *out_buf, size_t max_buf_size)
+{
+	if (!out_buf || max_buf_size < 4) {
+		return -1;
+	}
+
+	// Validate scalar range
+	if (scalar > 0x10FFFF) {
+		return -1; // Beyond valid Unicode range
+	}
+
+	// Reject UTF-16 surrogates
+	if (scalar >= 0xD800 && scalar <= 0xDFFF) {
+		return -1;
+	}
+
+	int len = 0;
+
+	// 1-byte ASCII (0x0 to 0x7F)
+	if (scalar < 0x80) {
+		out_buf[len++] = (char)scalar;
+	}
+	// 2-byte UTF-8 (0x80 to 0x7FF)
+	else if (scalar < 0x800) {
+		out_buf[len++] = (char)(0xC0 | (scalar >> 6));
+		out_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+	}
+	// 3-byte UTF-8 (0x800 to 0xFFFF)
+	else if (scalar < 0x10000) {
+		out_buf[len++] = (char)(0xE0 | (scalar >> 12));
+		out_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
+		out_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+	}
+	// 4-byte UTF-8 (0x10000 to 0x10FFFF)
+	else if (scalar < 0x110000) {
+		out_buf[len++] = (char)(0xF0 | (scalar >> 18));
+		out_buf[len++] = (char)(0x80 | ((scalar >> 12) & 0x3F));
+		out_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
+		out_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+	}
+
+	return len;
+}

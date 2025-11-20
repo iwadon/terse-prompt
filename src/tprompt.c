@@ -1602,24 +1602,14 @@ int tprompt_execute_action(tprompt_handle_t handle, tprompt_action_t action, con
 		// Insert character at cursor
 		{
 			char utf8_buf[5];
-			int len = 0;
 			unsigned int scalar = event->data.ch.scalar;
 
-			// Simple UTF-8 encoding
-			if (scalar < 0x80) {
-				utf8_buf[len++] = (char)scalar;
-			} else if (scalar < 0x800) {
-				utf8_buf[len++] = (char)(0xC0 | (scalar >> 6));
-				utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
-			} else if (scalar < 0x10000) {
-				utf8_buf[len++] = (char)(0xE0 | (scalar >> 12));
-				utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
-				utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
-			} else if (scalar < 0x110000) {
-				utf8_buf[len++] = (char)(0xF0 | (scalar >> 18));
-				utf8_buf[len++] = (char)(0x80 | ((scalar >> 12) & 0x3F));
-				utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
-				utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+			// Encode scalar to UTF-8
+			int len = tprompt_utf8_encode(scalar, utf8_buf, sizeof(utf8_buf));
+			if (len < 0) {
+				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_INVALID_ARGS, 0,
+					"Invalid Unicode scalar value: 0x%X", scalar);
+				return -1;
 			}
 			utf8_buf[len] = '\0';
 
@@ -2256,23 +2246,13 @@ int tprompt_handle_char_event(tprompt_handle_t handle, const terse_event_t *even
 	// Regular character input - convert scalar to UTF-8
 	if (!(mods & TERSE_MOD_CTRL)) { // Ignore unhandled Ctrl combinations
 		char utf8_buf[5];
-		int len = 0;
 
-		// Simple UTF-8 encoding
-		if (scalar < 0x80) {
-			utf8_buf[len++] = (char)scalar;
-		} else if (scalar < 0x800) {
-			utf8_buf[len++] = (char)(0xC0 | (scalar >> 6));
-			utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
-		} else if (scalar < 0x10000) {
-			utf8_buf[len++] = (char)(0xE0 | (scalar >> 12));
-			utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
-			utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
-		} else if (scalar < 0x110000) {
-			utf8_buf[len++] = (char)(0xF0 | (scalar >> 18));
-			utf8_buf[len++] = (char)(0x80 | ((scalar >> 12) & 0x3F));
-			utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
-			utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+		// Encode scalar to UTF-8
+		int len = tprompt_utf8_encode(scalar, utf8_buf, sizeof(utf8_buf));
+		if (len < 0) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_INVALID_ARGS, 0,
+				"Invalid Unicode scalar value: 0x%X", scalar);
+			return -1;
 		}
 		utf8_buf[len] = '\0';
 
