@@ -165,3 +165,24 @@ target_link_libraries(test_validation PRIVATE
 )
 
 add_test(NAME test_validation COMMAND test_validation)
+
+# Integration tests (tprompt_readline with event streams)
+add_executable(test_integration
+    test_integration.c
+)
+
+target_include_directories(test_integration PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(test_integration PRIVATE
+    _POSIX_C_SOURCE=200809L
+    $<$<BOOL:${TPROMPT_USE_TERSE_TEST_MODE}>:TERSE_ENABLE_TEST_MODE=1>
+)
+
+target_link_libraries(test_integration PRIVATE
+    tprompt
+    attest
+)
+
+add_test(NAME test_integration COMMAND test_integration)
