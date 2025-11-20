@@ -9,6 +9,7 @@
  */
 
 #include "tprompt_internal.h"
+#include "test_helpers.h"
 #include <attest/attest.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,8 +23,11 @@
  */
 static tprompt_handle_t create_test_handle(size_t term_width, size_t term_height)
 {
-	// Enable test mode to prevent terse from overwriting dimensions
-	setenv("TPROMPT_TEST_MODE", "1", 1);
+	// Create mock terse handle with custom size
+	terse_handle_t terse_h = test_create_terse_handle_sized((int)term_height, (int)term_width);
+	if (!terse_h) {
+		return NULL;
+	}
 
 	tprompt_options_t opts = {
 		.prompt = "> ",
@@ -33,15 +37,13 @@ static tprompt_handle_t create_test_handle(size_t term_width, size_t term_height
 		.completion_callback = NULL,
 		.completion_user_data = NULL,
 		.completion_prefixes = NULL,
-		.terse_handle = NULL,
+		.terse_handle = terse_h,
 		.flags = TPROMPT_FLAG_MULTILINE
 	};
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	if (handle) {
-		// Manually set terminal dimensions for testing
-		handle->display.terminal_width = term_width;
-		handle->display.terminal_height = term_height;
+	if (!handle) {
+		terse_close(terse_h);
 	}
 	return handle;
 }

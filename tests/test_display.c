@@ -18,8 +18,7 @@
  */
 static tprompt_handle_t create_test_handle(terse_handle_t *out_terse)
 {
-	setenv("TPROMPT_TEST_MODE", "1", 1);
-
+	// Create mock terse handle for test mode
 	terse_handle_t terse = test_create_terse_handle();
 	if (!terse) {
 		return NULL;

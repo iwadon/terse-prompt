@@ -16,19 +16,21 @@
 #endif
 
 /**
- * @brief Create a terse handle for testing
+ * @brief Create a terse handle for testing with custom size
  *
  * In test mode (TERSE_ENABLE_TEST_MODE), creates a mock terse handle with:
- * - 80x24 terminal size
+ * - Custom terminal size (rows x cols)
  * - P1 profile (basic colors, no mouse)
  * - Recording disabled initially
  *
  * In normal mode, creates a regular terse handle with P0 profile
  * (works in non-TTY environments).
  *
+ * @param rows terminal height (rows), or 0 for default (24)
+ * @param cols terminal width (columns), or 0 for default (80)
  * @return terse handle, or NULL on failure
  */
-static inline terse_handle_t test_create_terse_handle(void)
+static inline terse_handle_t test_create_terse_handle_sized(int rows, int cols)
 {
 	terse_handle_t handle = terse_open(TERSE_PROFILE_AUTO, NULL);
 	if (!handle) {
@@ -36,8 +38,14 @@ static inline terse_handle_t test_create_terse_handle(void)
 	}
 
 #ifdef TERSE_ENABLE_TEST_MODE
-	// Mock standard terminal size
-	terse_test_mock_size(handle, 24, 80);
+	// Use defaults if not specified
+	if (rows == 0)
+		rows = 24;
+	if (cols == 0)
+		cols = 80;
+
+	// Mock custom terminal size
+	terse_test_mock_size(handle, rows, cols);
 
 	// Mock P1 capabilities (basic colors, no advanced features)
 	terse_capabilities_t mock_caps = {
@@ -66,9 +74,30 @@ static inline terse_handle_t test_create_terse_handle(void)
 		.keyboard_features = 0
 	};
 	terse_test_mock_capabilities(handle, &mock_caps);
+#else
+	(void)rows;
+	(void)cols;
 #endif
 
 	return handle;
+}
+
+/**
+ * @brief Create a terse handle for testing
+ *
+ * In test mode (TERSE_ENABLE_TEST_MODE), creates a mock terse handle with:
+ * - 80x24 terminal size
+ * - P1 profile (basic colors, no mouse)
+ * - Recording disabled initially
+ *
+ * In normal mode, creates a regular terse handle with P0 profile
+ * (works in non-TTY environments).
+ *
+ * @return terse handle, or NULL on failure
+ */
+static inline terse_handle_t test_create_terse_handle(void)
+{
+	return test_create_terse_handle_sized(24, 80);
 }
 
 /**
