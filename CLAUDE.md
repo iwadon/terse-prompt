@@ -83,6 +83,69 @@ rmdir /s /q build
 - Cover edge cases (empty input, UTF-8 boundaries, buffer limits)
 - Test error handling paths
 
+### Mock Usage Pattern (REQUIRED)
+
+**IMPORTANT**: All tests that create `tprompt_handle_t` MUST use mock terse handles via `test_helpers.h`.
+
+**Why Mock Handles Are Required**:
+- Tests without mocks trigger actual terminal control (escape sequences, raw mode)
+- This causes terminal state corruption during test execution
+- Mock mode is 100x faster (0.02s vs 2.79s for full suite)
+- Enables testing in non-TTY environments (CI/CD pipelines)
+- Prevents test flakiness and terminal I/O interference
+
+**Correct Pattern** (use this for ALL new tests):
+
+```c
+#include "test_helpers.h"
+#include "tprompt_internal.h"
+#include <attest/attest.h>
+
+static tprompt_handle_t create_test_handle(void)
+{
+    // Create mock terse handle for test mode
+    terse_handle_t terse_h = test_create_terse_handle();
+    if (!terse_h) {
+        return NULL;
+    }
+
+    tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
+    opts.terse_handle = terse_h;  // Use mock handle
+
+    tprompt_handle_t handle = tprompt_open(&opts);
+    if (!handle) {
+        terse_close(terse_h);
+        return NULL;
+    }
+
+    return handle;
+}
+
+TEST(Example, BasicTest)
+{
+    tprompt_handle_t handle = create_test_handle();
+    ASSERT_NE(handle, NULL);
+
+    // Your test code here
+
+    tprompt_close(handle);
+}
+```
+
+**Common Mistake** (DO NOT do this):
+
+```c
+// WRONG: Creates real terse handle, affects terminal state
+tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
+opts.terse_handle = NULL;  // This creates a REAL handle internally!
+tprompt_handle_t handle = tprompt_open(&opts);
+```
+
+**Reference Implementations**:
+- `tests/test_validation.c` - Comprehensive mock usage (12 tests)
+- `tests/test_keybindings.c` - Keybinding tests with mocks
+- `tests/test_helpers.h` - Mock helper function definitions
+
 ## Code Architecture
 
 ### Dual API Design
