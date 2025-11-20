@@ -33,12 +33,18 @@ endif()
 
 # tpromptライブラリの作成
 add_library(tprompt STATIC
-	src/tprompt.c
+	src/tprompt_action.c
+	src/tprompt_api.c
 	src/tprompt_buffer.c
 	src/tprompt_completion.c
 	src/tprompt_display.c
 	src/tprompt_error.c
 	src/tprompt_history.c
+	src/tprompt_init.c
+	src/tprompt_keybinding.c
+	src/tprompt_prompt.c
+	src/tprompt_session.c
+	src/tprompt_status.c
 	src/tprompt_utf8.c
 )
 
