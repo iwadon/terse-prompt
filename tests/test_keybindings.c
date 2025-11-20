@@ -478,11 +478,12 @@ TEST(KeybindingsCombined, CtrlWMultipleWordsUTF8)
  */
 static bool execute_ctrl_d(tprompt_handle_t handle)
 {
+	// Note: terse transmits Ctrl+D as uppercase 'D' with TERSE_MOD_CTRL
 	terse_event_t event = {
 		.type = TERSE_EVENT_CHAR,
 		.data = {
 			.ch = {
-				.scalar = 'd',
+				.scalar = 'D',
 				.mods = TERSE_MOD_CTRL,
 				.width = 1
 			}

@@ -414,10 +414,8 @@ TEST(EmptyInput, DirectConfirm)
 	// Test edge case: Press Enter immediately without typing anything
 	// Purpose: Tests confirmation with no input
 	//
-	// KNOWN LIMITATION: Current implementation returns NULL for empty buffer
-	// (cannot distinguish between EOF/Ctrl+D and legitimate empty confirmation).
-	// Ideally should return "" instead of NULL for empty confirmation.
-	// This test documents current behavior.
+	// Expected behavior: Return empty string "" for empty confirmation
+	// This is distinct from Ctrl+D on empty buffer, which returns NULL (EOF)
 	tprompt_keybinding_t bindings[] = {
 		TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
 	};
@@ -435,11 +433,11 @@ TEST(EmptyInput, DirectConfirm)
 	test_mock_events(terse, events, 1);
 
 	char *result = tprompt_readline(handle, NULL);
-	// CURRENT BEHAVIOR: Returns NULL for empty buffer (treats as EOF)
-	// IDEAL BEHAVIOR: Should return "" for empty confirmation
-	EXPECT_EQ(result, NULL);
+	// Should return empty string "" for empty confirmation (not NULL)
+	ASSERT_NE(result, NULL);
+	EXPECT_STREQ(result, "");
 
-	// No free() needed since result is NULL
+	free(result);
 	tprompt_close(handle);
 }
 
@@ -588,6 +586,275 @@ TEST(CtrlJNewline, CustomBinding)
 	char *result = tprompt_readline(handle, NULL);
 	ASSERT_NE(result, NULL);
 	EXPECT_STREQ(result, "line1\nline2");
+
+	free(result);
+	tprompt_close(handle);
+}
+
+/* ========================================================================
+ * EOF Handling Tests
+ * ======================================================================== */
+
+TEST(EOF, CtrlDOnEmptyBuffer)
+{
+	// Test: Press Ctrl+D immediately on empty buffer, expect NULL (EOF)
+	// Purpose: Tests EOF handling with no input (Ctrl+D on empty line)
+	tprompt_handle_t handle = create_handle_with_keybindings(NULL, 0);
+	ASSERT_NE(handle, NULL);
+
+	terse_handle_t terse = handle->terse;
+	ASSERT_NE(terse, NULL);
+
+	// Mock event sequence: Just Ctrl+D (no text typed)
+	// Note: terse transmits Ctrl+D as uppercase 'D' with TERSE_MOD_CTRL
+	terse_event_t events[] = {
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'D', .data.ch.mods = TERSE_MOD_CTRL, .data.ch.width = 1 }
+	};
+	test_mock_events(terse, events, 1);
+
+	char *result = tprompt_readline(handle, NULL);
+	// Ctrl+D on empty buffer should return NULL (EOF)
+	EXPECT_EQ(result, NULL);
+
+	// Verify no error was set (EOF is not an error)
+	tprompt_error_info_t error = tprompt_get_last_error(handle);
+	EXPECT_EQ(error.category, TPROMPT_ERROR_NONE);
+
+	// No free() needed since result is NULL
+	tprompt_close(handle);
+}
+
+TEST(EOF, CtrlDDeletesCharWhenBufferNotEmpty)
+{
+	// Test: Type "hello", position at 'e', press Ctrl+D, expect "hllo" (delete-char, not EOF)
+	// Purpose: Tests that Ctrl+D on non-empty buffer deletes character (like Delete key)
+	tprompt_keybinding_t bindings[] = {
+		TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
+	};
+
+	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
+	ASSERT_NE(handle, NULL);
+
+	terse_handle_t terse = handle->terse;
+	ASSERT_NE(terse, NULL);
+
+	// Mock event sequence: type "hello" + Left×3 (position at 'e') + Ctrl+D + Enter
+	terse_event_t events[] = {
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'h', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'o', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },  // Move to 'o'
+		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },  // Move to 'l'
+		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },  // Move to 'l'
+		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },  // Move to 'e'
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'D', .data.ch.mods = TERSE_MOD_CTRL, .data.ch.width = 1 },  // Delete 'e'
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }  // Confirm input
+	};
+	test_mock_events(terse, events, 11);
+
+	char *result = tprompt_readline(handle, NULL);
+	ASSERT_NE(result, NULL);
+	EXPECT_STREQ(result, "hllo");  // 'e' should be deleted
+
+	free(result);
+	tprompt_close(handle);
+}
+
+TEST(EOF, CtrlDAfterDeletingAllContent)
+{
+	// Test: Type "x", backspace to delete it, press Ctrl+D, expect NULL (EOF)
+	// Purpose: Tests that Ctrl+D on buffer that became empty signals EOF
+	tprompt_handle_t handle = create_handle_with_keybindings(NULL, 0);
+	ASSERT_NE(handle, NULL);
+
+	terse_handle_t terse = handle->terse;
+	ASSERT_NE(terse, NULL);
+
+	// Mock event sequence: type "x" + backspace + Ctrl+D
+	terse_event_t events[] = {
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'x', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_BACKSPACE, .data.key.mods = 0 },  // Delete 'x', buffer now empty
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'D', .data.ch.mods = TERSE_MOD_CTRL, .data.ch.width = 1 }  // EOF
+	};
+	test_mock_events(terse, events, 3);
+
+	char *result = tprompt_readline(handle, NULL);
+	// Ctrl+D on empty buffer should return NULL (EOF)
+	EXPECT_EQ(result, NULL);
+
+	// Verify no error was set (EOF is not an error)
+	tprompt_error_info_t error = tprompt_get_last_error(handle);
+	EXPECT_EQ(error.category, TPROMPT_ERROR_NONE);
+
+	// No free() needed since result is NULL
+	tprompt_close(handle);
+}
+
+TEST(EOF, EmptyInputVsEOFDistinction)
+{
+	// REGRESSION TEST: Verify that empty input confirmation returns "" while EOF returns NULL
+	// This test ensures we correctly distinguish between:
+	// - Enter on empty buffer → "" (empty string, continue)
+	// - Ctrl+D on empty buffer → NULL (EOF, exit)
+	//
+	// Bug history: Initially, both cases returned NULL because we only checked buffer.length == 0
+	// Fix: Added eof_signaled flag to track explicit EOF (Ctrl+D) vs empty confirmation (Enter)
+	tprompt_keybinding_t bindings[] = {
+		TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
+	};
+
+	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
+	ASSERT_NE(handle, NULL);
+
+	terse_handle_t terse = handle->terse;
+	ASSERT_NE(terse, NULL);
+
+	// Test 1: Empty buffer + Enter → should return empty string ""
+	terse_event_t enter_events[] = {
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }
+	};
+	test_mock_events(terse, enter_events, 1);
+
+	char *result1 = tprompt_readline(handle, NULL);
+	ASSERT_NE(result1, NULL);  // Must NOT be NULL
+	EXPECT_STREQ(result1, "");  // Must be empty string
+	free(result1);
+
+	// Test 2: Empty buffer + Ctrl+D → should return NULL (EOF)
+	terse_event_t ctrl_d_events[] = {
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'D', .data.ch.mods = TERSE_MOD_CTRL, .data.ch.width = 1 }
+	};
+	test_mock_events(terse, ctrl_d_events, 1);
+
+	char *result2 = tprompt_readline(handle, NULL);
+	EXPECT_EQ(result2, NULL);  // Must be NULL for EOF
+
+	// Verify no error for EOF
+	tprompt_error_info_t error = tprompt_get_last_error(handle);
+	EXPECT_EQ(error.category, TPROMPT_ERROR_NONE);
+
+	tprompt_close(handle);
+}
+
+TEST(EOF, MultipleEmptyInputsBeforeEOF)
+{
+	// REGRESSION TEST: Verify multiple empty confirmations work correctly before EOF
+	// This ensures the eof_signaled flag is properly reset between readline calls
+	tprompt_keybinding_t bindings[] = {
+		TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
+	};
+
+	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
+	ASSERT_NE(handle, NULL);
+
+	terse_handle_t terse = handle->terse;
+	ASSERT_NE(terse, NULL);
+
+	// Three empty inputs followed by EOF
+	for (int i = 0; i < 3; i++) {
+		terse_event_t enter_events[] = {
+			{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }
+		};
+		test_mock_events(terse, enter_events, 1);
+
+		char *result = tprompt_readline(handle, NULL);
+		ASSERT_NE(result, NULL);  // Each should return empty string, not NULL
+		EXPECT_STREQ(result, "");
+		free(result);
+	}
+
+	// Finally, Ctrl+D should return NULL
+	terse_event_t ctrl_d_events[] = {
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'D', .data.ch.mods = TERSE_MOD_CTRL, .data.ch.width = 1 }
+	};
+	test_mock_events(terse, ctrl_d_events, 1);
+
+	char *result_eof = tprompt_readline(handle, NULL);
+	EXPECT_EQ(result_eof, NULL);
+
+	tprompt_close(handle);
+}
+
+/* ========================================================================
+ * Cursor Positioning Tests
+ * ======================================================================== */
+
+TEST(CursorPositioning, EmptyBufferFinalRender)
+{
+	// REGRESSION TEST: Verify that final render is executed even for empty buffer
+	// This ensures cursor is positioned correctly before moving to next line
+	//
+	// Bug history: Originally, final render was skipped when buffer.cursor < buffer.length
+	// was false (both 0 for empty buffer), leaving cursor in wrong position
+	// Fix: Always execute final render, even for empty buffer
+	tprompt_keybinding_t bindings[] = {
+		TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
+	};
+
+	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
+	ASSERT_NE(handle, NULL);
+
+	terse_handle_t terse = handle->terse;
+	ASSERT_NE(terse, NULL);
+
+	// Enable test mode call recording to verify rendering behavior
+	// (Assumes terse library has call recording in test mode)
+
+	// Test: Enter on empty buffer
+	terse_event_t events[] = {
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }
+	};
+	test_mock_events(terse, events, 1);
+
+	char *result = tprompt_readline(handle, NULL);
+	ASSERT_NE(result, NULL);
+	EXPECT_STREQ(result, "");
+
+	// Verify that rendering occurred (buffer should be at cursor position)
+	// For empty buffer, cursor should be at position 0 after final render
+	EXPECT_EQ(handle->buffer.cursor, 0);
+	EXPECT_EQ(handle->buffer.length, 0);
+
+	free(result);
+	tprompt_close(handle);
+}
+
+TEST(CursorPositioning, NonEmptyBufferFinalRender)
+{
+	// Verify that cursor is moved to end of buffer before final render
+	// This ensures clean output positioning for non-empty input
+	tprompt_keybinding_t bindings[] = {
+		TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
+	};
+
+	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
+	ASSERT_NE(handle, NULL);
+
+	terse_handle_t terse = handle->terse;
+	ASSERT_NE(terse, NULL);
+
+	// Test: Type "test" + move left + Enter
+	// Cursor should be moved to end before final render
+	terse_event_t events[] = {
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 's', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },  // Move cursor left
+		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },  // Move cursor left again
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }        // Confirm
+	};
+	test_mock_events(terse, events, 7);
+
+	char *result = tprompt_readline(handle, NULL);
+	ASSERT_NE(result, NULL);
+	EXPECT_STREQ(result, "test");
+
+	// After readline completes, cursor should have been moved to end (length 4)
+	EXPECT_EQ(handle->buffer.cursor, 4);
+	EXPECT_EQ(handle->buffer.length, 4);
 
 	free(result);
 	tprompt_close(handle);

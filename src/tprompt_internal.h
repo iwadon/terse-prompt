@@ -155,6 +155,9 @@ struct tprompt_handle {
 	bool force_confirmation;	 /**< Whether confirmation is forced by custom keybinding (bypass default multiline behavior) */
 	char *validation_error_msg;	 /**< Validation error message to display (NULL if none) */
 
+	/* EOF tracking */
+	bool eof_signaled;			 /**< Whether EOF (Ctrl+D on empty buffer) was signaled */
+
 	/* Status line */
 	tprompt_status_line_fn status_line_callback; /**< Status line callback function */
 	void *status_line_user_data;				 /**< User data for status line callback */

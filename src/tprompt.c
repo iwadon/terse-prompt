@@ -2226,9 +2226,11 @@ int tprompt_handle_char_event(tprompt_handle_t handle, const terse_event_t *even
 	// Handle Ctrl+D (GNU readline-style behavior) - special case before general action handling
 	// - If buffer is empty: EOF signal (end editing session)
 	// - If buffer is non-empty: delete character at cursor (same as Delete key)
-	if (scalar == 'd' && (mods & TERSE_MOD_CTRL)) {
+	// Note: terse transmits Ctrl+D as uppercase 'D' with TERSE_MOD_CTRL
+	if (scalar == 'D' && (mods & TERSE_MOD_CTRL)) {
 		if (handle->buffer.length == 0) {
 			tprompt_clear_error(&handle->last_error); // EOF is not an error
+			handle->eof_signaled = true; // Mark EOF
 			*should_break = true; // Signal EOF
 			return 0;
 		}
@@ -2413,6 +2415,9 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 	handle->pending_confirmation = false;
 	handle->force_confirmation = false;
 
+	// Reset EOF flag for new readline session
+	handle->eof_signaled = false;
+
 	// Reset display state for new readline session
 	handle->display.start_row = 0; // Will be set on first render
 	handle->display.start_row_known = false;
@@ -2515,8 +2520,11 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 	// Restore terminal mode before returning
 	tprompt_readline_disable_raw_mode(handle);
 
-	// Check for EOF: if buffer is empty, this was EOF (Ctrl+D on empty line)
-	if (handle->buffer.length == 0) {
+	// Check for EOF: only return NULL if EOF was explicitly signaled (Ctrl+D on empty buffer)
+	// This distinguishes between:
+	// - Empty buffer + EOF flag = Ctrl+D on empty line → return NULL
+	// - Empty buffer + no EOF flag = Enter on empty line → return ""
+	if (handle->eof_signaled) {
 		// Move to new line for clean output
 		terse_write_text(handle->terse, "\r\n");
 		terse_flush(handle->terse);
@@ -2526,11 +2534,12 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 
 	// Move cursor to end of buffer to ensure clean output positioning
 	// This prevents output from appearing in the middle of multi-line editing area
+	// Even for empty buffer, we need to render to position cursor correctly (after prompt)
 	if (handle->buffer.cursor < handle->buffer.length) {
 		handle->buffer.cursor = handle->buffer.length;
-		// Render one final time to position cursor at end
-		tprompt_display_render_buffered(handle);
 	}
+	// Always do final render to position cursor correctly, even for empty buffer
+	tprompt_display_render_buffered(handle);
 
 	// Move to new line after input is confirmed
 	// In raw mode, we need \r\n to move to the beginning of the next line
