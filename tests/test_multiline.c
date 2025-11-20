@@ -8,6 +8,7 @@
  * UP/DOWN vertical navigation, line wrapping display, and edge cases.
  */
 
+#include "test_helpers.h"
 #include "tprompt_internal.h"
 #include <attest/attest.h>
 #include <stdlib.h>
@@ -22,8 +23,14 @@
  */
 static tprompt_handle_t create_test_handle(size_t term_width, size_t term_height)
 {
-	// Enable test mode to prevent terse from overwriting dimensions
-	setenv("TPROMPT_TEST_MODE", "1", 1);
+	// Create mock terse handle for test mode
+	terse_handle_t terse_h = test_create_terse_handle();
+	if (!terse_h) {
+		return NULL;
+	}
+
+	// Mock the requested terminal size
+	terse_test_mock_size(terse_h, (int)term_height, (int)term_width);
 
 	tprompt_options_t opts = {
 		.prompt = "> ",
@@ -33,16 +40,16 @@ static tprompt_handle_t create_test_handle(size_t term_width, size_t term_height
 		.completion_callback = NULL,
 		.completion_user_data = NULL,
 		.completion_prefixes = NULL,
-		.terse_handle = NULL,
+		.terse_handle = terse_h,  // Use mock terse handle
 		.flags = TPROMPT_FLAG_MULTILINE
 	};
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	if (handle) {
-		// Manually set terminal dimensions for testing
-		handle->display.terminal_width = term_width;
-		handle->display.terminal_height = term_height;
+	if (!handle) {
+		terse_close(terse_h);
+		return NULL;
 	}
+
 	return handle;
 }
 
@@ -522,29 +529,21 @@ TEST(MultilineEdgeCases, NarrowTerminal_OnlyPrompt)
 
 TEST(MultilineEdgeCases, ZeroTerminalWidth_Fallback)
 {
-	// Temporarily disable test mode for this test to allow terse to provide real dimensions
-	// This test verifies that when terse provides valid dimensions, they are used
-	// (or if terse returns invalid/zero, fallback to 80x24 happens)
-	unsetenv("TPROMPT_TEST_MODE");
-
-	tprompt_handle_t handle = create_test_handle(0, 0); // Simulate unknown size
+	// Test that zero terminal size triggers fallback to 80x24
+	// With mock terse handle, size 0x0 will be mocked, and tprompt should
+	// detect this and apply the fallback dimensions
+	tprompt_handle_t handle = create_test_handle(0, 0);
 	ASSERT_NE(handle, NULL);
 
 	tprompt_buffer_insert(&handle->buffer, "Test", 4);
 
-	// With test mode disabled, will use actual terminal size from terse
-	// In a real terminal: will be actual size (e.g., 106x51)
-	// In non-TTY: will fallback to 80x24
 	tprompt_display_calculate_layout(handle);
 
-	// Accept either the actual terminal size or the fallback size
+	// Should fallback to reasonable dimensions (80x24 or actual terminal size)
 	EXPECT_TRUE(handle->display.terminal_width > 0);
 	EXPECT_TRUE(handle->display.terminal_height > 0);
 
 	tprompt_close(handle);
-
-	// Re-enable test mode for subsequent tests
-	setenv("TPROMPT_TEST_MODE", "1", 1);
 }
 
 TEST(MultilineEdgeCases, UTF8_AtWrapBoundary)
