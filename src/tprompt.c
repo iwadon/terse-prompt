@@ -688,23 +688,6 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 		return 0;
 	}
 
-	// Handle Tab key (when completion is not active)
-	if (event->type == TERSE_EVENT_TAB) {
-		// Insert tab character
-		if (tprompt_buffer_insert(&handle->buffer, "\t", 1) != 0) {
-			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-				"Failed to insert tab character: buffer at %zu/%zu bytes",
-				handle->buffer.length, handle->buffer.size);
-			return -1;
-		}
-		// Tab affects display width, force full redraw
-		tprompt_display_mark_all_dirty(handle);
-		handle->input_state.last_key_type = event->type;
-		handle->input_state.last_cursor_pos = handle->buffer.cursor;
-		handle->input_state.has_goal_column = false;
-		return 0;
-	}
-
 	// For any other key, clear the last key tracking and goal column
 	handle->input_state.last_key_type = event->type;
 	handle->input_state.last_cursor_pos = handle->buffer.cursor;
@@ -1467,7 +1450,7 @@ int tprompt_action_move_to_line_end(tprompt_handle_t handle, const terse_event_t
  * @brief Handle COMPLETE action (Tab)
  *
  * If completion is active, confirm selection.
- * Otherwise, insert a tab character.
+ * Otherwise, do nothing (TAB is reserved for completion only, following REPL conventions).
  */
 int tprompt_action_complete(tprompt_handle_t handle, const terse_event_t *event)
 {
@@ -1485,17 +1468,9 @@ int tprompt_action_complete(tprompt_handle_t handle, const terse_event_t *event)
 		return 0; // Continue editing
 	}
 
-	// Otherwise, insert tab character
-	if (tprompt_buffer_insert(&handle->buffer, "\t", 1) != 0) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-			"Failed to insert tab character: buffer at %zu/%zu bytes",
-			handle->buffer.length, handle->buffer.size);
-		return -1;
-	}
-
-	// Tab affects display width, force full redraw
-	tprompt_display_mark_all_dirty(handle);
-	handle->input_state.has_goal_column = false;
+	// Otherwise, do nothing (TAB is reserved for completion)
+	// This follows REPL conventions (Python, Ruby, Node.js, IPython, etc.)
+	// where TAB is dedicated to completion and does not insert literal tab characters
 	return 0; // Continue editing
 }
 

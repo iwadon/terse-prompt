@@ -907,6 +907,142 @@ TEST(CustomKeybindings, CtrlJInsertsNewline)
 }
 
 /* ========================================================================
+ * TAB Key Behavior Tests (Regression tests for completion-only TAB)
+ * ======================================================================== */
+
+/**
+ * @brief Test that TAB key does not insert tab character without completion
+ *
+ * Regression test: TAB key should be reserved for completion only,
+ * following REPL conventions (Python, Ruby, Node.js, IPython, etc.)
+ */
+TEST(TabKey, DoesNotInsertTabWithoutCompletion)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Insert some text
+	tprompt_buffer_insert(&handle->buffer, "hello", 5);
+	EXPECT_STREQ(handle->buffer.data, "hello");
+	EXPECT_EQ(handle->buffer.length, 5);
+
+	// Simulate TAB key press (without completion callback set)
+	terse_event_t event = {
+		.type = TERSE_EVENT_TAB,
+		.data = {0}
+	};
+
+	int result = tprompt_handle_key_event(handle, &event);
+
+	// Should continue editing (return 0)
+	EXPECT_EQ(result, 0);
+
+	// Buffer should be unchanged (no tab character inserted)
+	EXPECT_STREQ(handle->buffer.data, "hello");
+	EXPECT_EQ(handle->buffer.length, 5);
+
+	// Cursor should remain at end
+	EXPECT_EQ(handle->buffer.cursor, 5);
+
+	tprompt_close(handle);
+}
+
+/**
+ * @brief Test that multiple TAB presses do not insert tabs
+ */
+TEST(TabKey, MultipleTabsDoNotInsertCharacters)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Insert some text
+	tprompt_buffer_insert(&handle->buffer, "test", 4);
+
+	// Simulate multiple TAB key presses
+	terse_event_t event = {
+		.type = TERSE_EVENT_TAB,
+		.data = {0}
+	};
+
+	for (int i = 0; i < 5; i++) {
+		int result = tprompt_handle_key_event(handle, &event);
+		EXPECT_EQ(result, 0);
+	}
+
+	// Buffer should still contain only "test"
+	EXPECT_STREQ(handle->buffer.data, "test");
+	EXPECT_EQ(handle->buffer.length, 4);
+
+	tprompt_close(handle);
+}
+
+/**
+ * @brief Test TAB key at different cursor positions
+ */
+TEST(TabKey, DoesNotInsertAtDifferentPositions)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Insert text
+	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
+	EXPECT_EQ(handle->buffer.length, 11);
+
+	// Move cursor to middle
+	handle->buffer.cursor = 5;
+
+	// Press TAB
+	terse_event_t event = {
+		.type = TERSE_EVENT_TAB,
+		.data = {0}
+	};
+
+	int result = tprompt_handle_key_event(handle, &event);
+	EXPECT_EQ(result, 0);
+
+	// Buffer should be unchanged
+	EXPECT_STREQ(handle->buffer.data, "hello world");
+	EXPECT_EQ(handle->buffer.length, 11);
+	EXPECT_EQ(handle->buffer.cursor, 5);
+
+	// Move cursor to beginning
+	handle->buffer.cursor = 0;
+	result = tprompt_handle_key_event(handle, &event);
+	EXPECT_EQ(result, 0);
+
+	// Buffer should still be unchanged
+	EXPECT_STREQ(handle->buffer.data, "hello world");
+	EXPECT_EQ(handle->buffer.length, 11);
+	EXPECT_EQ(handle->buffer.cursor, 0);
+
+	tprompt_close(handle);
+}
+
+/**
+ * @brief Test TAB key in empty buffer
+ */
+TEST(TabKey, DoesNotInsertInEmptyBuffer)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Press TAB in empty buffer
+	terse_event_t event = {
+		.type = TERSE_EVENT_TAB,
+		.data = {0}
+	};
+
+	int result = tprompt_handle_key_event(handle, &event);
+	EXPECT_EQ(result, 0);
+
+	// Buffer should remain empty
+	EXPECT_EQ(handle->buffer.length, 0);
+	EXPECT_EQ(handle->buffer.cursor, 0);
+
+	tprompt_close(handle);
+}
+
+/* ========================================================================
  * Main
  * ======================================================================== */
 
