@@ -1644,6 +1644,12 @@ int tprompt_execute_action(tprompt_handle_t handle, tprompt_action_t action, con
 		}
 
 	case TPROMPT_ACTION_CONFIRM_INPUT:
+		// Mark confirmation as pending (will be validated in main loop)
+		// Set force_confirmation to bypass default multiline behavior
+		handle->pending_confirmation = true;
+		handle->force_confirmation = true;
+		return 0;
+
 	case TPROMPT_ACTION_NONE:
 	default:
 		// For other actions not yet extracted, fall back to existing handler
@@ -2479,10 +2485,12 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 		// Check if input confirmation is pending (before rendering)
 		if (handle->pending_confirmation) {
 			handle->pending_confirmation = false; // Reset flag
-			handle->force_confirmation = false;   // Reset force flag
 
 			bool should_break = false;
 			int result = tprompt_handle_pending_confirmation(handle, &should_break);
+			// Reset force_confirmation flag after handling confirmation
+			handle->force_confirmation = false;
+
 			if (result == -1) {
 				// Error occurred
 				tprompt_readline_disable_raw_mode(handle);
