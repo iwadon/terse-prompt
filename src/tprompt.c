@@ -1171,6 +1171,365 @@ int tprompt_action_move_down(tprompt_handle_t handle, const terse_event_t *event
 	return 0; // Continue editing
 }
 
+/**
+ * @brief Handle MOVE_WORD_LEFT action (Ctrl+Left)
+ *
+ * Move cursor to the beginning of the previous word.
+ * Words are delimited by whitespace.
+ */
+int tprompt_action_move_word_left(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle || handle->buffer.cursor == 0) {
+		return 0; // Nothing to do
+	}
+
+	const char *data = handle->buffer.data;
+	size_t pos = handle->buffer.cursor;
+
+	// Move back one character first
+	size_t prev_pos = tprompt_utf8_prev_char(data, pos);
+
+	// Skip trailing whitespace backwards
+	while (prev_pos > 0 && (data[prev_pos] == ' ' || data[prev_pos] == '\t' || data[prev_pos] == '\n')) {
+		pos = prev_pos;
+		prev_pos = tprompt_utf8_prev_char(data, pos);
+	}
+
+	// If we're at the start, stop here
+	if (prev_pos == 0) {
+		handle->buffer.cursor = 0;
+		handle->input_state.has_goal_column = false;
+		return 0;
+	}
+
+	// Move backwards until whitespace or start
+	while (pos > 0) {
+		prev_pos = tprompt_utf8_prev_char(data, pos);
+		if (data[prev_pos] == ' ' || data[prev_pos] == '\t' || data[prev_pos] == '\n') {
+			break;
+		}
+		pos = prev_pos;
+		if (prev_pos == 0) {
+			break; // Reached start
+		}
+	}
+
+	handle->buffer.cursor = pos;
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle MOVE_WORD_RIGHT action (Ctrl+Right)
+ *
+ * Move cursor to the end of the next word.
+ * Words are delimited by whitespace.
+ */
+int tprompt_action_move_word_right(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle || handle->buffer.cursor >= handle->buffer.length) {
+		return 0; // Nothing to do
+	}
+
+	const char *data = handle->buffer.data;
+	size_t pos = handle->buffer.cursor;
+	size_t max_length = handle->buffer.length;
+
+	// Skip current whitespace
+	while (pos < max_length && (data[pos] == ' ' || data[pos] == '\t' || data[pos] == '\n')) {
+		pos = tprompt_utf8_next_char(data, pos, max_length);
+	}
+
+	// Move forward until whitespace or end
+	while (pos < max_length && data[pos] != ' ' && data[pos] != '\t' && data[pos] != '\n') {
+		pos = tprompt_utf8_next_char(data, pos, max_length);
+	}
+
+	handle->buffer.cursor = pos;
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle DELETE_WORD_BACKWARD action (Ctrl+W)
+ *
+ * Delete from cursor backwards to the start of the current/previous word.
+ * Stops at logical line boundaries (doesn't delete newlines).
+ */
+int tprompt_action_delete_word_backward(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle || handle->buffer.cursor == 0) {
+		return 0; // Nothing to delete
+	}
+
+	const char *data = handle->buffer.data;
+	size_t pos = handle->buffer.cursor;
+
+	// Move back one character first
+	size_t prev_pos = tprompt_utf8_prev_char(data, pos);
+
+	// Skip trailing whitespace backwards
+	while (prev_pos > 0 && (data[prev_pos] == ' ' || data[prev_pos] == '\t')) {
+		pos = prev_pos;
+		prev_pos = tprompt_utf8_prev_char(data, pos);
+	}
+
+	// If we're now at the start or hit a newline, delete from here
+	if (prev_pos == 0 || data[prev_pos] == '\n') {
+		if (prev_pos > 0 && data[prev_pos] == '\n') {
+			pos = prev_pos + 1; // Don't delete the newline
+		}
+		size_t delete_len = handle->buffer.cursor - pos;
+		handle->buffer.cursor = pos;
+		if (delete_len > 0) {
+			tprompt_buffer_delete_at(&handle->buffer, delete_len);
+		}
+		handle->input_state.has_goal_column = false;
+		return 0;
+	}
+
+	// Delete backwards until whitespace, newline, or start
+	while (pos > 0) {
+		prev_pos = tprompt_utf8_prev_char(data, pos);
+		if (data[prev_pos] == ' ' || data[prev_pos] == '\t' || data[prev_pos] == '\n') {
+			break;
+		}
+		pos = prev_pos;
+	}
+
+	// Delete from pos to cursor
+	size_t delete_len = handle->buffer.cursor - pos;
+	handle->buffer.cursor = pos;
+	if (delete_len > 0) {
+		tprompt_buffer_delete_at(&handle->buffer, delete_len);
+	}
+
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle DELETE_TO_END_OF_LINE action (Ctrl+K)
+ *
+ * Delete from cursor to the end of the current logical line.
+ */
+int tprompt_action_delete_to_end_of_line(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	// Get current logical line boundaries
+	size_t current_logical_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+	size_t line_start, line_end;
+
+	if (tprompt_get_logical_line_bounds(handle, current_logical_line, &line_start, &line_end) != 0) {
+		return -1;
+	}
+
+	// If cursor is already at end of logical line, do nothing
+	if (handle->buffer.cursor >= line_end) {
+		return 0;
+	}
+
+	// Delete from cursor to end of logical line
+	size_t delete_len = line_end - handle->buffer.cursor;
+	tprompt_buffer_delete_at(&handle->buffer, delete_len);
+
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle DELETE_TO_START_OF_LINE action (Ctrl+U)
+ *
+ * Delete from cursor to the start of the current logical line.
+ * If at the start of a line (not first), deletes the previous line.
+ */
+int tprompt_action_delete_to_start_of_line(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	// Get current logical line boundaries
+	size_t current_logical_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+	size_t line_start, line_end;
+
+	if (tprompt_get_logical_line_bounds(handle, current_logical_line, &line_start, &line_end) != 0) {
+		return -1;
+	}
+
+	// If cursor is at the start of a logical line (not the first line),
+	// delete the previous logical line and its newline
+	if (handle->buffer.cursor == line_start && current_logical_line > 0) {
+		size_t prev_line_start, prev_line_end;
+		if (tprompt_get_logical_line_bounds(handle, current_logical_line - 1, &prev_line_start, &prev_line_end) != 0) {
+			return -1;
+		}
+
+		// Delete from start of previous line to current cursor (includes newline)
+		size_t delete_len = handle->buffer.cursor - prev_line_start;
+		handle->buffer.cursor = prev_line_start;
+		if (delete_len > 0) {
+			tprompt_buffer_delete_at(&handle->buffer, delete_len);
+		}
+
+		handle->input_state.has_goal_column = false;
+		return 0;
+	}
+
+	// Otherwise, delete from start of current line to cursor
+	if (handle->buffer.cursor > line_start) {
+		size_t delete_len = handle->buffer.cursor - line_start;
+		handle->buffer.cursor = line_start;
+		tprompt_buffer_delete_at(&handle->buffer, delete_len);
+	}
+
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle MOVE_TO_LINE_START action (Ctrl+A)
+ *
+ * Move cursor to the start of the current logical line.
+ * If already at start, move to start of previous line.
+ */
+int tprompt_action_move_to_line_start(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	// Get current logical line boundaries
+	size_t current_logical_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+	size_t line_start, line_end;
+
+	if (tprompt_get_logical_line_bounds(handle, current_logical_line, &line_start, &line_end) != 0) {
+		return -1;
+	}
+
+	// If cursor is already at the start of a logical line (not the first line),
+	// move to the start of the previous logical line
+	if (handle->buffer.cursor == line_start && current_logical_line > 0) {
+		size_t prev_line_start, prev_line_end;
+		if (tprompt_get_logical_line_bounds(handle, current_logical_line - 1, &prev_line_start, &prev_line_end) != 0) {
+			return -1;
+		}
+		handle->buffer.cursor = prev_line_start;
+		handle->input_state.has_goal_column = false;
+		return 0;
+	}
+
+	// Move cursor to start of logical line
+	handle->buffer.cursor = line_start;
+
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle MOVE_TO_LINE_END action (Ctrl+E)
+ *
+ * Move cursor to the end of the current logical line.
+ */
+int tprompt_action_move_to_line_end(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	// Get current logical line boundaries
+	size_t current_logical_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+	size_t line_start, line_end;
+
+	if (tprompt_get_logical_line_bounds(handle, current_logical_line, &line_start, &line_end) != 0) {
+		return -1;
+	}
+
+	// Move cursor to end of logical line
+	handle->buffer.cursor = line_end;
+
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle COMPLETE action (Tab)
+ *
+ * If completion is active, confirm selection.
+ * Otherwise, insert a tab character.
+ */
+int tprompt_action_complete(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	// If completion is active, confirm selected completion
+	if (handle->completion_state.active) {
+		if (tprompt_completion_confirm(handle) == 0) {
+			tprompt_completion_deactivate(handle);
+		}
+		return 0; // Continue editing
+	}
+
+	// Otherwise, insert tab character
+	if (tprompt_buffer_insert(&handle->buffer, "\t", 1) != 0) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+			"Failed to insert tab character: buffer at %zu/%zu bytes",
+			handle->buffer.length, handle->buffer.size);
+		return -1;
+	}
+
+	// Tab affects display width, force full redraw
+	tprompt_display_mark_all_dirty(handle);
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle INSERT_NEWLINE action
+ *
+ * Insert a newline character at the current cursor position.
+ */
+int tprompt_action_insert_newline(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	// Insert newline at cursor position
+	if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+			"Failed to insert newline: buffer at %zu/%zu bytes",
+			handle->buffer.length, handle->buffer.size);
+		return -1;
+	}
+
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
 /* ------------------------------------------------------------------------
  * Action Dispatcher
  * ------------------------------------------------------------------------ */
@@ -1178,10 +1537,10 @@ int tprompt_action_move_down(tprompt_handle_t handle, const terse_event_t *event
 /**
  * @brief Execute an action
  *
- * Dispatches actions to individual action handler functions. Most common
- * editing actions (movement, deletion, history) have been extracted to
- * dedicated handlers. Less common actions still fall back to the legacy
- * tprompt_handle_key_event() for compatibility.
+ * Dispatches actions to individual action handler functions. All editing
+ * actions now have dedicated handlers following the table-driven action system.
+ * Only CONFIRM_INPUT and NONE fall back to tprompt_handle_key_event() for
+ * special handling.
  *
  * @param handle Prompt handle
  * @param action Action to execute
@@ -1226,6 +1585,33 @@ int tprompt_execute_action(tprompt_handle_t handle, tprompt_action_t action, con
 	case TPROMPT_ACTION_MOVE_DOWN:
 		return tprompt_action_move_down(handle, event);
 
+	case TPROMPT_ACTION_MOVE_WORD_LEFT:
+		return tprompt_action_move_word_left(handle, event);
+
+	case TPROMPT_ACTION_MOVE_WORD_RIGHT:
+		return tprompt_action_move_word_right(handle, event);
+
+	case TPROMPT_ACTION_DELETE_WORD_BACKWARD:
+		return tprompt_action_delete_word_backward(handle, event);
+
+	case TPROMPT_ACTION_DELETE_TO_END_OF_LINE:
+		return tprompt_action_delete_to_end_of_line(handle, event);
+
+	case TPROMPT_ACTION_DELETE_TO_START_OF_LINE:
+		return tprompt_action_delete_to_start_of_line(handle, event);
+
+	case TPROMPT_ACTION_MOVE_TO_LINE_START:
+		return tprompt_action_move_to_line_start(handle, event);
+
+	case TPROMPT_ACTION_MOVE_TO_LINE_END:
+		return tprompt_action_move_to_line_end(handle, event);
+
+	case TPROMPT_ACTION_COMPLETE:
+		return tprompt_action_complete(handle, event);
+
+	case TPROMPT_ACTION_INSERT_NEWLINE:
+		return tprompt_action_insert_newline(handle, event);
+
 	case TPROMPT_ACTION_INSERT_CHAR:
 		// Insert character at cursor
 		{
@@ -1263,6 +1649,8 @@ int tprompt_execute_action(tprompt_handle_t handle, tprompt_action_t action, con
 			return 0;
 		}
 
+	case TPROMPT_ACTION_CONFIRM_INPUT:
+	case TPROMPT_ACTION_NONE:
 	default:
 		// For other actions not yet extracted, fall back to existing handler
 		return tprompt_handle_key_event(handle, event);
@@ -1806,10 +2194,10 @@ static void tprompt_readline_disable_raw_mode(tprompt_handle_t handle)
 /**
  * @brief Handle TERSE_EVENT_CHAR events in the main editing loop
  *
- * Processes character input events, including:
- * - Custom keybindings (checked first)
- * - Built-in Ctrl shortcuts (Ctrl+W, Ctrl+K, Ctrl+U, Ctrl+A, Ctrl+E, Ctrl+P, Ctrl+N, Ctrl+D)
- * - Regular character insertion (UTF-8 encoded)
+ * Processes character input events through the action system:
+ * - Ctrl+D special handling (EOF on empty buffer)
+ * - All other character events dispatched via tprompt_resolve_action()
+ * - Regular character insertion (UTF-8 encoded) for non-Ctrl characters
  *
  * @param handle Prompt handle
  * @param event The character event to process
@@ -1827,85 +2215,29 @@ static int tprompt_handle_char_event(tprompt_handle_t handle, const terse_event_
 	unsigned int scalar = event->data.ch.scalar;
 	int mods = event->data.ch.mods;
 
-	// Check custom keybindings first (before built-in Ctrl shortcuts)
-	tprompt_action_t custom_action = tprompt_find_keybinding_action(handle, event);
-	if (custom_action != TPROMPT_ACTION_NONE) {
-		int key_result = tprompt_handle_key_event(handle, event);
-		if (key_result == 1) {
-			*should_break = true; // Confirm input
-		} else if (key_result == -1) {
-			return -1; // Error
-		}
-		// key_result == 0: continue editing
-		return 0;
-	}
-
-	// Handle Ctrl+W - delete word backward
-	if (scalar == 'w' && (mods & TERSE_MOD_CTRL)) {
-		tprompt_key_handle_ctrl_w(handle);
-		handle->input_state.has_goal_column = false;
-		return 0;
-	}
-
-	// Handle Ctrl+K - delete to end of line
-	if (scalar == 'k' && (mods & TERSE_MOD_CTRL)) {
-		tprompt_key_handle_ctrl_k(handle);
-		handle->input_state.has_goal_column = false;
-		return 0;
-	}
-
-	// Handle Ctrl+U - delete to start of line
-	if (scalar == 'u' && (mods & TERSE_MOD_CTRL)) {
-		tprompt_key_handle_ctrl_u(handle);
-		handle->input_state.has_goal_column = false;
-		return 0;
-	}
-
-	// Handle Ctrl+A - move to start of line
-	if (scalar == 'a' && (mods & TERSE_MOD_CTRL)) {
-		tprompt_key_handle_ctrl_a(handle);
-		handle->input_state.has_goal_column = false;
-		return 0;
-	}
-
-	// Handle Ctrl+E - move to end of line
-	if (scalar == 'e' && (mods & TERSE_MOD_CTRL)) {
-		tprompt_key_handle_ctrl_e(handle);
-		handle->input_state.has_goal_column = false;
-		return 0;
-	}
-
-	// Handle Ctrl+P - previous history (Emacs-style)
-	if (scalar == 'p' && (mods & TERSE_MOD_CTRL)) {
-		int key_result = tprompt_handle_key_event(handle, event);
-		if (key_result == 1) {
-			*should_break = true; // Confirm input
-		} else if (key_result == -1) {
-			return -1; // Error
-		}
-		// key_result == 0: continue editing
-		return 0;
-	}
-
-	// Handle Ctrl+N - next history (Emacs-style)
-	if (scalar == 'n' && (mods & TERSE_MOD_CTRL)) {
-		int key_result = tprompt_handle_key_event(handle, event);
-		if (key_result == 1) {
-			*should_break = true; // Confirm input
-		} else if (key_result == -1) {
-			return -1; // Error
-		}
-		// key_result == 0: continue editing
-		return 0;
-	}
-
-	// Handle Ctrl+D (EOF-like behavior)
+	// Handle Ctrl+D (EOF-like behavior) - special case before general action handling
+	// Ctrl+D only confirms input when buffer is empty (EOF signal)
 	if (scalar == 'd' && (mods & TERSE_MOD_CTRL)) {
 		if (handle->buffer.length == 0) {
 			tprompt_clear_error(&handle->last_error); // EOF is not an error
 			*should_break = true; // Signal EOF
 		}
 		// If buffer is not empty, ignore Ctrl+D
+		return 0;
+	}
+
+	// Resolve action from keybindings (custom or default)
+	tprompt_action_t action = tprompt_resolve_action(handle, event);
+
+	// Execute the action through the action system
+	if (action != TPROMPT_ACTION_NONE) {
+		int result = tprompt_execute_action(handle, action, event);
+		if (result == 1) {
+			*should_break = true; // Confirm input
+		} else if (result == -1) {
+			return -1; // Error
+		}
+		// result == 0: continue editing
 		return 0;
 	}
 
@@ -2447,178 +2779,6 @@ tprompt_error_info_t tprompt_get_last_error(tprompt_handle_t handle)
 		return handle->last_error;
 	}
 	return tprompt_global_error;
-}
-
-/* ========================================================================
- * Phase 6 Keybinding Handlers
- * ======================================================================== */
-
-int tprompt_key_handle_ctrl_w(tprompt_handle_t handle)
-{
-	if (!handle || handle->buffer.cursor == 0) {
-		return 0; // Nothing to delete
-	}
-
-	const char *data = handle->buffer.data;
-	size_t pos = handle->buffer.cursor;
-
-	// Move back one character first
-	size_t prev_pos = tprompt_utf8_prev_char(data, pos);
-
-	// Skip trailing whitespace backwards
-	while (prev_pos > 0 && (data[prev_pos] == ' ' || data[prev_pos] == '\t')) {
-		pos = prev_pos;
-		prev_pos = tprompt_utf8_prev_char(data, pos);
-	}
-
-	// If we're now at the start or hit a newline, delete from here
-	if (prev_pos == 0 || data[prev_pos] == '\n') {
-		if (prev_pos > 0 && data[prev_pos] == '\n') {
-			pos = prev_pos + 1; // Don't delete the newline
-		}
-		size_t delete_len = handle->buffer.cursor - pos;
-		handle->buffer.cursor = pos;
-		if (delete_len > 0) {
-			tprompt_buffer_delete_at(&handle->buffer, delete_len);
-		}
-		return 0;
-	}
-
-	// Delete backwards until whitespace, newline, or start
-	while (pos > 0) {
-		prev_pos = tprompt_utf8_prev_char(data, pos);
-		if (data[prev_pos] == ' ' || data[prev_pos] == '\t' || data[prev_pos] == '\n') {
-			break;
-		}
-		pos = prev_pos;
-	}
-
-	// Delete from pos to cursor
-	size_t delete_len = handle->buffer.cursor - pos;
-	handle->buffer.cursor = pos;
-	if (delete_len > 0) {
-		tprompt_buffer_delete_at(&handle->buffer, delete_len);
-	}
-
-	return 0;
-}
-
-int tprompt_key_handle_ctrl_k(tprompt_handle_t handle)
-{
-	if (!handle) {
-		return -1;
-	}
-
-	// Get current logical line boundaries
-	size_t current_logical_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
-	size_t line_start, line_end;
-
-	if (tprompt_get_logical_line_bounds(handle, current_logical_line, &line_start, &line_end) != 0) {
-		return -1;
-	}
-
-	// If cursor is already at end of logical line, do nothing
-	if (handle->buffer.cursor >= line_end) {
-		return 0;
-	}
-
-	// Delete from cursor to end of logical line
-	size_t delete_len = line_end - handle->buffer.cursor;
-	tprompt_buffer_delete_at(&handle->buffer, delete_len);
-
-	return 0;
-}
-
-int tprompt_key_handle_ctrl_u(tprompt_handle_t handle)
-{
-	if (!handle) {
-		return -1;
-	}
-
-	// Get current logical line boundaries
-	size_t current_logical_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
-	size_t line_start, line_end;
-
-	if (tprompt_get_logical_line_bounds(handle, current_logical_line, &line_start, &line_end) != 0) {
-		return -1;
-	}
-
-	// If cursor is at the start of a logical line (not the first line),
-	// delete the previous logical line and its newline
-	if (handle->buffer.cursor == line_start && current_logical_line > 0) {
-		size_t prev_line_start, prev_line_end;
-		if (tprompt_get_logical_line_bounds(handle, current_logical_line - 1, &prev_line_start, &prev_line_end) != 0) {
-			return -1;
-		}
-		// Delete from start of previous line to cursor (including the newline)
-		size_t delete_len = handle->buffer.cursor - prev_line_start;
-		handle->buffer.cursor = prev_line_start;
-		tprompt_buffer_delete_at(&handle->buffer, delete_len);
-		return 0;
-	}
-
-	// If cursor is already at start of first logical line, do nothing
-	if (handle->buffer.cursor <= line_start) {
-		return 0;
-	}
-
-	// Delete from start of logical line to cursor
-	size_t delete_len = handle->buffer.cursor - line_start;
-	handle->buffer.cursor = line_start;
-	tprompt_buffer_delete_at(&handle->buffer, delete_len);
-
-	return 0;
-}
-
-int tprompt_key_handle_ctrl_a(tprompt_handle_t handle)
-{
-	if (!handle) {
-		return -1;
-	}
-
-	// Get current logical line boundaries
-	size_t current_logical_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
-	size_t line_start, line_end;
-
-	if (tprompt_get_logical_line_bounds(handle, current_logical_line, &line_start, &line_end) != 0) {
-		return -1;
-	}
-
-	// If cursor is already at the start of a logical line (not the first line),
-	// move to the start of the previous logical line
-	if (handle->buffer.cursor == line_start && current_logical_line > 0) {
-		size_t prev_line_start, prev_line_end;
-		if (tprompt_get_logical_line_bounds(handle, current_logical_line - 1, &prev_line_start, &prev_line_end) != 0) {
-			return -1;
-		}
-		handle->buffer.cursor = prev_line_start;
-		return 0;
-	}
-
-	// Move cursor to start of logical line
-	handle->buffer.cursor = line_start;
-
-	return 0;
-}
-
-int tprompt_key_handle_ctrl_e(tprompt_handle_t handle)
-{
-	if (!handle) {
-		return -1;
-	}
-
-	// Get current logical line boundaries
-	size_t current_logical_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
-	size_t line_start, line_end;
-
-	if (tprompt_get_logical_line_bounds(handle, current_logical_line, &line_start, &line_end) != 0) {
-		return -1;
-	}
-
-	// Move cursor to end of logical line
-	handle->buffer.cursor = line_end;
-
-	return 0;
 }
 
 /* ========================================================================

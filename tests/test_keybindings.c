@@ -36,6 +36,28 @@ static tprompt_handle_t create_test_handle(void)
 	return tprompt_open(&opts);
 }
 
+/**
+ * @brief Execute a Ctrl+character keybinding
+ * @param handle Prompt handle
+ * @param ch Character (lowercase letter)
+ */
+static void execute_ctrl_char(tprompt_handle_t handle, char ch)
+{
+	terse_event_t event = {
+		.type = TERSE_EVENT_CHAR,
+		.data = {
+			.ch = {
+				.scalar = (unsigned int)ch,
+				.mods = TERSE_MOD_CTRL,
+				.width = 1
+			}
+		}
+	};
+
+	tprompt_action_t action = tprompt_resolve_action(handle, &event);
+	tprompt_execute_action(handle, action, &event);
+}
+
 /* ========================================================================
  * Ctrl+W Tests (Delete Word Backward)
  * ======================================================================== */
@@ -49,7 +71,7 @@ TEST(KeybindingsCtrlW, DeleteSingleWord)
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
 
 	// Call Ctrl+W handler (should delete "world")
-	tprompt_key_handle_ctrl_w(handle);
+	execute_ctrl_char(handle, 'w');
 
 	EXPECT_STREQ(handle->buffer.data, "hello ");
 	EXPECT_EQ(handle->buffer.length, 6);
@@ -66,7 +88,7 @@ TEST(KeybindingsCtrlW, DeleteWordWithTrailingSpace)
 	// Insert "hello world  " with trailing spaces
 	tprompt_buffer_insert(&handle->buffer, "hello world  ", 13);
 
-	tprompt_key_handle_ctrl_w(handle);
+	execute_ctrl_char(handle, 'w');
 
 	// Should delete "world" and trailing spaces
 	EXPECT_STREQ(handle->buffer.data, "hello ");
@@ -83,15 +105,15 @@ TEST(KeybindingsCtrlW, DeleteMultipleWords)
 	tprompt_buffer_insert(&handle->buffer, "one two three", 13);
 
 	// Delete "three"
-	tprompt_key_handle_ctrl_w(handle);
+	execute_ctrl_char(handle, 'w');
 	EXPECT_STREQ(handle->buffer.data, "one two ");
 
 	// Delete "two"
-	tprompt_key_handle_ctrl_w(handle);
+	execute_ctrl_char(handle, 'w');
 	EXPECT_STREQ(handle->buffer.data, "one ");
 
 	// Delete "one"
-	tprompt_key_handle_ctrl_w(handle);
+	execute_ctrl_char(handle, 'w');
 	EXPECT_STREQ(handle->buffer.data, "");
 	EXPECT_EQ(handle->buffer.cursor, 0);
 
@@ -106,7 +128,7 @@ TEST(KeybindingsCtrlW, DeleteAtStart)
 	tprompt_buffer_insert(&handle->buffer, "word", 4);
 	handle->buffer.cursor = 0;
 
-	tprompt_key_handle_ctrl_w(handle);
+	execute_ctrl_char(handle, 'w');
 
 	// Should do nothing when cursor at start
 	EXPECT_STREQ(handle->buffer.data, "word");
@@ -122,7 +144,7 @@ TEST(KeybindingsCtrlW, DeleteWithNewlines)
 
 	tprompt_buffer_insert(&handle->buffer, "line1\nline2 word", 16);
 
-	tprompt_key_handle_ctrl_w(handle);
+	execute_ctrl_char(handle, 'w');
 
 	// Should delete "word"
 	EXPECT_STREQ(handle->buffer.data, "line1\nline2 ");
@@ -142,7 +164,7 @@ TEST(KeybindingsCtrlK, DeleteToEndOfLine)
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
 	handle->buffer.cursor = 6; // Position after "hello "
 
-	tprompt_key_handle_ctrl_k(handle);
+	execute_ctrl_char(handle, 'k');
 
 	EXPECT_STREQ(handle->buffer.data, "hello ");
 	EXPECT_EQ(handle->buffer.length, 6);
@@ -159,7 +181,7 @@ TEST(KeybindingsCtrlK, DeleteToEndMultiline)
 	tprompt_buffer_insert(&handle->buffer, "line1\nline2\nline3", 17);
 	handle->buffer.cursor = 6; // Position at start of "line2"
 
-	tprompt_key_handle_ctrl_k(handle);
+	execute_ctrl_char(handle, 'k');
 
 	// Should only delete "line2" (up to newline)
 	EXPECT_STREQ(handle->buffer.data, "line1\n\nline3");
@@ -176,7 +198,7 @@ TEST(KeybindingsCtrlK, DeleteAtEndOfLine)
 	tprompt_buffer_insert(&handle->buffer, "test\n", 5);
 	handle->buffer.cursor = 4; // Position before newline
 
-	tprompt_key_handle_ctrl_k(handle);
+	execute_ctrl_char(handle, 'k');
 
 	// Should delete nothing (already at end of logical line)
 	EXPECT_STREQ(handle->buffer.data, "test\n");
@@ -193,7 +215,7 @@ TEST(KeybindingsCtrlK, DeleteEntireLine)
 	tprompt_buffer_insert(&handle->buffer, "delete this", 11);
 	handle->buffer.cursor = 0;
 
-	tprompt_key_handle_ctrl_k(handle);
+	execute_ctrl_char(handle, 'k');
 
 	EXPECT_STREQ(handle->buffer.data, "");
 	EXPECT_EQ(handle->buffer.length, 0);
@@ -213,7 +235,7 @@ TEST(KeybindingsCtrlU, DeleteToStartOfLine)
 
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
 
-	tprompt_key_handle_ctrl_u(handle);
+	execute_ctrl_char(handle, 'u');
 
 	EXPECT_STREQ(handle->buffer.data, "");
 	EXPECT_EQ(handle->buffer.length, 0);
@@ -230,7 +252,7 @@ TEST(KeybindingsCtrlU, DeleteToStartMiddle)
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
 	handle->buffer.cursor = 6; // After "hello "
 
-	tprompt_key_handle_ctrl_u(handle);
+	execute_ctrl_char(handle, 'u');
 
 	EXPECT_STREQ(handle->buffer.data, "world");
 	EXPECT_EQ(handle->buffer.cursor, 0);
@@ -246,7 +268,7 @@ TEST(KeybindingsCtrlU, DeleteToStartMultiline)
 	tprompt_buffer_insert(&handle->buffer, "line1\nline2\nline3", 17);
 	handle->buffer.cursor = 12; // In middle of "line2"
 
-	tprompt_key_handle_ctrl_u(handle);
+	execute_ctrl_char(handle, 'u');
 
 	// Should only delete from start of line2
 	EXPECT_STREQ(handle->buffer.data, "line1\nline3");
@@ -263,7 +285,7 @@ TEST(KeybindingsCtrlU, DeleteAtStartOfLine)
 	tprompt_buffer_insert(&handle->buffer, "test", 4);
 	handle->buffer.cursor = 0;
 
-	tprompt_key_handle_ctrl_u(handle);
+	execute_ctrl_char(handle, 'u');
 
 	// Should do nothing
 	EXPECT_STREQ(handle->buffer.data, "test");
@@ -283,7 +305,7 @@ TEST(KeybindingsCtrlA, MoveToStartSingleLine)
 
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
 
-	tprompt_key_handle_ctrl_a(handle);
+	execute_ctrl_char(handle, 'a');
 
 	EXPECT_EQ(handle->buffer.cursor, 0);
 	EXPECT_STREQ(handle->buffer.data, "hello world"); // Content unchanged
@@ -299,7 +321,7 @@ TEST(KeybindingsCtrlA, MoveToStartMultiline)
 	tprompt_buffer_insert(&handle->buffer, "line1\nline2\nline3", 17);
 	handle->buffer.cursor = 12; // In middle of line2
 
-	tprompt_key_handle_ctrl_a(handle);
+	execute_ctrl_char(handle, 'a');
 
 	// Should move to start of line2
 	EXPECT_EQ(handle->buffer.cursor, 6); // After first \n
@@ -315,7 +337,7 @@ TEST(KeybindingsCtrlA, MoveToStartAlreadyAtStart)
 	tprompt_buffer_insert(&handle->buffer, "test", 4);
 	handle->buffer.cursor = 0;
 
-	tprompt_key_handle_ctrl_a(handle);
+	execute_ctrl_char(handle, 'a');
 
 	// Should stay at 0
 	EXPECT_EQ(handle->buffer.cursor, 0);
@@ -335,7 +357,7 @@ TEST(KeybindingsCtrlE, MoveToEndSingleLine)
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
 	handle->buffer.cursor = 0;
 
-	tprompt_key_handle_ctrl_e(handle);
+	execute_ctrl_char(handle, 'e');
 
 	EXPECT_EQ(handle->buffer.cursor, 11);
 	EXPECT_STREQ(handle->buffer.data, "hello world");
@@ -351,7 +373,7 @@ TEST(KeybindingsCtrlE, MoveToEndMultiline)
 	tprompt_buffer_insert(&handle->buffer, "line1\nline2\nline3", 17);
 	handle->buffer.cursor = 6; // Start of line2
 
-	tprompt_key_handle_ctrl_e(handle);
+	execute_ctrl_char(handle, 'e');
 
 	// Should move to end of line2 (before \n)
 	EXPECT_EQ(handle->buffer.cursor, 11); // After "line2"
@@ -366,7 +388,7 @@ TEST(KeybindingsCtrlE, MoveToEndAlreadyAtEnd)
 
 	tprompt_buffer_insert(&handle->buffer, "test", 4);
 
-	tprompt_key_handle_ctrl_e(handle);
+	execute_ctrl_char(handle, 'e');
 
 	// Should stay at end
 	EXPECT_EQ(handle->buffer.cursor, 4);
@@ -387,11 +409,11 @@ TEST(KeybindingsCombined, CtrlKThenCtrlU)
 	handle->buffer.cursor = 6; // After "hello "
 
 	// Delete to end
-	tprompt_key_handle_ctrl_k(handle);
+	execute_ctrl_char(handle, 'k');
 	EXPECT_STREQ(handle->buffer.data, "hello ");
 
 	// Delete to start
-	tprompt_key_handle_ctrl_u(handle);
+	execute_ctrl_char(handle, 'u');
 	EXPECT_STREQ(handle->buffer.data, "");
 
 	tprompt_close(handle);
@@ -405,10 +427,10 @@ TEST(KeybindingsCombined, CtrlAThenCtrlE)
 	tprompt_buffer_insert(&handle->buffer, "test line", 9);
 	handle->buffer.cursor = 5; // Middle
 
-	tprompt_key_handle_ctrl_a(handle);
+	execute_ctrl_char(handle, 'a');
 	EXPECT_EQ(handle->buffer.cursor, 0);
 
-	tprompt_key_handle_ctrl_e(handle);
+	execute_ctrl_char(handle, 'e');
 	EXPECT_EQ(handle->buffer.cursor, 9);
 
 	tprompt_close(handle);
@@ -422,11 +444,11 @@ TEST(KeybindingsCombined, CtrlWMultipleWordsUTF8)
 	tprompt_buffer_insert(&handle->buffer, "hello 世界 test", 16);
 
 	// Delete "test"
-	tprompt_key_handle_ctrl_w(handle);
+	execute_ctrl_char(handle, 'w');
 	EXPECT_STREQ(handle->buffer.data, "hello 世界 ");
 
 	// Delete "世界"
-	tprompt_key_handle_ctrl_w(handle);
+	execute_ctrl_char(handle, 'w');
 	EXPECT_STREQ(handle->buffer.data, "hello ");
 
 	tprompt_close(handle);
