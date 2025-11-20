@@ -548,14 +548,6 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 		return 0;
 	}
 
-	// Handle Ctrl+D as EOF
-	if (event->type == TERSE_EVENT_CHAR && event->data.ch.scalar == 4 && // Ctrl+D
-		(event->data.ch.mods & TERSE_MOD_CTRL)) {
-		// Mark confirmation as pending (will be validated in main loop)
-		handle->pending_confirmation = true;
-		return 0;
-	}
-
 	// Handle Ctrl+P (previous history) - Emacs-style binding
 	if (event->type == TERSE_EVENT_CHAR && event->data.ch.scalar == 'p' && // Ctrl+P
 		(event->data.ch.mods & TERSE_MOD_CTRL)) {
@@ -2493,6 +2485,15 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 
 	// Restore terminal mode before returning
 	tprompt_readline_disable_raw_mode(handle);
+
+	// Check for EOF: if buffer is empty, this was EOF (Ctrl+D on empty line)
+	if (handle->buffer.length == 0) {
+		// Move to new line for clean output
+		terse_write_text(handle->terse, "\r\n");
+		terse_flush(handle->terse);
+		// Return NULL to signal EOF
+		return NULL;
+	}
 
 	// Move cursor to end of buffer to ensure clean output positioning
 	// This prevents output from appearing in the middle of multi-line editing area
