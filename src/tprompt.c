@@ -2422,6 +2422,12 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 	handle->display.start_row = 0; // Will be set on first render
 	handle->display.start_row_known = false;
 
+	// Clear previous buffer to ensure full redraw on first render
+	// Without this, diff would detect no changes and skip rendering
+	if (handle->display.buffer_based_rendering_active) {
+		tprompt_screen_buffer_clear(&handle->display.previous_buffer);
+	}
+
 	// Mark display as needing full render for initial draw
 	tprompt_display_mark_all_dirty(handle);
 
@@ -2517,6 +2523,19 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 		}
 	}
 
+	// Move cursor to end of buffer to ensure clean output positioning
+	// This prevents output from appearing in the middle of multi-line editing area
+	if (handle->buffer.cursor < handle->buffer.length) {
+		handle->buffer.cursor = handle->buffer.length;
+		// Re-render to position cursor at end (still in raw mode)
+		tprompt_display_render_buffered(handle);
+	}
+
+	// Move to new line after input is confirmed
+	// In raw mode, we need \r\n to move to the beginning of the next line
+	terse_write_text(handle->terse, "\r\n");
+	terse_flush(handle->terse);
+
 	// Restore terminal mode before returning
 	tprompt_readline_disable_raw_mode(handle);
 
@@ -2525,26 +2544,9 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 	// - Empty buffer + EOF flag = Ctrl+D on empty line → return NULL
 	// - Empty buffer + no EOF flag = Enter on empty line → return ""
 	if (handle->eof_signaled) {
-		// Move to new line for clean output
-		terse_write_text(handle->terse, "\r\n");
-		terse_flush(handle->terse);
 		// Return NULL to signal EOF
 		return NULL;
 	}
-
-	// Move cursor to end of buffer to ensure clean output positioning
-	// This prevents output from appearing in the middle of multi-line editing area
-	// Even for empty buffer, we need to render to position cursor correctly (after prompt)
-	if (handle->buffer.cursor < handle->buffer.length) {
-		handle->buffer.cursor = handle->buffer.length;
-	}
-	// Always do final render to position cursor correctly, even for empty buffer
-	tprompt_display_render_buffered(handle);
-
-	// Move to new line after input is confirmed
-	// In raw mode, we need \r\n to move to the beginning of the next line
-	terse_write_text(handle->terse, "\r\n");
-	terse_flush(handle->terse);
 
 	// Update start_row for next readline call if cursor position is not available
 	// This tracks where the cursor is after moving to the next line
