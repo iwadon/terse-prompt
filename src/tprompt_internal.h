@@ -622,6 +622,36 @@ int tprompt_get_logical_line_bounds(tprompt_handle_t handle, size_t logical_line
 size_t tprompt_get_logical_line_length(tprompt_handle_t handle, size_t logical_line);
 
 /* ========================================================================
+ * Internal Helper Functions - Action System
+ * ======================================================================== */
+
+/**
+ * @brief Resolve keyboard event to action
+ *
+ * Checks custom keybindings first, then default keybindings, then falls back
+ * to character insertion for regular character input.
+ *
+ * @param handle Prompt handle
+ * @param event Keyboard event from terse
+ * @return Action to execute (TPROMPT_ACTION_NONE if no action)
+ */
+tprompt_action_t tprompt_resolve_action(tprompt_handle_t handle, const terse_event_t *event);
+
+/**
+ * @brief Execute an action
+ *
+ * Dispatches to the appropriate action handler function based on the action type.
+ * Context-dependent logic (e.g., multiline mode, validation) is handled within
+ * the action handlers.
+ *
+ * @param handle Prompt handle
+ * @param action Action to execute
+ * @param event Original keyboard event (may be needed by some handlers)
+ * @return 1 to confirm input, 0 to continue editing, -1 on error
+ */
+int tprompt_execute_action(tprompt_handle_t handle, tprompt_action_t action, const terse_event_t *event);
+
+/* ========================================================================
  * Internal Helper Functions - Status Line
  * ======================================================================== */
 

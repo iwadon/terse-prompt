@@ -38,6 +38,51 @@ tprompt_error_info_t tprompt_global_error = {
 #define DEFAULT_CONTINUATION_PROMPT "| "
 
 /* ========================================================================
+ * Default Keybindings
+ * ======================================================================== */
+
+/**
+ * @brief Default keybindings table
+ *
+ * This table defines the standard keyboard shortcuts for terse-prompt.
+ * Users can override these with custom keybindings in tprompt_options_t.
+ *
+ * Priority order:
+ * 1. Custom keybindings (checked first in tprompt_resolve_action)
+ * 2. Default keybindings (checked if custom binding not found)
+ * 3. Character insertion (fallback for TERSE_EVENT_CHAR without Ctrl)
+ */
+static const tprompt_keybinding_t default_keybindings[] = {
+	/* Special keys */
+	{TERSE_EVENT_BACKSPACE, 0, {.scalar = 0}, TPROMPT_ACTION_DELETE_BACKWARD},
+	{TERSE_EVENT_DELETE, 0, {.scalar = 0}, TPROMPT_ACTION_DELETE_FORWARD},
+	{TERSE_EVENT_ARROW_LEFT, 0, {.scalar = 0}, TPROMPT_ACTION_MOVE_LEFT},
+	{TERSE_EVENT_ARROW_RIGHT, 0, {.scalar = 0}, TPROMPT_ACTION_MOVE_RIGHT},
+	{TERSE_EVENT_ARROW_UP, 0, {.scalar = 0}, TPROMPT_ACTION_HISTORY_PREV},
+	{TERSE_EVENT_ARROW_DOWN, 0, {.scalar = 0}, TPROMPT_ACTION_HISTORY_NEXT},
+	{TERSE_EVENT_HOME, 0, {.scalar = 0}, TPROMPT_ACTION_MOVE_HOME},
+	{TERSE_EVENT_END, 0, {.scalar = 0}, TPROMPT_ACTION_MOVE_END},
+	{TERSE_EVENT_TAB, 0, {.scalar = 0}, TPROMPT_ACTION_COMPLETE},
+	{TERSE_EVENT_ENTER, 0, {.scalar = 0}, TPROMPT_ACTION_CONFIRM_INPUT},
+
+	/* Ctrl + Arrow keys */
+	{TERSE_EVENT_ARROW_LEFT, TERSE_MOD_CTRL, {.scalar = 0}, TPROMPT_ACTION_MOVE_WORD_LEFT},
+	{TERSE_EVENT_ARROW_RIGHT, TERSE_MOD_CTRL, {.scalar = 0}, TPROMPT_ACTION_MOVE_WORD_RIGHT},
+
+	/* Ctrl shortcuts */
+	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'w'}, TPROMPT_ACTION_DELETE_WORD_BACKWARD},
+	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'k'}, TPROMPT_ACTION_DELETE_TO_END_OF_LINE},
+	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'u'}, TPROMPT_ACTION_DELETE_TO_START_OF_LINE},
+	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'a'}, TPROMPT_ACTION_MOVE_TO_LINE_START},
+	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'e'}, TPROMPT_ACTION_MOVE_TO_LINE_END},
+	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'p'}, TPROMPT_ACTION_HISTORY_PREV},
+	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'n'}, TPROMPT_ACTION_HISTORY_NEXT},
+	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'd'}, TPROMPT_ACTION_CONFIRM_INPUT}, /* Ctrl+D (EOF) */
+};
+
+static const size_t default_keybindings_count = sizeof(default_keybindings) / sizeof(default_keybindings[0]);
+
+/* ========================================================================
  * Continuation Prompt Helpers
  * ======================================================================== */
 
@@ -690,14 +735,29 @@ bool tprompt_buffer_has_newlines(tprompt_handle_t handle)
  * Custom Keybindings - Internal Helpers
  * ======================================================================== */
 
-tprompt_action_t tprompt_find_keybinding_action(tprompt_handle_t handle, const terse_event_t *event)
+/**
+ * @brief Search for action in a keybindings array
+ *
+ * Generic helper function to search for a matching keybinding in any array.
+ * Used by both tprompt_find_keybinding_action (custom bindings) and
+ * tprompt_resolve_action (default bindings).
+ *
+ * @param bindings Keybindings array to search
+ * @param count Number of keybindings in array
+ * @param event Event to match
+ * @return Action if found, TPROMPT_ACTION_NONE otherwise
+ */
+static tprompt_action_t tprompt_search_keybindings(
+	const tprompt_keybinding_t *bindings,
+	size_t count,
+	const terse_event_t *event)
 {
-	if (!handle || !event || !handle->keybindings) {
+	if (!bindings || !event || count == 0) {
 		return TPROMPT_ACTION_NONE;
 	}
 
-	for (size_t i = 0; i < handle->keybinding_count; i++) {
-		const tprompt_keybinding_t *kb = &handle->keybindings[i];
+	for (size_t i = 0; i < count; i++) {
+		const tprompt_keybinding_t *kb = &bindings[i];
 
 		// Check key type match
 		if (kb->key != event->type) {
@@ -740,6 +800,50 @@ tprompt_action_t tprompt_find_keybinding_action(tprompt_handle_t handle, const t
 	return TPROMPT_ACTION_NONE;
 }
 
+tprompt_action_t tprompt_find_keybinding_action(tprompt_handle_t handle, const terse_event_t *event)
+{
+	if (!handle || !event) {
+		return TPROMPT_ACTION_NONE;
+	}
+
+	return tprompt_search_keybindings(handle->keybindings, handle->keybinding_count, event);
+}
+
+tprompt_action_t tprompt_resolve_action(tprompt_handle_t handle, const terse_event_t *event)
+{
+	if (!handle || !event) {
+		return TPROMPT_ACTION_NONE;
+	}
+
+	// 1. Check custom keybindings first (highest priority)
+	if (handle->keybindings && handle->keybinding_count > 0) {
+		tprompt_action_t action = tprompt_search_keybindings(
+			handle->keybindings,
+			handle->keybinding_count,
+			event);
+		if (action != TPROMPT_ACTION_NONE) {
+			return action;
+		}
+	}
+
+	// 2. Check default keybindings
+	tprompt_action_t action = tprompt_search_keybindings(
+		default_keybindings,
+		default_keybindings_count,
+		event);
+	if (action != TPROMPT_ACTION_NONE) {
+		return action;
+	}
+
+	// 3. Fallback: regular character insertion for printable characters
+	if (event->type == TERSE_EVENT_CHAR && !(event->data.ch.mods & TERSE_MOD_CTRL)) {
+		return TPROMPT_ACTION_INSERT_CHAR;
+	}
+
+	// 4. No action for unrecognized input
+	return TPROMPT_ACTION_NONE;
+}
+
 int tprompt_validate_keybindings(const tprompt_keybinding_t *bindings,
 	size_t count,
 	tprompt_error_info_t *error)
@@ -761,7 +865,7 @@ int tprompt_validate_keybindings(const tprompt_keybinding_t *bindings,
 
 	for (size_t i = 0; i < count; i++) {
 		// Check for unknown/invalid action values
-		if (bindings[i].action < 0 || bindings[i].action > TPROMPT_ACTION_INSERT_NEWLINE) {
+		if (bindings[i].action < 0 || bindings[i].action > TPROMPT_ACTION_COMPLETE) {
 			warning_count++;
 			snprintf(warning_msg, sizeof(warning_msg),
 				"Warning: keybinding %zu has unknown action %d (will be ignored)",
@@ -804,6 +908,75 @@ int tprompt_validate_keybindings(const tprompt_keybinding_t *bindings,
 	}
 
 	return 0; // Success (warnings don't cause failure)
+}
+
+/* ========================================================================
+ * Action Execution - Internal Helpers
+ * ======================================================================== */
+
+/**
+ * @brief Execute an action
+ *
+ * This function dispatches actions to their handlers. Currently, it bridges
+ * to the existing tprompt_handle_key_event() and tprompt_handle_char_event()
+ * functions. In the future, individual action handlers can be extracted.
+ *
+ * @param handle Prompt handle
+ * @param action Action to execute
+ * @param event Original event (needed for some handlers)
+ * @return 1 to confirm input, 0 to continue editing, -1 on error
+ */
+int tprompt_execute_action(tprompt_handle_t handle, tprompt_action_t action, const terse_event_t *event)
+{
+	if (!handle || !event) {
+		return -1;
+	}
+
+	// For now, bridge to existing handlers
+	// In the future, this will dispatch to individual action handler functions
+
+	// Special handling for INSERT_CHAR
+	if (action == TPROMPT_ACTION_INSERT_CHAR) {
+		// Insert character at cursor
+		char utf8_buf[5];
+		int len = 0;
+
+		unsigned int scalar = event->data.ch.scalar;
+
+		// Simple UTF-8 encoding
+		if (scalar < 0x80) {
+			utf8_buf[len++] = (char)scalar;
+		} else if (scalar < 0x800) {
+			utf8_buf[len++] = (char)(0xC0 | (scalar >> 6));
+			utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+		} else if (scalar < 0x10000) {
+			utf8_buf[len++] = (char)(0xE0 | (scalar >> 12));
+			utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
+			utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+		} else if (scalar < 0x110000) {
+			utf8_buf[len++] = (char)(0xF0 | (scalar >> 18));
+			utf8_buf[len++] = (char)(0x80 | ((scalar >> 12) & 0x3F));
+			utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
+			utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+		}
+		utf8_buf[len] = '\0';
+
+		// Insert into buffer
+		if (tprompt_buffer_insert(&handle->buffer, utf8_buf, len) != 0) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+				"Failed to insert character: buffer at %zu/%zu bytes",
+				handle->buffer.length, handle->buffer.size);
+			return -1;
+		}
+
+		handle->input_state.has_goal_column = false;
+		return 0;
+	}
+
+	// For all other actions, use existing tprompt_handle_key_event()
+	// which already handles them correctly
+	int result = tprompt_handle_key_event(handle, event);
+	return result;
 }
 
 /* ========================================================================

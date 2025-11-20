@@ -157,12 +157,47 @@ typedef tprompt_completion_result_t (*tprompt_completion_fn)(
  * @brief Keybinding action enumeration
  *
  * Defines actions that can be bound to keys in custom keybindings.
+ * All keyboard input is mapped to these actions, which are then executed
+ * by action handlers. This provides a unified, table-driven architecture.
  */
 typedef enum tprompt_action {
 	TPROMPT_ACTION_NONE = 0,		 /**< No action (use default behavior) */
+
+	/* Input confirmation and control */
 	TPROMPT_ACTION_CONFIRM_INPUT = 1,  /**< Confirm input and return to caller */
-	TPROMPT_ACTION_INSERT_NEWLINE = 2  /**< Insert newline at cursor position */
-	/* Future expansion: TPROMPT_ACTION_CANCEL, TPROMPT_ACTION_COMPLETE, etc. */
+	TPROMPT_ACTION_INSERT_NEWLINE = 2, /**< Insert newline at cursor position */
+
+	/* Character editing */
+	TPROMPT_ACTION_DELETE_BACKWARD = 3,      /**< Delete character before cursor (Backspace) */
+	TPROMPT_ACTION_DELETE_FORWARD = 4,       /**< Delete character at cursor (Delete) */
+	TPROMPT_ACTION_DELETE_WORD_BACKWARD = 5, /**< Delete word before cursor (Ctrl+W) */
+	TPROMPT_ACTION_DELETE_TO_END_OF_LINE = 6, /**< Delete from cursor to end of line (Ctrl+K) */
+	TPROMPT_ACTION_DELETE_TO_START_OF_LINE = 7, /**< Delete from start of line to cursor (Ctrl+U) */
+	TPROMPT_ACTION_INSERT_CHAR = 8,          /**< Insert character at cursor */
+
+	/* Cursor movement */
+	TPROMPT_ACTION_MOVE_LEFT = 9,            /**< Move cursor left one character */
+	TPROMPT_ACTION_MOVE_RIGHT = 10,          /**< Move cursor right one character */
+	TPROMPT_ACTION_MOVE_UP = 11,             /**< Move cursor up one line */
+	TPROMPT_ACTION_MOVE_DOWN = 12,           /**< Move cursor down one line */
+	TPROMPT_ACTION_MOVE_WORD_LEFT = 13,      /**< Move cursor to previous word (Ctrl+Left) */
+	TPROMPT_ACTION_MOVE_WORD_RIGHT = 14,     /**< Move cursor to next word (Ctrl+Right) */
+	TPROMPT_ACTION_MOVE_HOME = 15,           /**< Move to start of line (Home, staged) */
+	TPROMPT_ACTION_MOVE_END = 16,            /**< Move to end of line (End, staged) */
+	TPROMPT_ACTION_MOVE_TO_LINE_START = 17,  /**< Move to start of logical line (Ctrl+A) */
+	TPROMPT_ACTION_MOVE_TO_LINE_END = 18,    /**< Move to end of logical line (Ctrl+E) */
+
+	/* History navigation */
+	TPROMPT_ACTION_HISTORY_PREV = 19,        /**< Navigate to previous history entry (Up/Ctrl+P) */
+	TPROMPT_ACTION_HISTORY_NEXT = 20,        /**< Navigate to next history entry (Down/Ctrl+N) */
+
+	/* Completion */
+	TPROMPT_ACTION_COMPLETE = 21,            /**< Trigger or advance completion (Tab) */
+
+	/* Future expansion */
+	/* TPROMPT_ACTION_UNDO = 22, */
+	/* TPROMPT_ACTION_REDO = 23, */
+	/* TPROMPT_ACTION_CANCEL = 24, */
 } tprompt_action_t;
 
 /**
