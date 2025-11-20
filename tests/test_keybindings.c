@@ -1043,6 +1043,204 @@ TEST(TabKey, DoesNotInsertInEmptyBuffer)
 }
 
 /* ========================================================================
+ * Case-Insensitive Ctrl Key Tests (Terminal Protocol Compatibility)
+ * ======================================================================== */
+
+/**
+ * @brief Test that Ctrl+W works with both uppercase and lowercase 'w'
+ *
+ * Legacy terminals (Terminal.app, standard xterm) send Ctrl+W as uppercase 'W'
+ * Keyboard protocol terminals (kitty, iTerm2) send Ctrl+W as lowercase 'w'
+ */
+TEST(CtrlKeyCaseInsensitive, CtrlWUppercase)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Insert "hello world"
+	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
+
+	// Send Ctrl+W with uppercase 'W' (legacy terminal)
+	terse_event_t event = {
+		.type = TERSE_EVENT_CHAR,
+		.data = {
+			.ch = {
+				.scalar = 'W',
+				.mods = TERSE_MOD_CTRL,
+				.width = 1
+			}
+		}
+	};
+
+	tprompt_action_t action = tprompt_resolve_action(handle, &event);
+	tprompt_execute_action(handle, action, &event);
+
+	EXPECT_STREQ(handle->buffer.data, "hello ");
+	EXPECT_EQ(handle->buffer.length, 6);
+
+	tprompt_close(handle);
+}
+
+TEST(CtrlKeyCaseInsensitive, CtrlWLowercase)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Insert "hello world"
+	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
+
+	// Send Ctrl+W with lowercase 'w' (keyboard protocol terminal)
+	terse_event_t event = {
+		.type = TERSE_EVENT_CHAR,
+		.data = {
+			.ch = {
+				.scalar = 'w',
+				.mods = TERSE_MOD_CTRL,
+				.width = 1
+			}
+		}
+	};
+
+	tprompt_action_t action = tprompt_resolve_action(handle, &event);
+	tprompt_execute_action(handle, action, &event);
+
+	EXPECT_STREQ(handle->buffer.data, "hello ");
+	EXPECT_EQ(handle->buffer.length, 6);
+
+	tprompt_close(handle);
+}
+
+/**
+ * @brief Test that Ctrl+D EOF handling works with both uppercase and lowercase 'd'
+ */
+TEST(CtrlKeyCaseInsensitive, CtrlDUppercaseEOF)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Empty buffer
+	EXPECT_EQ(handle->buffer.length, 0);
+
+	// Send Ctrl+D with uppercase 'D' (legacy terminal)
+	terse_event_t event = {
+		.type = TERSE_EVENT_CHAR,
+		.data = {
+			.ch = {
+				.scalar = 'D',
+				.mods = TERSE_MOD_CTRL,
+				.width = 1
+			}
+		}
+	};
+
+	bool should_break = false;
+	int result = tprompt_handle_char_event(handle, &event, &should_break);
+
+	EXPECT_EQ(result, 0);
+	EXPECT_TRUE(should_break);
+	EXPECT_TRUE(handle->eof_signaled);
+
+	tprompt_close(handle);
+}
+
+TEST(CtrlKeyCaseInsensitive, CtrlDLowercaseEOF)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Empty buffer
+	EXPECT_EQ(handle->buffer.length, 0);
+
+	// Send Ctrl+D with lowercase 'd' (keyboard protocol terminal)
+	terse_event_t event = {
+		.type = TERSE_EVENT_CHAR,
+		.data = {
+			.ch = {
+				.scalar = 'd',
+				.mods = TERSE_MOD_CTRL,
+				.width = 1
+			}
+		}
+	};
+
+	bool should_break = false;
+	int result = tprompt_handle_char_event(handle, &event, &should_break);
+
+	EXPECT_EQ(result, 0);
+	EXPECT_TRUE(should_break);
+	EXPECT_TRUE(handle->eof_signaled);
+
+	tprompt_close(handle);
+}
+
+/**
+ * @brief Test that Ctrl+D delete-char works with both cases on non-empty buffer
+ */
+TEST(CtrlKeyCaseInsensitive, CtrlDUppercaseDeleteChar)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Insert "hello"
+	tprompt_buffer_insert(&handle->buffer, "hello", 5);
+	handle->buffer.cursor = 0; // Position at start
+
+	// Send Ctrl+D with uppercase 'D'
+	terse_event_t event = {
+		.type = TERSE_EVENT_CHAR,
+		.data = {
+			.ch = {
+				.scalar = 'D',
+				.mods = TERSE_MOD_CTRL,
+				.width = 1
+			}
+		}
+	};
+
+	bool should_break = false;
+	int result = tprompt_handle_char_event(handle, &event, &should_break);
+
+	EXPECT_EQ(result, 0);
+	EXPECT_FALSE(should_break);
+	EXPECT_STREQ(handle->buffer.data, "ello");
+	EXPECT_EQ(handle->buffer.length, 4);
+
+	tprompt_close(handle);
+}
+
+TEST(CtrlKeyCaseInsensitive, CtrlDLowercaseDeleteChar)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Insert "hello"
+	tprompt_buffer_insert(&handle->buffer, "hello", 5);
+	handle->buffer.cursor = 0; // Position at start
+
+	// Send Ctrl+D with lowercase 'd'
+	terse_event_t event = {
+		.type = TERSE_EVENT_CHAR,
+		.data = {
+			.ch = {
+				.scalar = 'd',
+				.mods = TERSE_MOD_CTRL,
+				.width = 1
+			}
+		}
+	};
+
+	bool should_break = false;
+	int result = tprompt_handle_char_event(handle, &event, &should_break);
+
+	EXPECT_EQ(result, 0);
+	EXPECT_FALSE(should_break);
+	EXPECT_STREQ(handle->buffer.data, "ello");
+	EXPECT_EQ(handle->buffer.length, 4);
+
+	tprompt_close(handle);
+}
+
+/* ========================================================================
  * Main
  * ======================================================================== */
 

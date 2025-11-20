@@ -759,8 +759,25 @@ static tprompt_action_t tprompt_search_keybindings(
 
 		// Event-type-specific matching
 		if (event->type == TERSE_EVENT_CHAR) {
-			// For character events, also match the scalar value
-			if (kb->data.scalar != event->data.ch.scalar) {
+			// For character events, match the scalar value
+			// For Ctrl+letter combinations, do case-insensitive matching
+			// This handles different keyboard protocols:
+			// - Legacy terminals: send uppercase ('A'-'Z') with TERSE_MOD_CTRL
+			// - Keyboard protocol terminals (kitty/iTerm2): send lowercase ('a'-'z') with TERSE_MOD_CTRL
+			unsigned int kb_scalar = kb->data.scalar;
+			unsigned int ev_scalar = event->data.ch.scalar;
+
+			if (event_mods & TERSE_MOD_CTRL) {
+				// Normalize both to uppercase for comparison
+				if (kb_scalar >= 'a' && kb_scalar <= 'z') {
+					kb_scalar = kb_scalar - 'a' + 'A';
+				}
+				if (ev_scalar >= 'a' && ev_scalar <= 'z') {
+					ev_scalar = ev_scalar - 'a' + 'A';
+				}
+			}
+
+			if (kb_scalar != ev_scalar) {
 				continue;
 			}
 		} else if (event->type == TERSE_EVENT_FUNCTION) {
@@ -2201,8 +2218,10 @@ int tprompt_handle_char_event(tprompt_handle_t handle, const terse_event_t *even
 	// Handle Ctrl+D (GNU readline-style behavior) - special case before general action handling
 	// - If buffer is empty: EOF signal (end editing session)
 	// - If buffer is non-empty: delete character at cursor (same as Delete key)
-	// Note: terse transmits Ctrl+D as uppercase 'D' with TERSE_MOD_CTRL
-	if (scalar == 'D' && (mods & TERSE_MOD_CTRL)) {
+	// Note: terse transmits Ctrl+D as:
+	//   - Uppercase 'D' on legacy terminals (control character 0x04 → 'A' + 3)
+	//   - Lowercase 'd' on keyboard protocol terminals (kitty/iTerm2 CSI u)
+	if ((scalar == 'd' || scalar == 'D') && (mods & TERSE_MOD_CTRL)) {
 		if (handle->buffer.length == 0) {
 			tprompt_clear_error(&handle->last_error); // EOF is not an error
 			handle->eof_signaled = true; // Mark EOF
