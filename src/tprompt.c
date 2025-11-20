@@ -2215,14 +2215,22 @@ static int tprompt_handle_char_event(tprompt_handle_t handle, const terse_event_
 	unsigned int scalar = event->data.ch.scalar;
 	int mods = event->data.ch.mods;
 
-	// Handle Ctrl+D (EOF-like behavior) - special case before general action handling
-	// Ctrl+D only confirms input when buffer is empty (EOF signal)
+	// Handle Ctrl+D (GNU readline-style behavior) - special case before general action handling
+	// - If buffer is empty: EOF signal (end editing session)
+	// - If buffer is non-empty: delete character at cursor (same as Delete key)
 	if (scalar == 'd' && (mods & TERSE_MOD_CTRL)) {
 		if (handle->buffer.length == 0) {
 			tprompt_clear_error(&handle->last_error); // EOF is not an error
 			*should_break = true; // Signal EOF
+			return 0;
 		}
-		// If buffer is not empty, ignore Ctrl+D
+		// Buffer is non-empty: delete character at cursor (delete-char)
+		size_t old_length = handle->buffer.length;
+		size_t deleted_bytes = tprompt_buffer_delete_at(&handle->buffer, 1);
+		if (deleted_bytes > 0) {
+			// Mark from cursor to old end as dirty (characters shift left)
+			tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
+		}
 		return 0;
 	}
 
