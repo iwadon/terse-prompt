@@ -85,12 +85,6 @@ int main(void)
 			break;
 		}
 
-		// Handle empty input
-		if (strlen(line) == 0) {
-			free(line);
-			continue;
-		}
-
 		// Note: tprompt_readline() automatically adds to history, no need to call tprompt_history_add()
 
 		// Process commands
