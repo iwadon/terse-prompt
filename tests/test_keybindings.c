@@ -7,6 +7,7 @@
  * Tests the five additional keybindings added in Phase 6.
  */
 
+#include "test_helpers.h"
 #include "tprompt_internal.h"
 #include <attest/attest.h>
 #include <stdlib.h>
@@ -21,6 +22,12 @@
  */
 static tprompt_handle_t create_test_handle(void)
 {
+	// Create mock terse handle for test mode
+	terse_handle_t terse_h = test_create_terse_handle();
+	if (!terse_h) {
+		return NULL;
+	}
+
 	tprompt_options_t opts = {
 		.prompt = "> ",
 		.history_file = NULL,
@@ -29,11 +36,17 @@ static tprompt_handle_t create_test_handle(void)
 		.completion_callback = NULL,
 		.completion_user_data = NULL,
 		.completion_prefixes = NULL,
-		.terse_handle = NULL,
+		.terse_handle = terse_h,  // Use mock terse handle
 		.flags = TPROMPT_FLAG_MULTILINE
 	};
 
-	return tprompt_open(&opts);
+	tprompt_handle_t handle = tprompt_open(&opts);
+	if (!handle) {
+		terse_close(terse_h);
+		return NULL;
+	}
+
+	return handle;
 }
 
 /**
