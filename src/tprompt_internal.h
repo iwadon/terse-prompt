@@ -652,6 +652,100 @@ tprompt_action_t tprompt_resolve_action(tprompt_handle_t handle, const terse_eve
 int tprompt_execute_action(tprompt_handle_t handle, tprompt_action_t action, const terse_event_t *event);
 
 /* ========================================================================
+ * Individual Action Handlers
+ * ======================================================================== */
+
+/**
+ * @brief Handle MOVE_LEFT action
+ *
+ * @param handle Prompt handle
+ * @param event Original event (unused)
+ * @return 0 to continue editing, -1 on error
+ */
+int tprompt_action_move_left(tprompt_handle_t handle, const terse_event_t *event);
+
+/**
+ * @brief Handle MOVE_RIGHT action
+ *
+ * @param handle Prompt handle
+ * @param event Original event (unused)
+ * @return 0 to continue editing, -1 on error
+ */
+int tprompt_action_move_right(tprompt_handle_t handle, const terse_event_t *event);
+
+/**
+ * @brief Handle DELETE_BACKWARD action (backspace)
+ *
+ * @param handle Prompt handle
+ * @param event Original event (unused)
+ * @return 0 to continue editing, -1 on error
+ */
+int tprompt_action_delete_backward(tprompt_handle_t handle, const terse_event_t *event);
+
+/**
+ * @brief Handle DELETE_FORWARD action (delete)
+ *
+ * @param handle Prompt handle
+ * @param event Original event (unused)
+ * @return 0 to continue editing, -1 on error
+ */
+int tprompt_action_delete_forward(tprompt_handle_t handle, const terse_event_t *event);
+
+/**
+ * @brief Handle MOVE_HOME action
+ *
+ * @param handle Prompt handle
+ * @param event Original event (unused)
+ * @return 0 to continue editing, -1 on error
+ */
+int tprompt_action_move_home(tprompt_handle_t handle, const terse_event_t *event);
+
+/**
+ * @brief Handle MOVE_END action
+ *
+ * @param handle Prompt handle
+ * @param event Original event (unused)
+ * @return 0 to continue editing, -1 on error
+ */
+int tprompt_action_move_end(tprompt_handle_t handle, const terse_event_t *event);
+
+/**
+ * @brief Handle HISTORY_PREV action (up arrow)
+ *
+ * @param handle Prompt handle
+ * @param event Original event (unused)
+ * @return 0 to continue editing, -1 on error
+ */
+int tprompt_action_history_prev(tprompt_handle_t handle, const terse_event_t *event);
+
+/**
+ * @brief Handle HISTORY_NEXT action (down arrow)
+ *
+ * @param handle Prompt handle
+ * @param event Original event (unused)
+ * @return 0 to continue editing, -1 on error
+ */
+int tprompt_action_history_next(tprompt_handle_t handle, const terse_event_t *event);
+
+/**
+ * @brief Handle MOVE_UP action (up arrow in multiline)
+ *
+ * @param handle Prompt handle
+ * @param event Original event (unused)
+ * @return 0 to continue editing, -1 on error
+ */
+int tprompt_action_move_up(tprompt_handle_t handle, const terse_event_t *event);
+
+/**
+ * @brief Handle MOVE_DOWN action (down arrow in multiline)
+ *
+ * @param handle Prompt handle
+ * @param event Original event (unused)
+ * @return 0 to continue editing, -1 on error
+ */
+int tprompt_action_move_down(tprompt_handle_t handle, const terse_event_t *event);
+
+/* ========================================================================
  * Internal Helper Functions - Status Line
  * ======================================================================== */
 

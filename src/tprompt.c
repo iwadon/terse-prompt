@@ -914,12 +914,274 @@ int tprompt_validate_keybindings(const tprompt_keybinding_t *bindings,
  * Action Execution - Internal Helpers
  * ======================================================================== */
 
+/* ------------------------------------------------------------------------
+ * Individual Action Handlers
+ * ------------------------------------------------------------------------ */
+
+/**
+ * @brief Handle MOVE_LEFT action
+ */
+int tprompt_action_move_left(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	tprompt_cursor_move_left(&handle->buffer, 1);
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle MOVE_RIGHT action
+ */
+int tprompt_action_move_right(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	tprompt_cursor_move_right(&handle->buffer, 1);
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle DELETE_BACKWARD action (backspace)
+ */
+int tprompt_action_delete_backward(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	size_t old_length = handle->buffer.length;
+	size_t deleted_bytes = tprompt_buffer_delete_before(&handle->buffer, 1);
+	if (deleted_bytes > 0) {
+		// Mark from new cursor position to old end as dirty (characters shift left)
+		tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
+	}
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle DELETE_FORWARD action (delete)
+ */
+int tprompt_action_delete_forward(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	size_t old_length = handle->buffer.length;
+	size_t deleted_bytes = tprompt_buffer_delete_at(&handle->buffer, 1);
+	if (deleted_bytes > 0) {
+		// Mark from cursor to old end as dirty (characters shift left)
+		tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
+	}
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle MOVE_HOME action
+ *
+ * Implements Claude Code-style staged navigation:
+ * - First press: move to physical line start
+ * - Second press: move to logical line start
+ */
+int tprompt_action_move_home(tprompt_handle_t handle, const terse_event_t *event)
+{
+	if (!handle) {
+		return -1;
+	}
+
+	// Check if this is a consecutive Home press
+	bool is_consecutive = (handle->input_state.last_key_type == event->type &&
+	                       handle->input_state.last_cursor_pos == handle->buffer.cursor);
+
+	if (is_consecutive) {
+		// Second press: move to logical line start
+		tprompt_cursor_move_to_logical_line_start(handle);
+	} else {
+		// First press: move to physical line start
+		tprompt_cursor_move_to_physical_line_start(handle);
+	}
+
+	// Update input state for next key press
+	handle->input_state.last_key_type = event->type;
+	handle->input_state.last_cursor_pos = handle->buffer.cursor;
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle MOVE_END action
+ *
+ * Implements Claude Code-style staged navigation:
+ * - First press: move to physical line end
+ * - Second press: move to logical line end
+ */
+int tprompt_action_move_end(tprompt_handle_t handle, const terse_event_t *event)
+{
+	if (!handle) {
+		return -1;
+	}
+
+	// Check if this is a consecutive End press
+	bool is_consecutive = (handle->input_state.last_key_type == event->type &&
+	                       handle->input_state.last_cursor_pos == handle->buffer.cursor);
+
+	if (is_consecutive) {
+		// Second press: move to logical line end
+		tprompt_cursor_move_to_logical_line_end(handle);
+	} else {
+		// First press: move to physical line end
+		tprompt_cursor_move_to_physical_line_end(handle);
+	}
+
+	// Update input state for next key press
+	handle->input_state.last_key_type = event->type;
+	handle->input_state.last_cursor_pos = handle->buffer.cursor;
+	handle->input_state.has_goal_column = false;
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle HISTORY_PREV action (up arrow)
+ *
+ * In multiline mode: only navigates history if at first line
+ * In single-line mode: always navigates history
+ */
+int tprompt_action_history_prev(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	bool has_multiple_lines = tprompt_buffer_has_newlines(handle);
+
+	if (has_multiple_lines) {
+		// In multi-line mode: check if at first line
+		size_t current_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+		if (current_line > 0) {
+			// Not at first line, should use MOVE_UP instead
+			return tprompt_cursor_move_up(handle);
+		}
+	}
+
+	// At first line or single-line mode: navigate to previous history entry
+	// Save current input if not already in history navigation
+	if (!handle->history.current) {
+		if (handle->history.saved_input) {
+			free(handle->history.saved_input);
+		}
+		handle->history.saved_input = strdup(handle->buffer.data);
+	}
+
+	const char *entry = tprompt_history_prev(&handle->history);
+	if (entry) {
+		tprompt_buffer_set(&handle->buffer, entry);
+		tprompt_display_mark_all_dirty(handle);
+	}
+
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle HISTORY_NEXT action (down arrow)
+ *
+ * In multiline mode: only navigates history if at last line
+ * In single-line mode: always navigates history
+ */
+int tprompt_action_history_next(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	bool has_multiple_lines = tprompt_buffer_has_newlines(handle);
+
+	if (has_multiple_lines) {
+		// In multi-line mode: check if at last line
+		size_t current_line = tprompt_get_logical_line_at_offset(handle, handle->buffer.cursor);
+		size_t total_lines = tprompt_count_logical_lines(handle);
+		if (current_line < total_lines - 1) {
+			// Not at last line, should use MOVE_DOWN instead
+			return tprompt_cursor_move_down(handle);
+		}
+	}
+
+	// At last line or single-line mode: navigate to next history entry
+	const char *entry = tprompt_history_next(&handle->history);
+	if (entry) {
+		tprompt_buffer_set(&handle->buffer, entry);
+	} else {
+		// At the end of history, restore saved input
+		if (handle->history.saved_input) {
+			tprompt_buffer_set(&handle->buffer, handle->history.saved_input);
+		} else {
+			tprompt_buffer_clear(&handle->buffer);
+		}
+	}
+
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle MOVE_UP action (up arrow in multiline)
+ */
+int tprompt_action_move_up(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	tprompt_cursor_move_up(handle);
+	return 0; // Continue editing
+}
+
+/**
+ * @brief Handle MOVE_DOWN action (down arrow in multiline)
+ */
+int tprompt_action_move_down(tprompt_handle_t handle, const terse_event_t *event)
+{
+	(void)event; // Unused
+
+	if (!handle) {
+		return -1;
+	}
+
+	tprompt_cursor_move_down(handle);
+	return 0; // Continue editing
+}
+
+/* ------------------------------------------------------------------------
+ * Action Dispatcher
+ * ------------------------------------------------------------------------ */
+
 /**
  * @brief Execute an action
  *
- * This function dispatches actions to their handlers. Currently, it bridges
- * to the existing tprompt_handle_key_event() and tprompt_handle_char_event()
- * functions. In the future, individual action handlers can be extracted.
+ * Dispatches actions to individual action handler functions. Most common
+ * editing actions (movement, deletion, history) have been extracted to
+ * dedicated handlers. Less common actions still fall back to the legacy
+ * tprompt_handle_key_event() for compatibility.
  *
  * @param handle Prompt handle
  * @param action Action to execute
@@ -932,51 +1194,79 @@ int tprompt_execute_action(tprompt_handle_t handle, tprompt_action_t action, con
 		return -1;
 	}
 
-	// For now, bridge to existing handlers
-	// In the future, this will dispatch to individual action handler functions
+	// Dispatch to individual action handlers
+	switch (action) {
+	case TPROMPT_ACTION_MOVE_LEFT:
+		return tprompt_action_move_left(handle, event);
 
-	// Special handling for INSERT_CHAR
-	if (action == TPROMPT_ACTION_INSERT_CHAR) {
+	case TPROMPT_ACTION_MOVE_RIGHT:
+		return tprompt_action_move_right(handle, event);
+
+	case TPROMPT_ACTION_DELETE_BACKWARD:
+		return tprompt_action_delete_backward(handle, event);
+
+	case TPROMPT_ACTION_DELETE_FORWARD:
+		return tprompt_action_delete_forward(handle, event);
+
+	case TPROMPT_ACTION_MOVE_HOME:
+		return tprompt_action_move_home(handle, event);
+
+	case TPROMPT_ACTION_MOVE_END:
+		return tprompt_action_move_end(handle, event);
+
+	case TPROMPT_ACTION_HISTORY_PREV:
+		return tprompt_action_history_prev(handle, event);
+
+	case TPROMPT_ACTION_HISTORY_NEXT:
+		return tprompt_action_history_next(handle, event);
+
+	case TPROMPT_ACTION_MOVE_UP:
+		return tprompt_action_move_up(handle, event);
+
+	case TPROMPT_ACTION_MOVE_DOWN:
+		return tprompt_action_move_down(handle, event);
+
+	case TPROMPT_ACTION_INSERT_CHAR:
 		// Insert character at cursor
-		char utf8_buf[5];
-		int len = 0;
+		{
+			char utf8_buf[5];
+			int len = 0;
+			unsigned int scalar = event->data.ch.scalar;
 
-		unsigned int scalar = event->data.ch.scalar;
+			// Simple UTF-8 encoding
+			if (scalar < 0x80) {
+				utf8_buf[len++] = (char)scalar;
+			} else if (scalar < 0x800) {
+				utf8_buf[len++] = (char)(0xC0 | (scalar >> 6));
+				utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+			} else if (scalar < 0x10000) {
+				utf8_buf[len++] = (char)(0xE0 | (scalar >> 12));
+				utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
+				utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+			} else if (scalar < 0x110000) {
+				utf8_buf[len++] = (char)(0xF0 | (scalar >> 18));
+				utf8_buf[len++] = (char)(0x80 | ((scalar >> 12) & 0x3F));
+				utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
+				utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+			}
+			utf8_buf[len] = '\0';
 
-		// Simple UTF-8 encoding
-		if (scalar < 0x80) {
-			utf8_buf[len++] = (char)scalar;
-		} else if (scalar < 0x800) {
-			utf8_buf[len++] = (char)(0xC0 | (scalar >> 6));
-			utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
-		} else if (scalar < 0x10000) {
-			utf8_buf[len++] = (char)(0xE0 | (scalar >> 12));
-			utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
-			utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
-		} else if (scalar < 0x110000) {
-			utf8_buf[len++] = (char)(0xF0 | (scalar >> 18));
-			utf8_buf[len++] = (char)(0x80 | ((scalar >> 12) & 0x3F));
-			utf8_buf[len++] = (char)(0x80 | ((scalar >> 6) & 0x3F));
-			utf8_buf[len++] = (char)(0x80 | (scalar & 0x3F));
+			// Insert into buffer
+			if (tprompt_buffer_insert(&handle->buffer, utf8_buf, len) != 0) {
+				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+					"Failed to insert character: buffer at %zu/%zu bytes",
+					handle->buffer.length, handle->buffer.size);
+				return -1;
+			}
+
+			handle->input_state.has_goal_column = false;
+			return 0;
 		}
-		utf8_buf[len] = '\0';
 
-		// Insert into buffer
-		if (tprompt_buffer_insert(&handle->buffer, utf8_buf, len) != 0) {
-			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-				"Failed to insert character: buffer at %zu/%zu bytes",
-				handle->buffer.length, handle->buffer.size);
-			return -1;
-		}
-
-		handle->input_state.has_goal_column = false;
-		return 0;
+	default:
+		// For other actions not yet extracted, fall back to existing handler
+		return tprompt_handle_key_event(handle, event);
 	}
-
-	// For all other actions, use existing tprompt_handle_key_event()
-	// which already handles them correctly
-	int result = tprompt_handle_key_event(handle, event);
-	return result;
 }
 
 /* ========================================================================
