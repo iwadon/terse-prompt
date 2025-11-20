@@ -501,6 +501,17 @@ int tprompt_handle_char_input(tprompt_handle_t handle, const char *ch, int width
  */
 int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event);
 
+/**
+ * @brief Handle character input events (TERSE_EVENT_CHAR)
+ *
+ * Special handling for Ctrl+D (EOF/delete-char) and action system routing.
+ *
+ * @param handle Prompt handle
+ * @param event Character event
+ * @param should_break Output parameter: set to true if EOF signaled
+ * @return 0 on success, -1 on error
+ */
+int tprompt_handle_char_event(tprompt_handle_t handle, const terse_event_t *event, bool *should_break);
 
 /**
  * @brief Check if buffer contains newline characters

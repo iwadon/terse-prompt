@@ -2195,7 +2195,7 @@ static void tprompt_readline_disable_raw_mode(tprompt_handle_t handle)
  * @brief Handle TERSE_EVENT_CHAR events in the main editing loop
  *
  * Processes character input events through the action system:
- * - Ctrl+D special handling (EOF on empty buffer)
+ * - Ctrl+D special handling (EOF on empty buffer, delete-char on non-empty)
  * - All other character events dispatched via tprompt_resolve_action()
  * - Regular character insertion (UTF-8 encoded) for non-Ctrl characters
  *
@@ -2204,7 +2204,7 @@ static void tprompt_readline_disable_raw_mode(tprompt_handle_t handle)
  * @param should_break Output: set to true if input should be confirmed (e.g., Ctrl+D on empty buffer)
  * @return 0 on success, -1 on error
  */
-static int tprompt_handle_char_event(tprompt_handle_t handle, const terse_event_t *event, bool *should_break)
+int tprompt_handle_char_event(tprompt_handle_t handle, const terse_event_t *event, bool *should_break)
 {
 	if (!handle || !event || !should_break) {
 		return -1;

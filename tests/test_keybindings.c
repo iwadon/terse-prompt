@@ -455,6 +455,178 @@ TEST(KeybindingsCombined, CtrlWMultipleWordsUTF8)
 }
 
 /* ========================================================================
+ * Ctrl+D Tests (Delete Char / EOF)
+ * ======================================================================== */
+
+/**
+ * @brief Execute Ctrl+D and return whether it signaled EOF
+ * @param handle Prompt handle
+ * @return true if EOF signaled, false if delete-char performed
+ */
+static bool execute_ctrl_d(tprompt_handle_t handle)
+{
+	terse_event_t event = {
+		.type = TERSE_EVENT_CHAR,
+		.data = {
+			.ch = {
+				.scalar = 'd',
+				.mods = TERSE_MOD_CTRL,
+				.width = 1
+			}
+		}
+	};
+
+	bool should_break = false;
+	int result = tprompt_handle_char_event(handle, &event, &should_break);
+
+	// result should be 0 (success), should_break indicates EOF
+	(void)result; // Suppress unused warning
+	return should_break;
+}
+
+TEST(KeybindingsCtrlD, DeleteCharAtCursor)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Insert "hello" and position cursor at 'e' (index 1)
+	tprompt_buffer_insert(&handle->buffer, "hello", 5);
+	handle->buffer.cursor = 1;
+
+	bool eof = execute_ctrl_d(handle);
+
+	// Should delete 'e', not signal EOF
+	EXPECT_FALSE(eof);
+	EXPECT_STREQ(handle->buffer.data, "hllo");
+	EXPECT_EQ(handle->buffer.length, 4);
+	EXPECT_EQ(handle->buffer.cursor, 1); // Cursor stays at same position
+
+	tprompt_close(handle);
+}
+
+TEST(KeybindingsCtrlD, DeleteCharAtEnd)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Insert "test" and position cursor at end
+	tprompt_buffer_insert(&handle->buffer, "test", 4);
+
+	bool eof = execute_ctrl_d(handle);
+
+	// Should do nothing (cursor at end, nothing to delete)
+	EXPECT_FALSE(eof);
+	EXPECT_STREQ(handle->buffer.data, "test");
+	EXPECT_EQ(handle->buffer.length, 4);
+
+	tprompt_close(handle);
+}
+
+TEST(KeybindingsCtrlD, EOFOnEmptyBuffer)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Buffer is empty
+	EXPECT_EQ(handle->buffer.length, 0);
+
+	bool eof = execute_ctrl_d(handle);
+
+	// Should signal EOF
+	EXPECT_TRUE(eof);
+	EXPECT_EQ(handle->buffer.length, 0); // Buffer still empty
+
+	tprompt_close(handle);
+}
+
+TEST(KeybindingsCtrlD, DeleteMultipleChars)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Insert "abcde"
+	tprompt_buffer_insert(&handle->buffer, "abcde", 5);
+	handle->buffer.cursor = 0; // Start
+
+	// Delete 'a'
+	bool eof1 = execute_ctrl_d(handle);
+	EXPECT_FALSE(eof1);
+	EXPECT_STREQ(handle->buffer.data, "bcde");
+
+	// Delete 'b'
+	bool eof2 = execute_ctrl_d(handle);
+	EXPECT_FALSE(eof2);
+	EXPECT_STREQ(handle->buffer.data, "cde");
+
+	// Delete 'c'
+	bool eof3 = execute_ctrl_d(handle);
+	EXPECT_FALSE(eof3);
+	EXPECT_STREQ(handle->buffer.data, "de");
+
+	tprompt_close(handle);
+}
+
+TEST(KeybindingsCtrlD, DeleteUTF8Character)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Insert "hello世界"
+	tprompt_buffer_insert(&handle->buffer, "hello世界", 11);
+	handle->buffer.cursor = 5; // Before '世'
+
+	bool eof = execute_ctrl_d(handle);
+
+	// Should delete '世' (3 bytes)
+	EXPECT_FALSE(eof);
+	EXPECT_STREQ(handle->buffer.data, "hello界");
+	EXPECT_EQ(handle->buffer.cursor, 5);
+
+	tprompt_close(handle);
+}
+
+TEST(KeybindingsCtrlD, DeleteCharThenEOF)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Insert single character "x"
+	tprompt_buffer_insert(&handle->buffer, "x", 1);
+	handle->buffer.cursor = 0;
+
+	// First Ctrl+D: delete 'x'
+	bool eof1 = execute_ctrl_d(handle);
+	EXPECT_FALSE(eof1);
+	EXPECT_STREQ(handle->buffer.data, "");
+	EXPECT_EQ(handle->buffer.length, 0);
+
+	// Second Ctrl+D: signal EOF (buffer now empty)
+	bool eof2 = execute_ctrl_d(handle);
+	EXPECT_TRUE(eof2);
+
+	tprompt_close(handle);
+}
+
+TEST(KeybindingsCtrlD, DeleteInMultilineBuffer)
+{
+	tprompt_handle_t handle = create_test_handle();
+	ASSERT_NE(handle, NULL);
+
+	// Insert multi-line text
+	tprompt_buffer_insert(&handle->buffer, "line1\nline2\nline3", 17);
+	handle->buffer.cursor = 6; // At 'l' of "line2"
+
+	bool eof = execute_ctrl_d(handle);
+
+	// Should delete 'l', not signal EOF
+	EXPECT_FALSE(eof);
+	EXPECT_STREQ(handle->buffer.data, "line1\nine2\nline3");
+	EXPECT_EQ(handle->buffer.cursor, 6);
+
+	tprompt_close(handle);
+}
+
+/* ========================================================================
  * Main
  * ======================================================================== */
 
