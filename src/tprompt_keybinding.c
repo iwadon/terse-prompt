@@ -497,11 +497,26 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 
 	// Handle backspace key
 	if (event->type == TERSE_EVENT_BACKSPACE) {
+		size_t old_cursor = handle->buffer.cursor;
 		size_t old_length = handle->buffer.length;
 		size_t deleted_bytes = tprompt_buffer_delete_before(&handle->buffer, 1);
 		if (deleted_bytes > 0) {
 			// Mark from new cursor position to old end as dirty (characters shift left)
 			tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
+
+			// Check if completion was active and trigger character was deleted
+			if (handle->completion_state.active) {
+				// If the deleted character was at the trigger offset, deactivate completion
+				if (old_cursor == handle->completion_state.trigger_offset + 1) {
+					tprompt_completion_deactivate(handle);
+				} else if (handle->buffer.cursor <= handle->completion_state.trigger_offset) {
+					// Cursor moved before trigger, also deactivate
+					tprompt_completion_deactivate(handle);
+				} else {
+					// Update completion candidates with new input
+					tprompt_completion_update(handle);
+				}
+			}
 		}
 		handle->input_state.last_key_type = event->type;
 		handle->input_state.last_cursor_pos = handle->buffer.cursor;
@@ -511,11 +526,26 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 
 	// Handle delete key
 	if (event->type == TERSE_EVENT_DELETE) {
+		size_t old_cursor = handle->buffer.cursor;
 		size_t old_length = handle->buffer.length;
 		size_t deleted_bytes = tprompt_buffer_delete_at(&handle->buffer, 1);
 		if (deleted_bytes > 0) {
 			// Mark from cursor to old end as dirty (characters shift left)
 			tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
+
+			// Check if completion was active and trigger character was deleted
+			if (handle->completion_state.active) {
+				// If the deleted character was at the trigger offset, deactivate completion
+				if (old_cursor == handle->completion_state.trigger_offset) {
+					tprompt_completion_deactivate(handle);
+				} else if (handle->buffer.cursor <= handle->completion_state.trigger_offset) {
+					// Cursor moved before trigger, also deactivate
+					tprompt_completion_deactivate(handle);
+				} else {
+					// Update completion candidates with new input
+					tprompt_completion_update(handle);
+				}
+			}
 		}
 		handle->input_state.last_key_type = event->type;
 		handle->input_state.last_cursor_pos = handle->buffer.cursor;
