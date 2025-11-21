@@ -50,6 +50,7 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 		.max_input_size = 1024 * 1024,
 		.max_history_size = 100,
 		.completion_callback = NULL,
+		.completion_ex_callback = NULL,
 		.completion_user_data = NULL,
 		.completion_prefixes = NULL,
 		.terse_handle = NULL,
@@ -146,6 +147,7 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 	// Initialize completion
 	tprompt_completion_init(&handle->completion_state);
 	handle->completion_callback = options->completion_callback;
+	handle->completion_ex_callback = options->completion_ex_callback;
 	handle->completion_user_data = options->completion_user_data;
 	if (options->completion_prefixes) {
 		handle->completion_prefixes = strdup(options->completion_prefixes);

@@ -133,7 +133,8 @@ struct tprompt_handle {
 	char *history_file_path;   /**< History file path (NULL if none) */
 
 	/* Completion */
-	tprompt_completion_fn completion_callback;	 /**< Completion callback function */
+	tprompt_completion_fn completion_callback;	 /**< Completion callback function (legacy) */
+	tprompt_completion_ex_fn completion_ex_callback; /**< Extended completion callback (with descriptions) */
 	void *completion_user_data;					 /**< User data for completion callback */
 	char *completion_prefixes;					 /**< Completion trigger prefix characters */
 	tprompt_completion_state_t completion_state; /**< Current completion state */

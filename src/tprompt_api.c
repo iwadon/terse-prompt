@@ -210,6 +210,31 @@ void tprompt_free_completion_result(tprompt_completion_result_t *result)
 	result->count = 0;
 }
 
+void tprompt_free_completion_candidates(tprompt_completion_candidate_t *candidates, size_t count)
+{
+	if (!candidates) {
+		return;
+	}
+
+	for (size_t i = 0; i < count; i++) {
+		free(candidates[i].text);
+		free(candidates[i].description);
+	}
+	free(candidates);
+}
+
+void tprompt_set_completion_ex_callback(tprompt_handle_t handle,
+	tprompt_completion_ex_fn callback,
+	void *user_data)
+{
+	if (!handle) {
+		return;
+	}
+
+	handle->completion_ex_callback = callback;
+	handle->completion_user_data = user_data;
+}
+
 /* ========================================================================
  * Public API - Framework: Validation
  * ======================================================================== */

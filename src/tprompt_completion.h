@@ -28,11 +28,13 @@ typedef struct tprompt_completion_state tprompt_completion_state_t;
  */
 struct tprompt_completion_state {
 	bool active;			/**< Whether completion is active */
-	char **candidates;		/**< Current candidate list (NULL-terminated) */
+	char **candidates;		/**< Current candidate list (legacy, NULL-terminated) */
+	tprompt_completion_candidate_t *candidates_ex; /**< Extended candidates with descriptions */
 	size_t candidate_count; /**< Number of candidates */
 	size_t selected_index;	/**< Currently selected candidate index */
 	size_t trigger_offset;	/**< Byte offset of completion trigger character */
 	char trigger_char;		/**< Character that triggered completion */
+	bool use_extended;		/**< Whether using extended candidates */
 };
 
 /* ========================================================================

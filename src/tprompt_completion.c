@@ -25,10 +25,12 @@ void tprompt_completion_init(tprompt_completion_state_t *state)
 
 	state->active = false;
 	state->candidates = NULL;
+	state->candidates_ex = NULL;
 	state->candidate_count = 0;
 	state->selected_index = 0;
 	state->trigger_offset = 0;
 	state->trigger_char = '\0';
+	state->use_extended = false;
 }
 
 void tprompt_completion_free(tprompt_completion_state_t *state)
@@ -37,11 +39,21 @@ void tprompt_completion_free(tprompt_completion_state_t *state)
 		return;
 	}
 
+	// Free legacy candidates
 	if (state->candidates) {
 		for (size_t i = 0; i < state->candidate_count; i++) {
 			free(state->candidates[i]);
 		}
 		free(state->candidates);
+	}
+
+	// Free extended candidates
+	if (state->candidates_ex) {
+		for (size_t i = 0; i < state->candidate_count; i++) {
+			free(state->candidates_ex[i].text);
+			free(state->candidates_ex[i].description);
+		}
+		free(state->candidates_ex);
 	}
 
 	tprompt_completion_init(state);
@@ -72,12 +84,21 @@ void tprompt_completion_deactivate(tprompt_handle_t handle)
 		return;
 	}
 
-	// Free candidates
+	// Free legacy candidates
 	if (handle->completion_state.candidates) {
 		for (size_t i = 0; i < handle->completion_state.candidate_count; i++) {
 			free(handle->completion_state.candidates[i]);
 		}
 		free(handle->completion_state.candidates);
+	}
+
+	// Free extended candidates
+	if (handle->completion_state.candidates_ex) {
+		for (size_t i = 0; i < handle->completion_state.candidate_count; i++) {
+			free(handle->completion_state.candidates_ex[i].text);
+			free(handle->completion_state.candidates_ex[i].description);
+		}
+		free(handle->completion_state.candidates_ex);
 	}
 
 	// Reset state
@@ -94,46 +115,84 @@ int tprompt_completion_update(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// Free previous candidates
+	// Free previous candidates (both legacy and extended)
 	if (handle->completion_state.candidates) {
 		for (size_t i = 0; i < handle->completion_state.candidate_count; i++) {
 			free(handle->completion_state.candidates[i]);
 		}
 		free(handle->completion_state.candidates);
 		handle->completion_state.candidates = NULL;
-		handle->completion_state.candidate_count = 0;
-		handle->completion_state.selected_index = 0;
 	}
-
-	// Call the completion callback
-	if (!handle->completion_callback) {
-		return -1;
+	if (handle->completion_state.candidates_ex) {
+		for (size_t i = 0; i < handle->completion_state.candidate_count; i++) {
+			free(handle->completion_state.candidates_ex[i].text);
+			free(handle->completion_state.candidates_ex[i].description);
+		}
+		free(handle->completion_state.candidates_ex);
+		handle->completion_state.candidates_ex = NULL;
 	}
+	handle->completion_state.candidate_count = 0;
+	handle->completion_state.selected_index = 0;
+	handle->completion_state.use_extended = false;
 
 	// Prepare parameters for callback
 	const char *text = handle->buffer.data;
 	size_t cursor_pos = handle->buffer.cursor;
 	char prefix_str[2] = { handle->completion_state.trigger_char, '\0' };
 
-	// Invoke callback
-	tprompt_completion_result_t result = handle->completion_callback(
-		text,
-		cursor_pos,
-		prefix_str,
-		handle->completion_user_data);
+	// Try extended callback first (with descriptions)
+	if (handle->completion_ex_callback) {
+		tprompt_completion_candidate_t *cands_ex = NULL;
+		size_t count = 0;
 
-	// Store the results
-	handle->completion_state.candidates = result.candidates;
-	handle->completion_state.candidate_count = result.count;
-	handle->completion_state.selected_index = 0;
+		int ret = handle->completion_ex_callback(
+			text,
+			cursor_pos,
+			prefix_str,
+			handle->completion_user_data,
+			&cands_ex,
+			&count);
 
-	// If no candidates, deactivate completion
-	if (result.count == 0) {
-		tprompt_completion_deactivate(handle);
+		if (ret == 0 && count > 0 && cands_ex) {
+			// Store extended candidates
+			handle->completion_state.candidates_ex = cands_ex;
+			handle->completion_state.candidate_count = count;
+			handle->completion_state.selected_index = 0;
+			handle->completion_state.use_extended = true;
+			return 0;
+		} else if (ret == 0 && count == 0) {
+			// No candidates - deactivate
+			tprompt_completion_deactivate(handle);
+			return 0;
+		}
+		// Fall through to legacy callback on error
+	}
+
+	// Fall back to legacy callback (string-only)
+	if (handle->completion_callback) {
+		tprompt_completion_result_t result = handle->completion_callback(
+			text,
+			cursor_pos,
+			prefix_str,
+			handle->completion_user_data);
+
+		// Store the results
+		handle->completion_state.candidates = result.candidates;
+		handle->completion_state.candidate_count = result.count;
+		handle->completion_state.selected_index = 0;
+		handle->completion_state.use_extended = false;
+
+		// If no candidates, deactivate completion
+		if (result.count == 0) {
+			tprompt_completion_deactivate(handle);
+			return 0;
+		}
+
 		return 0;
 	}
 
-	return 0;
+	// No callback available
+	return -1;
 }
 
 /* ========================================================================
@@ -179,8 +238,16 @@ int tprompt_completion_confirm(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// Get the selected candidate text
-	const char *selected = handle->completion_state.candidates[handle->completion_state.selected_index];
+	// Get the selected candidate text (from either extended or legacy candidates)
+	const char *selected;
+	if (handle->completion_state.use_extended && handle->completion_state.candidates_ex) {
+		selected = handle->completion_state.candidates_ex[handle->completion_state.selected_index].text;
+	} else if (handle->completion_state.candidates) {
+		selected = handle->completion_state.candidates[handle->completion_state.selected_index];
+	} else {
+		return -1;
+	}
+
 	if (!selected) {
 		return -1;
 	}
@@ -235,7 +302,12 @@ int tprompt_completion_confirm(tprompt_handle_t handle)
 
 bool tprompt_is_completion_trigger(tprompt_handle_t handle, char ch)
 {
-	if (!handle || !handle->completion_prefixes || !handle->completion_callback) {
+	if (!handle || !handle->completion_prefixes) {
+		return false;
+	}
+
+	// Check if either callback is set
+	if (!handle->completion_callback && !handle->completion_ex_callback) {
 		return false;
 	}
 

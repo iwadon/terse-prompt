@@ -32,6 +32,11 @@ extern "C" {
 typedef struct tprompt_handle *tprompt_handle_t;
 
 /**
+ * @brief Forward declaration for completion candidate
+ */
+typedef struct tprompt_completion_candidate tprompt_completion_candidate_t;
+
+/**
  * @brief Forward declaration for completion callback
  */
 typedef struct tprompt_completion_result tprompt_completion_result_t;
@@ -135,7 +140,7 @@ typedef int (*tprompt_status_line_fn)(
 	void *user_data);
 
 /**
- * @brief Completion callback function type
+ * @brief Completion callback function type (legacy, string-based)
  *
  * @param text Current input text (entire buffer)
  * @param cursor_pos Cursor position (byte offset)
@@ -146,12 +151,55 @@ typedef int (*tprompt_status_line_fn)(
  * Memory management:
  * - Callback allocates candidates array and each string with malloc
  * - terse-prompt frees them using tprompt_free_completion_result()
+ *
+ * @note This callback type is deprecated. Use tprompt_completion_ex_fn for
+ *       candidates with descriptions.
  */
 typedef tprompt_completion_result_t (*tprompt_completion_fn)(
 	const char *text,
 	size_t cursor_pos,
 	const char *prefix_char,
 	void *user_data);
+
+/**
+ * @brief Extended completion callback function type (with descriptions)
+ *
+ * @param text Current input text (entire buffer)
+ * @param cursor_pos Cursor position (byte offset)
+ * @param prefix_char Trigger prefix character that initiated completion
+ * @param user_data User-defined data passed to the callback
+ * @param candidates Output: pointer to receive candidate array (allocated by callback)
+ * @param count Output: pointer to receive candidate count
+ * @return 0 on success, -1 on failure
+ *
+ * Memory management:
+ * - Callback allocates candidate array and each candidate's text/description with malloc
+ * - terse-prompt frees them using tprompt_free_completion_candidates()
+ *
+ * Example:
+ * @code
+ * int my_completion_ex(const char *text, size_t cursor_pos, const char *prefix_char,
+ *                      void *user_data, tprompt_completion_candidate_t **candidates, size_t *count) {
+ *     tprompt_completion_candidate_t *cands = malloc(sizeof(*cands) * 3);
+ *     cands[0].text = strdup("help");
+ *     cands[0].description = strdup("ヘルプを表示する");
+ *     cands[1].text = strdup("clear");
+ *     cands[1].description = strdup("クリアする");
+ *     cands[2].text = strdup("quit");
+ *     cands[2].description = NULL;  // No description
+ *     *candidates = cands;
+ *     *count = 3;
+ *     return 0;
+ * }
+ * @endcode
+ */
+typedef int (*tprompt_completion_ex_fn)(
+	const char *text,
+	size_t cursor_pos,
+	const char *prefix_char,
+	void *user_data,
+	tprompt_completion_candidate_t **candidates,
+	size_t *count);
 
 /**
  * @brief Keybinding action enumeration
@@ -242,6 +290,7 @@ typedef struct tprompt_options {
 	size_t max_input_size;							/**< Max input size in bytes (0 = unlimited) */
 	size_t max_history_size;						/**< Max history entries (0 = unlimited) */
 	tprompt_completion_fn completion_callback;		/**< Completion callback (NULL = disabled) */
+	tprompt_completion_ex_fn completion_ex_callback; /**< Extended completion callback with descriptions (NULL = disabled) */
 	void *completion_user_data;						/**< User data for completion callback */
 	const char *completion_prefixes;				/**< Completion trigger chars (e.g., "/@", NULL = disabled) */
 	terse_handle_t terse_handle;					/**< Existing terse handle (NULL = auto-create) */
@@ -253,6 +302,17 @@ typedef struct tprompt_options {
 	tprompt_status_line_fn status_line_callback;	/**< Status line callback (NULL = no status line) */
 	void *status_line_user_data;					/**< User data for status line callback */
 } tprompt_options_t;
+
+/**
+ * @brief Completion candidate structure
+ *
+ * Represents a single completion candidate with optional description.
+ * Used in the completion result to provide rich candidate information.
+ */
+struct tprompt_completion_candidate {
+	char *text;        /**< Candidate text (required, must not be NULL) */
+	char *description; /**< Optional description (NULL if not provided) */
+};
 
 /**
  * @brief Completion result structure
@@ -372,6 +432,7 @@ typedef struct tprompt_error_info {
 	.max_input_size = 1024 * 1024,     \
 	.max_history_size = 100,           \
 	.completion_callback = NULL,       \
+	.completion_ex_callback = NULL,    \
 	.completion_user_data = NULL,      \
 	.completion_prefixes = NULL,       \
 	.terse_handle = NULL,              \
@@ -600,6 +661,34 @@ int tprompt_set_completion_prefixes(tprompt_handle_t handle, const char *prefixe
  * @param result Completion result to free
  */
 void tprompt_free_completion_result(tprompt_completion_result_t *result);
+
+/**
+ * @brief Free completion candidates
+ *
+ * Frees the memory allocated by an extended completion callback.
+ * This function should be called by terse-prompt internally after using
+ * the completion candidates.
+ *
+ * @param candidates Candidate array to free
+ * @param count Number of candidates in the array
+ */
+void tprompt_free_completion_candidates(tprompt_completion_candidate_t *candidates, size_t count);
+
+/**
+ * @brief Set extended completion callback
+ *
+ * Registers an extended callback function for auto-completion with description support.
+ * Set to NULL to disable extended completion. If both completion_callback and
+ * completion_ex_callback are set, completion_ex_callback takes precedence.
+ *
+ * @param handle Session handle
+ * @param callback Extended completion callback function (NULL to disable)
+ * @param user_data User data passed to callback
+ */
+void tprompt_set_completion_ex_callback(
+	tprompt_handle_t handle,
+	tprompt_completion_ex_fn callback,
+	void *user_data);
 
 /* ========================================================================
  * Framework API - Validation

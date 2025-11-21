@@ -1213,8 +1213,32 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 		return 0;
 	}
 
+	bool use_extended = handle->completion_state.use_extended;
+	tprompt_completion_candidate_t *candidates_ex = handle->completion_state.candidates_ex;
 	char **candidates = handle->completion_state.candidates;
 	size_t selected_index = handle->completion_state.selected_index;
+
+	// Calculate the maximum candidate text width for alignment
+	size_t max_candidate_width = 0;
+	if (use_extended && candidates_ex) {
+		for (size_t i = 0; i < candidate_count; i++) {
+			if (candidates_ex[i].text) {
+				size_t text_width = tprompt_utf8_char_count(candidates_ex[i].text, strlen(candidates_ex[i].text));
+				if (text_width > max_candidate_width) {
+					max_candidate_width = text_width;
+				}
+			}
+		}
+	} else if (candidates) {
+		for (size_t i = 0; i < candidate_count; i++) {
+			if (candidates[i]) {
+				size_t text_width = tprompt_utf8_char_count(candidates[i], strlen(candidates[i]));
+				if (text_width > max_candidate_width) {
+					max_candidate_width = text_width;
+				}
+			}
+		}
+	}
 
 	// Render each candidate on a separate row
 	for (size_t i = 0; i < candidate_count; i++) {
@@ -1239,10 +1263,45 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 		}
 		col += (size_t)cols_written;
 
-		// Write candidate text
-		cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, candidates[i]);
-		if (cols_written < 0) {
-			return -1;
+		// Write candidate text (from either extended or legacy candidates)
+		const char *candidate_text = NULL;
+		const char *description_text = NULL;
+
+		if (use_extended && candidates_ex) {
+			candidate_text = candidates_ex[i].text;
+			description_text = candidates_ex[i].description;
+		} else if (candidates) {
+			candidate_text = candidates[i];
+		}
+
+		if (candidate_text) {
+			cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, candidate_text);
+			if (cols_written < 0) {
+				return -1;
+			}
+			col += (size_t)cols_written;
+
+			// If we have a description, add padding and write it
+			if (description_text && description_text[0] != '\0') {
+				// Calculate padding needed to align descriptions
+				size_t text_width = tprompt_utf8_char_count(candidate_text, strlen(candidate_text));
+				size_t padding = max_candidate_width > text_width ? (max_candidate_width - text_width) : 0;
+
+				// Add padding spaces (2 minimum + calculated alignment)
+				for (size_t j = 0; j < padding + 2; j++) {
+					cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, " ");
+					if (cols_written < 0) {
+						return -1;
+					}
+					col += (size_t)cols_written;
+				}
+
+				// Write description text
+				cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, description_text);
+				if (cols_written < 0) {
+					return -1;
+				}
+			}
 		}
 	}
 
