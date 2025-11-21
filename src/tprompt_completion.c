@@ -185,7 +185,8 @@ int tprompt_completion_confirm(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// Delete text from trigger position to current cursor position
+	// Delete text from AFTER trigger position to current cursor position
+	// We keep the trigger character itself (e.g., '/' or '@')
 	size_t trigger_pos = handle->completion_state.trigger_offset;
 	size_t current_pos = handle->buffer.cursor;
 
@@ -194,14 +195,19 @@ int tprompt_completion_confirm(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// Move cursor to trigger position
-	handle->buffer.cursor = trigger_pos;
+	// Calculate trigger character length (assume single-byte for now)
+	// Skip past the trigger character to get the start of user input
+	size_t trigger_char_len = 1;
+	size_t user_input_start = trigger_pos + trigger_char_len;
 
-	// Delete characters from trigger_pos to current_pos (byte-wise)
-	size_t delete_count = current_pos - trigger_pos;
+	// Move cursor to position after trigger character
+	handle->buffer.cursor = user_input_start;
+
+	// Delete characters from user_input_start to current_pos (byte-wise)
+	size_t delete_count = current_pos - user_input_start;
 	if (delete_count > 0) {
 		// Shift remaining text left
-		memmove(handle->buffer.data + trigger_pos,
+		memmove(handle->buffer.data + user_input_start,
 			handle->buffer.data + current_pos,
 			handle->buffer.length - current_pos);
 
@@ -209,9 +215,14 @@ int tprompt_completion_confirm(tprompt_handle_t handle)
 		handle->buffer.data[handle->buffer.length] = '\0';
 	}
 
-	// Insert the selected candidate at trigger position
+	// Insert the selected candidate after the trigger character
 	size_t selected_len = strlen(selected);
 	if (tprompt_buffer_insert(&handle->buffer, selected, selected_len) != 0) {
+		return -1;
+	}
+
+	// Insert a trailing space after the completed text
+	if (tprompt_buffer_insert(&handle->buffer, " ", 1) != 0) {
 		return -1;
 	}
 

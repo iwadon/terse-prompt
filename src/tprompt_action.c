@@ -71,11 +71,24 @@ int tprompt_action_delete_backward(tprompt_handle_t handle, const terse_event_t 
 		return -1;
 	}
 
+	size_t old_cursor = handle->buffer.cursor;
 	size_t old_length = handle->buffer.length;
 	size_t deleted_bytes = tprompt_buffer_delete_before(&handle->buffer, 1);
 	if (deleted_bytes > 0) {
 		// Mark from new cursor position to old end as dirty (characters shift left)
 		tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
+
+		// If completion is active, check if we deleted the trigger character
+		if (handle->completion_state.active) {
+			size_t trigger_pos = handle->completion_state.trigger_offset;
+			// If we deleted at or before the trigger position, deactivate completion
+			if (old_cursor <= trigger_pos + 1) {
+				tprompt_completion_deactivate(handle);
+			} else {
+				// Otherwise, update completion candidates with new input
+				tprompt_completion_update(handle);
+			}
+		}
 	}
 	handle->input_state.has_goal_column = false;
 	return 0; // Continue editing
@@ -715,7 +728,7 @@ int tprompt_execute_action(tprompt_handle_t handle, tprompt_action_t action, con
 		return tprompt_action_insert_newline(handle, event);
 
 	case TPROMPT_ACTION_INSERT_CHAR:
-		// Insert character at cursor
+		// Insert character at cursor (delegates to char input handler for completion trigger detection)
 		{
 			char utf8_buf[5];
 			unsigned int scalar = event->data.ch.scalar;
@@ -729,11 +742,10 @@ int tprompt_execute_action(tprompt_handle_t handle, tprompt_action_t action, con
 			}
 			utf8_buf[len] = '\0';
 
-			// Insert into buffer
-			if (tprompt_buffer_insert(&handle->buffer, utf8_buf, len) != 0) {
+			// Use char input handler for completion trigger detection and insertion
+			if (tprompt_handle_char_input(handle, utf8_buf, event->data.ch.width) != 0) {
 				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-					"Failed to insert character: buffer at %zu/%zu bytes",
-					handle->buffer.length, handle->buffer.size);
+					"Failed to insert character (scalar=0x%X) into buffer", scalar);
 				return -1;
 			}
 

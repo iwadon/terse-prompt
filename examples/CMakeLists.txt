@@ -19,3 +19,7 @@ target_link_libraries(continuation_prompt_demo PRIVATE tprompt)
 # Deft integration example - complete REPL example with validation
 add_executable(deft_integration_example deft_integration_example.c)
 target_link_libraries(deft_integration_example PRIVATE tprompt)
+
+# Completion demo - demonstrates completion system with multiple prefixes
+add_executable(completion_demo completion_demo.c)
+target_link_libraries(completion_demo PRIVATE tprompt)

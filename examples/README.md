@@ -62,6 +62,31 @@ Demonstrates the framework API with custom configuration and history support.
 - Type `quit` to exit
 - History is saved to `demo_history.txt` in the current directory
 
+### completion_demo
+
+Demonstrates the completion system with multiple trigger prefixes.
+
+**Features shown:**
+- Completion callback implementation
+- Multiple completion contexts (commands and mentions)
+- Incremental filtering as user types
+- Navigation and selection of completion candidates
+
+**Usage:**
+- Type `/` to trigger command completion (help, clear, quit, etc.)
+- Type `@` to trigger mention completion (alice, bob, charlie, etc.)
+- Use Up/Down arrows to navigate candidates
+- Press Tab to confirm selection
+- Press Esc to cancel completion
+- Type `quit` to exit
+
+**Example:**
+```
+> /h        (shows: help, history, hello)
+> @al       (shows: alice)
+> @a        (shows: alice, admin)
+```
+
 ## Note on Current Implementation
 
 These examples demonstrate the intended API usage. Some features (like history navigation with arrow keys) are not fully implemented yet in the library. As the library implementation progresses, these examples will become fully functional.
