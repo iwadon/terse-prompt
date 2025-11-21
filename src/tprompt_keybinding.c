@@ -62,6 +62,25 @@ static const tprompt_keybinding_t default_keybindings[] = {
 
 static const size_t default_keybindings_count = sizeof(default_keybindings) / sizeof(default_keybindings[0]);
 
+static int tprompt_insert_newline_at_cursor(tprompt_handle_t handle)
+{
+	if (!handle) {
+		return -1;
+	}
+
+	size_t insert_pos = handle->buffer.cursor;
+	if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+			"Failed to insert newline: buffer at %zu/%zu bytes",
+			handle->buffer.length, handle->buffer.size);
+		return -1;
+	}
+
+	tprompt_display_mark_dirty_range(handle, insert_pos, handle->buffer.cursor);
+	handle->input_state.has_goal_column = false;
+	return 0;
+}
+
 const tprompt_keybinding_t *tprompt_get_default_keybindings(size_t *out_count)
 {
 	if (out_count) {
@@ -133,7 +152,7 @@ int tprompt_handle_char_input(tprompt_handle_t handle, const char *ch, int width
  * 1. Completion navigation (if active): UP/DOWN navigate candidates, TAB confirms, ESC cancels
  * 2. Multi-line navigation vs. history: UP/DOWN behavior depends on whether buffer has newlines
  * 3. Home/End staged movement: First press moves to logical line boundary, second press to buffer boundary
- * 4. Enter key mode: Single-line submits, multi-line inserts newline (Ctrl/Alt+Enter always submits)
+ * 4. Enter key mode: Enter submits; Shift/Ctrl variants insert newline; Alt+Enter submits immediately
  *
  * @param handle Prompt handle
  * @param event Terse event to process
@@ -332,13 +351,10 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 
 		case TPROMPT_ACTION_INSERT_NEWLINE:
 			// Insert newline at cursor position
-			if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
-				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-					"Failed to insert newline: buffer at %zu/%zu bytes",
-					handle->buffer.length, handle->buffer.size);
+			if (tprompt_insert_newline_at_cursor(handle) != 0) {
 				return -1;
 			}
-			return 0; // Continue editing
+			return 0;
 
 		// Future actions can be added here
 		default:
@@ -350,10 +366,18 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 	// Handle Enter key behavior based on mode and modifiers (default behavior)
 	if (event->type == TERSE_EVENT_ENTER) {
 		int mods = event->data.key.mods;
-		bool is_multiline = (handle->options.flags & TPROMPT_FLAG_MULTILINE) != 0;
+		bool wants_newline = (mods & TERSE_MOD_SHIFT) || (mods & TERSE_MOD_CTRL);
 
-		// Ctrl+Enter or Alt+Enter: confirm input (always accept, but call validation for logging/statistics)
-		if ((mods & TERSE_MOD_CTRL) || (mods & TERSE_MOD_ALT)) {
+		// Ctrl/Shift + Enter: insert newline instead of confirming
+		if (wants_newline) {
+			if (tprompt_insert_newline_at_cursor(handle) != 0) {
+				return -1;
+			}
+			return 0; // Continue editing
+		}
+
+		// Alt+Enter: confirm input (always accept, but call validation for logging/statistics)
+		if (mods & TERSE_MOD_ALT) {
 			// Call validation callback if configured (for logging/statistics), but always accept
 			if (handle->options.validation_callback) {
 				handle->options.validation_callback(
@@ -365,8 +389,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 			return 1; // Immediately confirm input, regardless of validation result
 		}
 
-		// Plain Enter: behavior depends on mode and validation callback
-		// Mark confirmation as pending (will be validated in main loop)
+		// Plain Enter: validate/confirm through main loop
 		handle->pending_confirmation = true;
 		return 0;
 	}
@@ -724,4 +747,3 @@ int tprompt_validate_keybindings(const tprompt_keybinding_t *bindings,
 
 	return 0; // Success (warnings don't cause failure)
 }
-

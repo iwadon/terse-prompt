@@ -55,7 +55,7 @@ static tprompt_handle_t create_handle_with_keybindings(
 
 TEST(Integration, BasicInput_TypeAndEnter)
 {
-	// Test: Type "hello" + Ctrl+Enter, expect "hello"
+	// Test: Type "hello" + Enter, expect "hello"
 	tprompt_handle_t handle = create_handle_with_keybindings(NULL, 0);
 	ASSERT_NE(handle, NULL);
 
@@ -63,14 +63,14 @@ TEST(Integration, BasicInput_TypeAndEnter)
 	terse_handle_t terse = handle->terse;
 	ASSERT_NE(terse, NULL);
 
-	// Mock event sequence: type "hello" + Ctrl+Enter
+	// Mock event sequence: type "hello" + Enter
 	terse_event_t events[] = {
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'h', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'o', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL }
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }
 	};
 	test_mock_events(terse, events, 6);
 
@@ -78,6 +78,40 @@ TEST(Integration, BasicInput_TypeAndEnter)
 	char *result = tprompt_readline(handle, NULL);
 	ASSERT_NE(result, NULL);
 	EXPECT_STREQ(result, "hello");
+
+	free(result);
+	tprompt_close(handle);
+}
+
+TEST(Integration, CtrlEnterInsertsNewlineByDefault)
+{
+	// Test: Ctrl+Enter inserts newline instead of confirming
+	tprompt_handle_t handle = create_handle_with_keybindings(NULL, 0);
+	ASSERT_NE(handle, NULL);
+
+	terse_handle_t terse = handle->terse;
+	ASSERT_NE(terse, NULL);
+
+	// Mock event sequence: type "line1" + Ctrl+Enter + "line2" + Enter
+	terse_event_t events[] = {
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'i', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = '1', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL }, // Insert newline
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'i', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = '2', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 } // Confirm input
+	};
+	test_mock_events(terse, events, 12);
+
+	char *result = tprompt_readline(handle, NULL);
+	ASSERT_NE(result, NULL);
+	EXPECT_STREQ(result, "line1\nline2");
 
 	free(result);
 	tprompt_close(handle);
@@ -384,7 +418,7 @@ TEST(ComplexInput, TypeEditConfirm)
 	terse_handle_t terse = handle->terse;
 	ASSERT_NE(terse, NULL);
 
-	// Mock event sequence: "hello" → backspace×2 → "p me" → Ctrl+Enter
+	// Mock event sequence: "hello" → backspace×2 → "p me" → Enter
 	terse_event_t events[] = {
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'h', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
@@ -397,7 +431,7 @@ TEST(ComplexInput, TypeEditConfirm)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = ' ', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'm', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL }
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }
 	};
 	test_mock_events(terse, events, 12);
 

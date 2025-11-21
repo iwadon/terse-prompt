@@ -5,7 +5,7 @@
  * @date 2025-11-05
  *
  * Tests logical line calculations, newline character handling,
- * navigation with newlines (UP/DOWN/Home/End), and Enter vs Ctrl+Enter.
+ * navigation with newlines (UP/DOWN/Home/End), and Enter vs modifier Enter.
  */
 
 #include "tprompt_internal.h"

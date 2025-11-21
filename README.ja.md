@@ -229,12 +229,9 @@ opts.validation_fn = my_validator;
 
 デフォルトのキーバインド：
 
-- **シングルラインモード**:
-  - `Enter`: 入力を確定
-
-- **マルチラインモード**:
-  - `Enter`: 改行を挿入
-  - `Ctrl+Enter` または `Alt+Enter`: 入力を確定
+- `Enter`: 入力を確定
+- `Shift+Enter` または `Ctrl+Enter`: 送信せずに改行を挿入
+- `Alt+Enter`: 入力を確定（バリデーションをバイパス）
 
 - **ナビゲーション**:
   - 矢印キー: カーソル移動

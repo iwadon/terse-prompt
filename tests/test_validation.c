@@ -118,14 +118,14 @@ TEST(Validation, NoCallback_AcceptsImmediately)
 	tprompt_handle_t handle = tprompt_open(&opts);
 	ASSERT_NE(handle, NULL);
 
-	// Type "hello" and press Ctrl+Enter (multiline mode default)
+	// Type "hello" and press Enter (multiline mode default)
 	terse_event_t events[] = {
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'h', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'o', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL }
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }
 	};
 	test_mock_events(terse, events, 6);
 
@@ -150,13 +150,13 @@ TEST(Validation, AlwaysAccept_AcceptsImmediately)
 	tprompt_handle_t handle = tprompt_open(&opts);
 	ASSERT_NE(handle, NULL);
 
-	// Type "test" and press Ctrl+Enter (in multiline mode, confirmation validates)
+	// Type "test" and press Enter (confirmation validates through callback)
 	terse_event_t events[] = {
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 's', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL }
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }
 	};
 	test_mock_events(terse, events, 5);
 
@@ -169,7 +169,7 @@ TEST(Validation, AlwaysAccept_AcceptsImmediately)
 	terse_close(terse);
 }
 
-TEST(Validation, AlwaysReject_RequiresCtrlEnter)
+TEST(Validation, AlwaysReject_BypassWithAltEnter)
 {
 	terse_handle_t terse = test_create_terse_handle();
 	ASSERT_NE(terse, NULL);
@@ -181,14 +181,14 @@ TEST(Validation, AlwaysReject_RequiresCtrlEnter)
 	tprompt_handle_t handle = tprompt_open(&opts);
 	ASSERT_NE(handle, NULL);
 
-	// Type "test", press Enter (rejected), then Ctrl+Enter (accepted without validation)
+	// Type "test", press Enter (rejected), then Alt+Enter (accepted without validation)
 	terse_event_t events[] = {
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 's', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },        // Should be rejected (beep)
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL } // Ctrl+Enter accepts
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_ALT } // Alt+Enter accepts
 	};
 	test_mock_events(terse, events, 6);
 
@@ -218,7 +218,7 @@ TEST(Validation, Continue_InsertsNewlineInMultilineMode)
 	tprompt_handle_t handle = tprompt_open(&opts);
 	ASSERT_NE(handle, NULL);
 
-	// Type "line1", press Enter (inserts newline), type "line2", press Ctrl+Enter
+	// Type "line1", press Enter (inserts newline), type "line2", press Alt+Enter
 	terse_event_t events[] = {
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'i', .data.ch.mods = 0, .data.ch.width = 1 },
@@ -231,7 +231,7 @@ TEST(Validation, Continue_InsertsNewlineInMultilineMode)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = '2', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL } // Ctrl+Enter accepts
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_ALT } // Alt+Enter accepts
 	};
 	test_mock_events(terse, events, 12);
 
@@ -257,14 +257,14 @@ TEST(Validation, Continue_BeepsInSingleLineMode)
 	tprompt_handle_t handle = tprompt_open(&opts);
 	ASSERT_NE(handle, NULL);
 
-	// Type "test", press Enter (should beep, not insert newline), press Ctrl+Enter
+	// Type "test", press Enter (should beep, not insert newline), press Alt+Enter
 	terse_event_t events[] = {
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 's', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },        // Should beep (treated as REJECT)
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL } // Ctrl+Enter accepts
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_ALT } // Alt+Enter accepts
 	};
 	test_mock_events(terse, events, 6);
 
@@ -303,7 +303,7 @@ TEST(Validation, CallbackInvokedOnConfirmation)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 's', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL }
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }
 	};
 	test_mock_events(terse, events, 5);
 
@@ -333,7 +333,7 @@ TEST(Validation, CallbackInvokedMultipleTimesOnReject)
 	tprompt_handle_t handle = tprompt_open(&opts);
 	ASSERT_NE(handle, NULL);
 
-	// Type "test", press Enter twice (rejected), then Ctrl+Enter (bypasses validation)
+	// Type "test", press Enter twice (rejected), then Alt+Enter (bypasses validation)
 	terse_event_t events[] = {
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
@@ -341,14 +341,14 @@ TEST(Validation, CallbackInvokedMultipleTimesOnReject)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },        // Rejected
 		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },        // Rejected
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL } // Accepted (validation called)
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_ALT } // Accepted (validation called)
 	};
 	test_mock_events(terse, events, 7);
 
 	char *result = tprompt_readline(handle, NULL);
 	ASSERT_NE(result, NULL);
 	EXPECT_STREQ(result, "test");
-	EXPECT_EQ(validation_call_count, 3); // Called 3 times (2x Enter + 1x Ctrl+Enter)
+	EXPECT_EQ(validation_call_count, 3); // Called 3 times (2x Enter + 1x Alt+Enter)
 
 	free(result);
 	tprompt_close(handle);
@@ -383,7 +383,7 @@ TEST(Validation, ParenthesisBalance_Balanced)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'r', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'g', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = ')', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL }
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }
 	};
 	test_mock_events(terse, events, 10);
 
@@ -494,7 +494,7 @@ TEST(Validation, SetValidationCallback_UpdatesAtRuntime)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 's', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL }
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }
 	};
 	test_mock_events(terse, events, 5);
 
@@ -528,7 +528,7 @@ TEST(Validation, SetValidationCallback_DisableAtRuntime)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 's', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL }
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }
 	};
 	test_mock_events(terse, events, 5);
 

@@ -834,7 +834,7 @@ TEST(CustomKeybindings, NoValidationCallbackStillConfirms)
 TEST(CustomKeybindings, DefaultBehaviorWithoutCustomBinding)
 {
 	// Test that without custom keybinding, default behavior applies
-	// (multiline mode: Enter inserts newline when no validation callback)
+	// (multiline mode: Enter confirms input when no validation callback)
 
 	// Use existing helper without custom keybindings
 	tprompt_handle_t handle = create_test_handle();
@@ -862,10 +862,10 @@ TEST(CustomKeybindings, DefaultBehaviorWithoutCustomBinding)
 	bool should_break = false;
 	int result = tprompt_handle_pending_confirmation(handle, &should_break);
 
-	// Default multiline behavior: insert newline
+	// Default behavior: confirm input
 	EXPECT_EQ(result, 0);
-	EXPECT_FALSE(should_break); // Continue editing
-	EXPECT_STREQ(handle->buffer.data, "test\n"); // Newline added
+	EXPECT_TRUE(should_break); // Confirm editing
+	EXPECT_STREQ(handle->buffer.data, "test"); // No newline added
 
 	tprompt_close(handle);
 }

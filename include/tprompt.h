@@ -609,7 +609,7 @@ void tprompt_free_completion_result(tprompt_completion_result_t *result);
  * modification of input validation behavior during runtime.
  *
  * The validation callback is called when the user attempts to confirm input
- * (e.g., pressing Enter in single-line mode, or Ctrl+Enter in multiline mode).
+ * (e.g., pressing Enter to submit input).
  *
  * @param handle Session handle
  * @param callback Validation callback function (NULL to disable validation)

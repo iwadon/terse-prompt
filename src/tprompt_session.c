@@ -235,29 +235,13 @@ int tprompt_handle_pending_confirmation(tprompt_handle_t handle, bool *should_br
 
 	} else {
 		// No validation callback - behavior depends on mode and force_confirmation flag
-		bool is_multiline = (handle->options.flags & TPROMPT_FLAG_MULTILINE) != 0;
-
 		// If force_confirmation is set (from custom keybinding), always confirm
 		if (handle->force_confirmation) {
 			*should_break = true;
 			return 0;
 		}
 
-		if (is_multiline) {
-			// Multiline mode without validation: insert newline
-			if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
-				tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-					"Failed to insert newline: buffer at %zu/%zu bytes",
-					handle->buffer.length, handle->buffer.size);
-				return -1;
-			}
-			// Re-render display before continuing
-			if (tprompt_display_render_buffered(handle) != 0) {
-				return -1;
-			}
-			return 0; // Continue editing
-		}
-		// Single-line mode without validation: confirm input
+		// No validation: confirm input immediately
 		*should_break = true;
 		return 0;
 	}
@@ -446,4 +430,3 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 
 	return result;
 }
-

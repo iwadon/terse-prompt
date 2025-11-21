@@ -229,12 +229,9 @@ opts.validation_fn = my_validator;
 
 Default keybindings:
 
-- **Single-line mode**:
-  - `Enter`: Submit input
-
-- **Multi-line mode**:
-  - `Enter`: Insert newline
-  - `Ctrl+Enter` or `Alt+Enter`: Submit input
+- `Enter`: Submit input
+- `Shift+Enter` or `Ctrl+Enter`: Insert newline without submitting
+- `Alt+Enter`: Submit input (bypasses validation)
 
 - **Navigation**:
   - Arrow keys: Move cursor
