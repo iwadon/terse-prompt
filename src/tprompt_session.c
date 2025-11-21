@@ -386,6 +386,30 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 		tprompt_display_render_buffered(handle);
 	}
 
+	// Clear status line and any remaining display artifacts before confirming input
+	// This ensures the status line doesn't interfere with subsequent output
+	if (handle->display.buffer_based_rendering_active) {
+		// Calculate how many lines were used for input text
+		size_t total_lines = handle->display.total_physical_lines;
+
+		// Move cursor to the line AFTER the last input line (where status line starts)
+		// This preserves the input text while clearing status/completion areas
+		terse_error_t terr = terse_move_to(handle->terse,
+			handle->display.start_row + (int)total_lines, 0);
+		if (terr == TERSE_OK) {
+			// Clear from status line position to end of screen
+			// Using ED (Erase in Display): CSI J (clear from cursor to end of screen)
+			terse_write_text(handle->terse, "\x1b[J");
+
+			// Move cursor back to end of input text
+			size_t cursor_line, cursor_col;
+			tprompt_calculate_physical_position(handle, handle->buffer.length,
+				true, &cursor_line, &cursor_col);
+			terse_move_to(handle->terse,
+				handle->display.start_row + (int)cursor_line, (int)cursor_col);
+		}
+	}
+
 	// Move to new line after input is confirmed
 	// In raw mode, we need \r\n to move to the beginning of the next line
 	terse_write_text(handle->terse, "\r\n");

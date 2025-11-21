@@ -93,7 +93,7 @@ static size_t tprompt_calculate_total_physical_lines(tprompt_handle_t handle)
 /**
  * @brief Estimate how many status lines will be rendered
  */
-static int tprompt_estimate_status_lines(tprompt_handle_t handle)
+int tprompt_estimate_status_lines(tprompt_handle_t handle)
 {
 	if (!handle) {
 		return 0;

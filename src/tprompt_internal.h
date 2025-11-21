@@ -778,6 +778,17 @@ int tprompt_internal_debug_status_callback(
  */
 int tprompt_render_status_line(tprompt_handle_t handle, size_t start_row);
 
+/**
+ * @brief Estimate how many status lines will be rendered
+ *
+ * Used to calculate required display space before actual rendering.
+ * Follows same priority rules as tprompt_render_status_line().
+ *
+ * @param handle Prompt handle
+ * @return Estimated number of status line rows (0 if no status line)
+ */
+int tprompt_estimate_status_lines(tprompt_handle_t handle);
+
 #ifdef __cplusplus
 }
 #endif
