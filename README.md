@@ -189,6 +189,9 @@ opts.custom_keybindings = bindings;
 opts.keybinding_count = 3;
 ```
 
+Need a manual "force submit" key? Bind `TPROMPT_ACTION_CONFIRM_WITHOUT_VALIDATION` (for example, to
+`Alt+Enter`) to skip the validation callback only when explicitly requested by the user.
+
 ### Status Line
 
 ```c
@@ -231,7 +234,9 @@ Default keybindings:
 
 - `Enter`: Submit input
 - `Shift+Enter` or `Ctrl+Enter`: Insert newline without submitting
-- `Alt+Enter`: Submit input (bypasses validation)
+
+To bypass validation, add a custom binding (not enabled by default), e.g. map `Alt+Enter` to
+`TPROMPT_ACTION_CONFIRM_WITHOUT_VALIDATION` via `tprompt_keybinding_t`.
 
 - **Navigation**:
   - Arrow keys: Move cursor

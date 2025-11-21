@@ -152,7 +152,7 @@ int tprompt_handle_char_input(tprompt_handle_t handle, const char *ch, int width
  * 1. Completion navigation (if active): UP/DOWN navigate candidates, TAB confirms, ESC cancels
  * 2. Multi-line navigation vs. history: UP/DOWN behavior depends on whether buffer has newlines
  * 3. Home/End staged movement: First press moves to logical line boundary, second press to buffer boundary
- * 4. Enter key mode: Enter submits; Shift/Ctrl variants insert newline; Alt+Enter submits immediately
+ * 4. Enter key mode: Enter submits; Shift/Ctrl variants insert newline
  *
  * @param handle Prompt handle
  * @param event Terse event to process
@@ -356,6 +356,10 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 			}
 			return 0;
 
+		case TPROMPT_ACTION_CONFIRM_WITHOUT_VALIDATION:
+			// Immediately confirm input without running validation callbacks
+			return 1;
+
 		// Future actions can be added here
 		default:
 			// Unknown action, fall through to default behavior
@@ -374,19 +378,6 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 				return -1;
 			}
 			return 0; // Continue editing
-		}
-
-		// Alt+Enter: confirm input (always accept, but call validation for logging/statistics)
-		if (mods & TERSE_MOD_ALT) {
-			// Call validation callback if configured (for logging/statistics), but always accept
-			if (handle->options.validation_callback) {
-				handle->options.validation_callback(
-					handle->buffer.data,
-					handle->buffer.length,
-					handle->options.validation_user_data);
-				// Ignore result - always confirm
-			}
-			return 1; // Immediately confirm input, regardless of validation result
 		}
 
 		// Plain Enter: validate/confirm through main loop
@@ -703,7 +694,7 @@ int tprompt_validate_keybindings(const tprompt_keybinding_t *bindings,
 
 	for (size_t i = 0; i < count; i++) {
 		// Check for unknown/invalid action values
-		if (bindings[i].action < 0 || bindings[i].action > TPROMPT_ACTION_COMPLETE) {
+		if (bindings[i].action < 0 || bindings[i].action > TPROMPT_ACTION_CONFIRM_WITHOUT_VALIDATION) {
 			warning_count++;
 			snprintf(warning_msg, sizeof(warning_msg),
 				"Warning: keybinding %zu has unknown action %d (will be ignored)",

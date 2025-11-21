@@ -244,7 +244,8 @@ terse-prompt delegates terminal control to the terse library:
 ### Custom Keybindings
 
 **Architecture**: Flexible keybinding system for customizing input confirmation and newline insertion
-- **Default behavior**: Multiline mode uses Enter for newline, Ctrl/Alt+Enter for confirmation
+- **Default behavior**: Enter confirms (with validation if set); Shift/Ctrl+Enter insert newline in multiline mode
+- **Opt-in bypass**: Bind `TPROMPT_ACTION_CONFIRM_WITHOUT_VALIDATION` (e.g., Alt+Enter) if you need a validation-skipping submit key
 - **Custom bindings**: Override with `tprompt_keybinding_t` array in `tprompt_options_t`
 - **Runtime modification**: `tprompt_set_keybindings()` allows dynamic changes
 
@@ -257,6 +258,7 @@ terse-prompt delegates terminal control to the terse library:
 **Actions**:
 - `TPROMPT_ACTION_CONFIRM_INPUT`: Submit input and return to caller
 - `TPROMPT_ACTION_INSERT_NEWLINE`: Insert newline at cursor
+- `TPROMPT_ACTION_CONFIRM_WITHOUT_VALIDATION`: Submit immediately without running validation callback
 - Future: Completion, cancellation, history navigation
 
 **Example**:

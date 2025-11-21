@@ -189,6 +189,10 @@ opts.custom_keybindings = bindings;
 opts.keybinding_count = 3;
 ```
 
+バリデーションをスキップする「強制確定」キーが必要な場合は、
+`TPROMPT_ACTION_CONFIRM_WITHOUT_VALIDATION` を別途（例: Alt+Enter に）バインドしてください。
+デフォルトでは有効化されません。
+
 ### ステータスライン
 
 ```c
@@ -231,7 +235,10 @@ opts.validation_fn = my_validator;
 
 - `Enter`: 入力を確定
 - `Shift+Enter` または `Ctrl+Enter`: 送信せずに改行を挿入
-- `Alt+Enter`: 入力を確定（バリデーションをバイパス）
+
+バリデーションを飛ばすショートカットが必要な場合は、カスタムキーバインドで
+`TPROMPT_ACTION_CONFIRM_WITHOUT_VALIDATION`（例: Alt+Enter）を追加してください
+（デフォルトでは無効）。
 
 - **ナビゲーション**:
   - 矢印キー: カーソル移動

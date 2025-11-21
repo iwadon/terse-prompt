@@ -741,6 +741,10 @@ int tprompt_execute_action(tprompt_handle_t handle, tprompt_action_t action, con
 			return 0;
 		}
 
+	case TPROMPT_ACTION_CONFIRM_WITHOUT_VALIDATION:
+		// Immediately confirm input without running validation callback
+		return 1;
+
 	case TPROMPT_ACTION_CONFIRM_INPUT:
 		// Mark confirmation as pending (will be validated in main loop)
 		// Set force_confirmation to bypass default multiline behavior
@@ -893,4 +897,3 @@ size_t tprompt_get_logical_line_length(tprompt_handle_t handle, size_t logical_l
 
 	return end - start;
 }
-

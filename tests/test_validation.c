@@ -102,6 +102,31 @@ static tprompt_validation_result_t callback_check_parens(
 	return TPROMPT_VALIDATION_ACCEPT;
 }
 
+// Keybinding helper: Alt+Enter confirms without validation
+static const tprompt_keybinding_t bypass_validation_binding[] = {
+	TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, TERSE_MOD_ALT, TPROMPT_ACTION_CONFIRM_WITHOUT_VALIDATION)
+};
+
+static void set_bypass_binding(tprompt_options_t *opts)
+{
+	opts->custom_keybindings = bypass_validation_binding;
+	opts->keybinding_count = sizeof(bypass_validation_binding) / sizeof(bypass_validation_binding[0]);
+}
+
+// Callback that rejects once, then accepts on the next attempt
+static int reject_once_call_count = 0;
+static tprompt_validation_result_t callback_reject_once_then_accept(
+	const char *text,
+	size_t length,
+	void *user_data)
+{
+	(void)text;
+	(void)length;
+	(void)user_data;
+	reject_once_call_count++;
+	return (reject_once_call_count >= 2) ? TPROMPT_VALIDATION_ACCEPT : TPROMPT_VALIDATION_REJECT;
+}
+
 /* ========================================================================
  * Basic Validation Tests
  * ======================================================================== */
@@ -169,19 +194,24 @@ TEST(Validation, AlwaysAccept_AcceptsImmediately)
 	terse_close(terse);
 }
 
-TEST(Validation, AlwaysReject_BypassWithAltEnter)
+TEST(Validation, AlwaysReject_BypassWithCustomBinding)
 {
 	terse_handle_t terse = test_create_terse_handle();
 	ASSERT_NE(terse, NULL);
 
+	tprompt_validation_result_t result_value = TPROMPT_VALIDATION_REJECT;
+	validation_call_count = 0;
+
 	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
 	opts.terse_handle = terse;
-	opts.validation_callback = callback_always_reject;
+	opts.validation_callback = callback_counting;
+	opts.validation_user_data = &result_value;
+	set_bypass_binding(&opts);
 
 	tprompt_handle_t handle = tprompt_open(&opts);
 	ASSERT_NE(handle, NULL);
 
-	// Type "test", press Enter (rejected), then Alt+Enter (accepted without validation)
+	// Type "test", press Enter (rejected), then Alt+Enter (accepted via custom binding without validation)
 	terse_event_t events[] = {
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
@@ -195,6 +225,40 @@ TEST(Validation, AlwaysReject_BypassWithAltEnter)
 	char *result = tprompt_readline(handle, NULL);
 	ASSERT_NE(result, NULL);
 	EXPECT_STREQ(result, "test");
+	EXPECT_EQ(validation_call_count, 1); // Alt+Enter bypasses validation
+
+	free(result);
+	tprompt_close(handle);
+	terse_close(terse);
+}
+
+TEST(Validation, AltEnter_StillValidatesWhenUsingDefaults)
+{
+	terse_handle_t terse = test_create_terse_handle();
+	ASSERT_NE(terse, NULL);
+
+	reject_once_call_count = 0;
+
+	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
+	opts.terse_handle = terse;
+	opts.validation_callback = callback_reject_once_then_accept;
+
+	tprompt_handle_t handle = tprompt_open(&opts);
+	ASSERT_NE(handle, NULL);
+
+	// Type "ok", press Alt+Enter twice (first rejected, second accepted)
+	terse_event_t events[] = {
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'o', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'k', .data.ch.mods = 0, .data.ch.width = 1 },
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_ALT }, // Rejected
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_ALT }  // Accepted on second validation
+	};
+	test_mock_events(terse, events, 4);
+
+	char *result = tprompt_readline(handle, NULL);
+	ASSERT_NE(result, NULL);
+	EXPECT_STREQ(result, "ok");
+	EXPECT_EQ(reject_once_call_count, 2); // Alt+Enter still runs validation by default
 
 	free(result);
 	tprompt_close(handle);
@@ -214,11 +278,12 @@ TEST(Validation, Continue_InsertsNewlineInMultilineMode)
 	opts.terse_handle = terse;
 	opts.flags = TPROMPT_FLAG_MULTILINE; // Multiline mode
 	opts.validation_callback = callback_always_continue;
+	set_bypass_binding(&opts);
 
 	tprompt_handle_t handle = tprompt_open(&opts);
 	ASSERT_NE(handle, NULL);
 
-	// Type "line1", press Enter (inserts newline), type "line2", press Alt+Enter
+	// Type "line1", press Enter (inserts newline), type "line2", press Alt+Enter (custom binding bypasses validation)
 	terse_event_t events[] = {
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'i', .data.ch.mods = 0, .data.ch.width = 1 },
@@ -253,11 +318,12 @@ TEST(Validation, Continue_BeepsInSingleLineMode)
 	opts.terse_handle = terse;
 	opts.flags = 0; // Single-line mode (no TPROMPT_FLAG_MULTILINE)
 	opts.validation_callback = callback_always_continue;
+	set_bypass_binding(&opts);
 
 	tprompt_handle_t handle = tprompt_open(&opts);
 	ASSERT_NE(handle, NULL);
 
-	// Type "test", press Enter (should beep, not insert newline), press Alt+Enter
+	// Type "test", press Enter (should beep, not insert newline), press Alt+Enter (custom binding bypasses validation)
 	terse_event_t events[] = {
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
@@ -317,7 +383,7 @@ TEST(Validation, CallbackInvokedOnConfirmation)
 	terse_close(terse);
 }
 
-TEST(Validation, CallbackInvokedMultipleTimesOnReject)
+TEST(Validation, CallbackNotInvokedOnBypassBinding)
 {
 	terse_handle_t terse = test_create_terse_handle();
 	ASSERT_NE(terse, NULL);
@@ -329,11 +395,12 @@ TEST(Validation, CallbackInvokedMultipleTimesOnReject)
 	opts.terse_handle = terse;
 	opts.validation_callback = callback_counting;
 	opts.validation_user_data = &result_value;
+	set_bypass_binding(&opts);
 
 	tprompt_handle_t handle = tprompt_open(&opts);
 	ASSERT_NE(handle, NULL);
 
-	// Type "test", press Enter twice (rejected), then Alt+Enter (bypasses validation)
+	// Type "test", press Enter twice (rejected), then Alt+Enter (bypasses validation via custom binding)
 	terse_event_t events[] = {
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
@@ -348,7 +415,7 @@ TEST(Validation, CallbackInvokedMultipleTimesOnReject)
 	char *result = tprompt_readline(handle, NULL);
 	ASSERT_NE(result, NULL);
 	EXPECT_STREQ(result, "test");
-	EXPECT_EQ(validation_call_count, 3); // Called 3 times (2x Enter + 1x Alt+Enter)
+	EXPECT_EQ(validation_call_count, 2); // Alt+Enter bypasses validation
 
 	free(result);
 	tprompt_close(handle);

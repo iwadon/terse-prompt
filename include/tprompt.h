@@ -194,10 +194,13 @@ typedef enum tprompt_action {
 	/* Completion */
 	TPROMPT_ACTION_COMPLETE = 21,            /**< Trigger or advance completion (Tab) */
 
+	/* Validation control */
+	TPROMPT_ACTION_CONFIRM_WITHOUT_VALIDATION = 22, /**< Confirm input without running validation */
+
 	/* Future expansion */
-	/* TPROMPT_ACTION_UNDO = 22, */
-	/* TPROMPT_ACTION_REDO = 23, */
-	/* TPROMPT_ACTION_CANCEL = 24, */
+	/* TPROMPT_ACTION_UNDO = 23, */
+	/* TPROMPT_ACTION_REDO = 24, */
+	/* TPROMPT_ACTION_CANCEL = 25, */
 } tprompt_action_t;
 
 /**
