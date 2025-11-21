@@ -5,6 +5,7 @@
 
 #include "tprompt_display.h"
 #include "tprompt_internal.h"
+#include "tprompt_status.h"
 #include "terse.h"
 #include <stdlib.h>
 #include <string.h>
@@ -87,6 +88,139 @@ static size_t tprompt_calculate_total_physical_lines(tprompt_handle_t handle)
 	}
 
 	return total_physical_lines;
+}
+
+/**
+ * @brief Estimate how many status lines will be rendered
+ */
+static int tprompt_estimate_status_lines(tprompt_handle_t handle)
+{
+	if (!handle) {
+		return 0;
+	}
+
+	if (handle->options.flags & TPROMPT_FLAG_HIDE_STATUS_LINE) {
+		return 0;
+	}
+
+	// Determine which callback would be used
+	tprompt_status_line_fn callback = NULL;
+	void *user_data = NULL;
+
+	if (handle->options.flags & TPROMPT_FLAG_SHOW_DEBUG_STATUS) {
+		callback = tprompt_internal_debug_status_callback;
+		user_data = NULL;
+	} else if (handle->status_line_callback) {
+		callback = handle->status_line_callback;
+		user_data = handle->status_line_user_data;
+	}
+
+	if (!callback) {
+		return 0;
+	}
+
+	char status_buffer[TPROMPT_STATUS_LINE_BUFFER_SIZE];
+	int lines = callback(handle, status_buffer, sizeof(status_buffer), user_data);
+
+	if (lines < 0) {
+		return 0;
+	}
+
+	if (lines > TPROMPT_STATUS_LINE_MAX_ROWS) {
+		lines = TPROMPT_STATUS_LINE_MAX_ROWS;
+	}
+
+	return lines;
+}
+
+/**
+ * @brief Determine how many rows are required for the current frame
+ */
+static size_t tprompt_calculate_required_rows(tprompt_handle_t handle)
+{
+	if (!handle) {
+		return 0;
+	}
+
+	size_t required_rows = handle->display.total_physical_lines;
+
+	int status_lines = tprompt_estimate_status_lines(handle);
+	if (status_lines > 0) {
+		required_rows += (size_t)status_lines;
+	}
+
+	if (handle->completion_state.active) {
+		required_rows += handle->completion_state.candidate_count;
+	}
+
+	if (required_rows == 0) {
+		required_rows = 1;
+	}
+
+	return required_rows;
+}
+
+/**
+ * @brief Ensure there is enough vertical space for the prompt/status/completions
+ *
+ * When starting on the last terminal row we may need to scroll to keep the
+ * status line from overwriting the input line.
+ */
+static int tprompt_ensure_vertical_space(tprompt_handle_t handle, size_t required_rows)
+{
+	if (!handle || required_rows == 0) {
+		return -1;
+	}
+
+	size_t term_height = handle->display.terminal_height > 0 ? handle->display.terminal_height : 24;
+
+	// If we need more rows than the terminal can display, clamp to the top
+	if (required_rows >= term_height) {
+		handle->display.start_row = 0;
+		handle->display.start_row_known = true;
+		return 0;
+	}
+
+	int available_rows = (int)term_height - handle->display.start_row;
+	if (available_rows >= (int)required_rows) {
+		return 0; // Enough space already
+	}
+
+	size_t missing_rows = (size_t)((int)required_rows - available_rows);
+
+	// Scroll down by writing newlines so we have room for the extra rows
+	terse_error_t terr = terse_move_to(handle->terse, (int)term_height - 1, 0);
+	if (terr != TERSE_OK) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
+			"Failed to move cursor before making space for prompt");
+		return -1;
+	}
+
+	for (size_t i = 0; i < missing_rows; i++) {
+		terr = terse_write_text(handle->terse, "\r\n");
+		if (terr != TERSE_OK) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
+				"Failed to scroll terminal to fit prompt");
+			return -1;
+		}
+	}
+
+	terr = terse_flush(handle->terse);
+	if (terr != TERSE_OK) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
+			"Failed to flush scroll operation");
+		return -1;
+	}
+
+	int new_start_row = (int)term_height - (int)required_rows;
+	if (new_start_row < 0) {
+		new_start_row = 0;
+	}
+
+	handle->display.start_row = new_start_row;
+	handle->display.start_row_known = true;
+
+	return 0;
 }
 
 
@@ -1138,6 +1272,13 @@ int tprompt_display_render_buffered(tprompt_handle_t handle)
 
 	// Calculate layout to get total_physical_lines
 	tprompt_display_calculate_layout(handle);
+
+	// Ensure we have enough rows to render input + status + completion lines
+	size_t required_rows = tprompt_calculate_required_rows(handle);
+	if (required_rows > 0 &&
+		tprompt_ensure_vertical_space(handle, required_rows) != 0) {
+		return -1;
+	}
 
 	// Clear current buffer
 	tprompt_screen_buffer_clear(&handle->display.current_buffer);
