@@ -266,6 +266,9 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 	// Reset history navigation
 	tprompt_history_reset_position(&handle->history);
 
+	// Reset completion state for new readline session
+	tprompt_completion_deactivate(handle);
+
 	// Reset validation state for new readline session
 	handle->pending_confirmation = false;
 	handle->force_confirmation = false;
