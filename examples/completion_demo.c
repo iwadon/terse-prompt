@@ -46,6 +46,12 @@ static const char *mentions[] = {
 	"charlie",
 	"david",
 	"eve",
+	"frank",
+	"grace",
+	"henry",
+	"iris",
+	"jack",
+	"kate",
 	"admin",
 	NULL
 };
@@ -224,9 +230,9 @@ static void print_usage(void)
 	printf("  * Each command shows a description on the right\n");
 	printf("  * Only 8 items visible at once - use Up/Down to scroll\n\n");
 	printf("Mentions (prefix: '@') - WITHOUT descriptions:\n");
-	printf("  Type '@' to see available users\n");
-	printf("  Available: @alice, @bob, @charlie, @david, @eve, @admin\n");
-	printf("  * Simple candidate list without descriptions\n\n");
+	printf("  Type '@' to see available users (12 total)\n");
+	printf("  * Simple candidate list without descriptions\n");
+	printf("  * Only 8 items visible at once - use Up/Down to scroll\n\n");
 	printf("Completion Navigation:\n");
 	printf("  Up/Down   - Select candidate\n");
 	printf("  Tab       - Confirm selection\n");
