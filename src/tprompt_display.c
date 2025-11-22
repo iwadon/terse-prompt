@@ -1240,9 +1240,37 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 		}
 	}
 
-	// Render each candidate on a separate row
-	for (size_t i = 0; i < candidate_count; i++) {
-		size_t row = start_row + i;
+	// Calculate visible window (scrollable view)
+	size_t display_offset = handle->completion_state.display_offset;
+	size_t max_visible = TPROMPT_MAX_VISIBLE_COMPLETION_ROWS;
+	size_t visible_start = display_offset;
+	size_t visible_end = (candidate_count < display_offset + max_visible)
+		? candidate_count
+		: display_offset + max_visible;
+	size_t visible_count = visible_end - visible_start;
+
+	// Render scroll indicator if there are hidden candidates above
+	size_t current_row = start_row;
+	if (visible_start > 0) {
+		// Check if we need to resize buffer
+		if (current_row >= buf->rows - 1) {
+			size_t new_rows = buf->rows * 2;
+			if (tprompt_display_resize_buffers(handle, new_rows, buf->cols) != 0) {
+				return -1;
+			}
+			buf = &handle->display.current_buffer;
+		}
+
+		// Render "↑ N more above" indicator
+		char indicator[64];
+		snprintf(indicator, sizeof(indicator), "  ↑ %zu more above", visible_start);
+		tprompt_screen_buffer_write_string(handle, buf, current_row, 0, indicator);
+		current_row++;
+	}
+
+	// Render visible candidates only
+	for (size_t i = visible_start; i < visible_end; i++) {
+		size_t row = current_row + (i - visible_start);
 		size_t col = 0;
 
 		// Check if we need to resize buffer for completion list
@@ -1303,6 +1331,26 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 				}
 			}
 		}
+	}
+
+	// Render scroll indicator if there are hidden candidates below
+	if (visible_end < candidate_count) {
+		current_row = start_row + (visible_start > 0 ? 1 : 0) + visible_count;
+
+		// Check if we need to resize buffer
+		if (current_row >= buf->rows - 1) {
+			size_t new_rows = buf->rows * 2;
+			if (tprompt_display_resize_buffers(handle, new_rows, buf->cols) != 0) {
+				return -1;
+			}
+			buf = &handle->display.current_buffer;
+		}
+
+		// Render "↓ N more below" indicator
+		char indicator[64];
+		size_t hidden_below = candidate_count - visible_end;
+		snprintf(indicator, sizeof(indicator), "  ↓ %zu more below", hidden_below);
+		tprompt_screen_buffer_write_string(handle, buf, current_row, 0, indicator);
 	}
 
 	return 0;

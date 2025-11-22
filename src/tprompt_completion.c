@@ -28,6 +28,7 @@ void tprompt_completion_init(tprompt_completion_state_t *state)
 	state->candidates_ex = NULL;
 	state->candidate_count = 0;
 	state->selected_index = 0;
+	state->display_offset = 0;
 	state->trigger_offset = 0;
 	state->trigger_char = '\0';
 	state->use_extended = false;
@@ -205,6 +206,19 @@ void tprompt_completion_select_next(tprompt_completion_state_t *state)
 
 	// Move to next candidate (wrap around at end)
 	state->selected_index = (state->selected_index + 1) % state->candidate_count;
+
+	// Adjust display_offset to keep selected item visible
+	size_t max_visible = TPROMPT_MAX_VISIBLE_COMPLETION_ROWS;
+	size_t visible_end = state->display_offset + max_visible;
+
+	// If selected item is below visible window, scroll down
+	if (state->selected_index >= visible_end) {
+		state->display_offset = state->selected_index - max_visible + 1;
+	}
+	// If we wrapped around to the beginning, reset to top
+	else if (state->selected_index < state->display_offset) {
+		state->display_offset = 0;
+	}
 }
 
 void tprompt_completion_select_prev(tprompt_completion_state_t *state)
@@ -218,6 +232,22 @@ void tprompt_completion_select_prev(tprompt_completion_state_t *state)
 		state->selected_index = state->candidate_count - 1;
 	} else {
 		state->selected_index--;
+	}
+
+	// Adjust display_offset to keep selected item visible
+	size_t max_visible = TPROMPT_MAX_VISIBLE_COMPLETION_ROWS;
+
+	// If selected item is above visible window, scroll up
+	if (state->selected_index < state->display_offset) {
+		state->display_offset = state->selected_index;
+	}
+	// If we wrapped around to the end, scroll to show the last page
+	else if (state->selected_index >= state->display_offset + max_visible) {
+		if (state->candidate_count > max_visible) {
+			state->display_offset = state->candidate_count - max_visible;
+		} else {
+			state->display_offset = 0;
+		}
 	}
 }
 

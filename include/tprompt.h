@@ -390,6 +390,15 @@ typedef struct tprompt_error_info {
  */
 #define TPROMPT_STATUS_LINE_BUFFER_SIZE 4096
 
+/**
+ * @brief Maximum number of visible completion candidates at once
+ *
+ * When the number of candidates exceeds this limit, the list becomes
+ * scrollable with up/down arrow keys. Scroll indicators show how many
+ * candidates are hidden above/below the visible window.
+ */
+#define TPROMPT_MAX_VISIBLE_COMPLETION_ROWS 8
+
 
 /* ========================================================================
  * Keybinding Helper Macros

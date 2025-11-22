@@ -23,3 +23,7 @@ target_link_libraries(deft_integration_example PRIVATE tprompt)
 # Completion demo - demonstrates completion system with multiple prefixes
 add_executable(completion_demo completion_demo.c)
 target_link_libraries(completion_demo PRIVATE tprompt)
+
+# Scrolling completion demo - demonstrates scrollable completion with 25+ candidates
+add_executable(scrolling_completion_demo scrolling_completion_demo.c)
+target_link_libraries(scrolling_completion_demo PRIVATE tprompt)

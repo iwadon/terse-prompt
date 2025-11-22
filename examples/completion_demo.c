@@ -28,6 +28,14 @@ static const command_info_t commands[] = {
 	{"status", "ステータスを表示する"},
 	{"config", "設定を表示する"},
 	{"hello", "挨拶する"},
+	{"version", "バージョン情報を表示する"},
+	{"about", "アプリケーション情報を表示する"},
+	{"save", "現在の状態を保存する"},
+	{"load", "保存した状態を読み込む"},
+	{"export", "データをエクスポートする"},
+	{"import", "データをインポートする"},
+	{"settings", "設定画面を開く"},
+	{"refresh", "表示を更新する"},
 	{NULL, NULL}
 };
 
@@ -212,9 +220,9 @@ static void print_usage(void)
 	printf("=============================\n");
 	printf("This demo shows the completion system with two prefixes:\n\n");
 	printf("Commands (prefix: '/') - WITH descriptions:\n");
-	printf("  Type '/' to see available commands\n");
-	printf("  Available: /help, /clear, /quit, /exit, /history, /status, /config, /hello\n");
-	printf("  * Each command shows a description on the right\n\n");
+	printf("  Type '/' to see available commands (16 total)\n");
+	printf("  * Each command shows a description on the right\n");
+	printf("  * Only 8 items visible at once - use Up/Down to scroll\n\n");
 	printf("Mentions (prefix: '@') - WITHOUT descriptions:\n");
 	printf("  Type '@' to see available users\n");
 	printf("  Available: @alice, @bob, @charlie, @david, @eve, @admin\n");

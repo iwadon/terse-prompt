@@ -32,6 +32,7 @@ struct tprompt_completion_state {
 	tprompt_completion_candidate_t *candidates_ex; /**< Extended candidates with descriptions */
 	size_t candidate_count; /**< Number of candidates */
 	size_t selected_index;	/**< Currently selected candidate index */
+	size_t display_offset;	/**< First visible candidate index (for scrolling) */
 	size_t trigger_offset;	/**< Byte offset of completion trigger character */
 	char trigger_char;		/**< Character that triggered completion */
 	bool use_extended;		/**< Whether using extended candidates */
