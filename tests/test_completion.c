@@ -51,7 +51,7 @@ TEST(Completion, StateInit)
 	EXPECT_EQ(state.trigger_char, '\0');
 	EXPECT_EQ(state.trigger_offset, 0);
 	EXPECT_EQ(state.candidate_count, 0);
-	EXPECT_EQ(state.candidates, NULL);
+	EXPECT_NULL(state.candidates);
 
 	tprompt_completion_free(&state);
 }
@@ -235,7 +235,7 @@ TEST(Completion, MemoryCleanup)
 
 	// Free should clean up
 	tprompt_completion_free(&state);
-	EXPECT_EQ(state.candidates, NULL);
+	EXPECT_NULL(state.candidates);
 	EXPECT_EQ(state.candidate_count, 0);
 }
 
@@ -256,7 +256,7 @@ TEST(Completion, MultipleActivations)
 
 		// Deactivate and free
 		tprompt_completion_free(&state);
-		EXPECT_EQ(state.candidates, NULL);
+		EXPECT_NULL(state.candidates);
 	}
 
 	tprompt_completion_free(&state);

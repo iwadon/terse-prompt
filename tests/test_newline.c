@@ -55,7 +55,7 @@ static tprompt_handle_t create_test_handle(size_t term_width, size_t term_height
 TEST(NewlineLogicalLine, CountLines_EmptyBuffer)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Empty buffer - should be 1 logical line
 	size_t count = tprompt_count_logical_lines(handle);
@@ -67,7 +67,7 @@ TEST(NewlineLogicalLine, CountLines_EmptyBuffer)
 TEST(NewlineLogicalLine, CountLines_NoNewlines)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Hello, World!", 13);
 	size_t count = tprompt_count_logical_lines(handle);
@@ -79,7 +79,7 @@ TEST(NewlineLogicalLine, CountLines_NoNewlines)
 TEST(NewlineLogicalLine, CountLines_OneNewline)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2", 11);
 	size_t count = tprompt_count_logical_lines(handle);
@@ -91,7 +91,7 @@ TEST(NewlineLogicalLine, CountLines_OneNewline)
 TEST(NewlineLogicalLine, CountLines_MultipleNewlines)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2\nLine3\nLine4", 23);
 	size_t count = tprompt_count_logical_lines(handle);
@@ -103,7 +103,7 @@ TEST(NewlineLogicalLine, CountLines_MultipleNewlines)
 TEST(NewlineLogicalLine, CountLines_ConsecutiveNewlines)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Empty lines (consecutive newlines)
 	tprompt_buffer_insert(&handle->buffer, "Line1\n\n\nLine4", 13);
@@ -116,7 +116,7 @@ TEST(NewlineLogicalLine, CountLines_ConsecutiveNewlines)
 TEST(NewlineLogicalLine, CountLines_TrailingNewline)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Line1\n", 6);
 	size_t count = tprompt_count_logical_lines(handle);
@@ -132,7 +132,7 @@ TEST(NewlineLogicalLine, CountLines_TrailingNewline)
 TEST(NewlineLogicalLine, GetLineAtOffset_NoNewlines)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Hello", 5);
 
@@ -146,7 +146,7 @@ TEST(NewlineLogicalLine, GetLineAtOffset_NoNewlines)
 TEST(NewlineLogicalLine, GetLineAtOffset_WithNewlines)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// "Line1\nLine2\nLine3" (offsets: 0-5, 6-11, 12-17)
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2\nLine3", 17);
@@ -164,7 +164,7 @@ TEST(NewlineLogicalLine, GetLineAtOffset_WithNewlines)
 TEST(NewlineLogicalLine, GetLineAtOffset_EmptyLines)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// "A\n\nC" (offsets: 0, 1, 2, 3)
 	tprompt_buffer_insert(&handle->buffer, "A\n\nC", 4);
@@ -184,7 +184,7 @@ TEST(NewlineLogicalLine, GetLineAtOffset_EmptyLines)
 TEST(NewlineLogicalLine, GetLineBounds_FirstLine)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2", 11);
 
@@ -201,7 +201,7 @@ TEST(NewlineLogicalLine, GetLineBounds_FirstLine)
 TEST(NewlineLogicalLine, GetLineBounds_MiddleLine)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2\nLine3", 17);
 
@@ -218,7 +218,7 @@ TEST(NewlineLogicalLine, GetLineBounds_MiddleLine)
 TEST(NewlineLogicalLine, GetLineBounds_LastLine)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2", 11);
 
@@ -235,7 +235,7 @@ TEST(NewlineLogicalLine, GetLineBounds_LastLine)
 TEST(NewlineLogicalLine, GetLineBounds_EmptyLine)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "A\n\nC", 4);
 
@@ -252,7 +252,7 @@ TEST(NewlineLogicalLine, GetLineBounds_EmptyLine)
 TEST(NewlineLogicalLine, GetLineBounds_InvalidLine)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2", 11);
 
@@ -271,7 +271,7 @@ TEST(NewlineLogicalLine, GetLineBounds_InvalidLine)
 TEST(NewlineLogicalLine, GetLineLength_Simple)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "ABC\nDEFGH\nXY", 12);
 
@@ -285,7 +285,7 @@ TEST(NewlineLogicalLine, GetLineLength_Simple)
 TEST(NewlineLogicalLine, GetLineLength_EmptyLine)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "A\n\nC", 4);
 
@@ -303,7 +303,7 @@ TEST(NewlineLogicalLine, GetLineLength_EmptyLine)
 TEST(NewlineBuffer, HasNewlines_EmptyBuffer)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	EXPECT_FALSE(tprompt_buffer_has_newlines(handle));
 
@@ -313,7 +313,7 @@ TEST(NewlineBuffer, HasNewlines_EmptyBuffer)
 TEST(NewlineBuffer, HasNewlines_NoNewlines)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Hello World", 11);
 	EXPECT_FALSE(tprompt_buffer_has_newlines(handle));
@@ -324,7 +324,7 @@ TEST(NewlineBuffer, HasNewlines_NoNewlines)
 TEST(NewlineBuffer, HasNewlines_WithNewline)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Hello\nWorld", 11);
 	EXPECT_TRUE(tprompt_buffer_has_newlines(handle));
@@ -339,7 +339,7 @@ TEST(NewlineBuffer, HasNewlines_WithNewline)
 TEST(NewlinePhysicalLine, Layout_SingleLogicalLine)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Hello", 5);
 	tprompt_display_calculate_layout(handle);
@@ -353,7 +353,7 @@ TEST(NewlinePhysicalLine, Layout_SingleLogicalLine)
 TEST(NewlinePhysicalLine, Layout_TwoLogicalLines_NoWrap)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Two short lines that don't wrap
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2", 11);
@@ -369,7 +369,7 @@ TEST(NewlinePhysicalLine, Layout_TwoLogicalLines_NoWrap)
 TEST(NewlinePhysicalLine, Layout_LogicalLineWraps)
 {
 	tprompt_handle_t handle = create_test_handle(20, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// First logical line wraps: "> " (2) + "12345678901234567890" (20) = 22
 	// This should create 2 physical lines for the first logical line
@@ -386,7 +386,7 @@ TEST(NewlinePhysicalLine, Layout_LogicalLineWraps)
 TEST(NewlinePhysicalLine, Layout_CursorAtNewline)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2", 11);
 
@@ -403,7 +403,7 @@ TEST(NewlinePhysicalLine, Layout_CursorAtNewline)
 TEST(NewlinePhysicalLine, Layout_CursorAfterNewline)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2", 11);
 
@@ -422,7 +422,7 @@ TEST(NewlinePhysicalLine, Layout_CursorAfterNewline)
 TEST(NewlinePhysicalLine, Layout_EmptyLogicalLine)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Three lines, middle one is empty
 	tprompt_buffer_insert(&handle->buffer, "A\n\nC", 4);
@@ -440,7 +440,7 @@ TEST(NewlinePhysicalLine, Layout_EmptyLogicalLine)
 TEST(NewlineNavigation, UpDown_AcrossNewlines)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2\nLine3", 17);
 
@@ -465,7 +465,7 @@ TEST(NewlineNavigation, UpDown_AcrossNewlines)
 TEST(NewlineNavigation, HomeEnd_LogicalLineBoundaries)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2\nLine3", 17);
 
@@ -487,7 +487,7 @@ TEST(NewlineNavigation, HomeEnd_LogicalLineBoundaries)
 TEST(NewlineNavigation, Home_AtStartOfLine)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2", 11);
 	handle->buffer.cursor = 6; // Start of Line2
@@ -502,7 +502,7 @@ TEST(NewlineNavigation, Home_AtStartOfLine)
 TEST(NewlineNavigation, End_AtEndOfLine)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Line1\nLine2", 11);
 	handle->buffer.cursor = 11; // End of Line2
@@ -521,7 +521,7 @@ TEST(NewlineNavigation, End_AtEndOfLine)
 TEST(NewlineEdgeCases, OnlyNewlines)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "\n\n\n", 3);
 
@@ -537,7 +537,7 @@ TEST(NewlineEdgeCases, OnlyNewlines)
 TEST(NewlineEdgeCases, NewlineAtStart)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "\nText", 5);
 
@@ -554,7 +554,7 @@ TEST(NewlineEdgeCases, NewlineAtStart)
 TEST(NewlineEdgeCases, NewlineAtEnd)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Text\n", 5);
 
@@ -571,7 +571,7 @@ TEST(NewlineEdgeCases, NewlineAtEnd)
 TEST(NewlineEdgeCases, UTF8WithNewlines)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Japanese text with newlines: "日本\n語"
 	tprompt_buffer_insert(&handle->buffer, "日本\n語", 10);
@@ -591,7 +591,7 @@ TEST(NewlineEdgeCases, UTF8WithNewlines)
 TEST(NewlineEdgeCases, MixedNewlinesAndWrapping)
 {
 	tprompt_handle_t handle = create_test_handle(10, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// First line wraps, then newline, then short line
 	// "> " (2) + "123456789" (9) = 11 cols - wraps to 2 physical lines

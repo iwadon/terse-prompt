@@ -78,7 +78,7 @@ static void execute_ctrl_char(tprompt_handle_t handle, char ch)
 TEST(KeybindingsCtrlW, DeleteSingleWord)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert "hello world" and position cursor after "world"
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
@@ -96,7 +96,7 @@ TEST(KeybindingsCtrlW, DeleteSingleWord)
 TEST(KeybindingsCtrlW, DeleteWordWithTrailingSpace)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert "hello world  " with trailing spaces
 	tprompt_buffer_insert(&handle->buffer, "hello world  ", 13);
@@ -113,7 +113,7 @@ TEST(KeybindingsCtrlW, DeleteWordWithTrailingSpace)
 TEST(KeybindingsCtrlW, DeleteMultipleWords)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "one two three", 13);
 
@@ -136,7 +136,7 @@ TEST(KeybindingsCtrlW, DeleteMultipleWords)
 TEST(KeybindingsCtrlW, DeleteAtStart)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "word", 4);
 	handle->buffer.cursor = 0;
@@ -153,7 +153,7 @@ TEST(KeybindingsCtrlW, DeleteAtStart)
 TEST(KeybindingsCtrlW, DeleteWithNewlines)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "line1\nline2 word", 16);
 
@@ -172,7 +172,7 @@ TEST(KeybindingsCtrlW, DeleteWithNewlines)
 TEST(KeybindingsCtrlK, DeleteToEndOfLine)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
 	handle->buffer.cursor = 6; // Position after "hello "
@@ -189,7 +189,7 @@ TEST(KeybindingsCtrlK, DeleteToEndOfLine)
 TEST(KeybindingsCtrlK, DeleteToEndMultiline)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "line1\nline2\nline3", 17);
 	handle->buffer.cursor = 6; // Position at start of "line2"
@@ -206,7 +206,7 @@ TEST(KeybindingsCtrlK, DeleteToEndMultiline)
 TEST(KeybindingsCtrlK, DeleteAtEndOfLine)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "test\n", 5);
 	handle->buffer.cursor = 4; // Position before newline
@@ -223,7 +223,7 @@ TEST(KeybindingsCtrlK, DeleteAtEndOfLine)
 TEST(KeybindingsCtrlK, DeleteEntireLine)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "delete this", 11);
 	handle->buffer.cursor = 0;
@@ -244,7 +244,7 @@ TEST(KeybindingsCtrlK, DeleteEntireLine)
 TEST(KeybindingsCtrlU, DeleteToStartOfLine)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
 
@@ -260,7 +260,7 @@ TEST(KeybindingsCtrlU, DeleteToStartOfLine)
 TEST(KeybindingsCtrlU, DeleteToStartMiddle)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
 	handle->buffer.cursor = 6; // After "hello "
@@ -276,7 +276,7 @@ TEST(KeybindingsCtrlU, DeleteToStartMiddle)
 TEST(KeybindingsCtrlU, DeleteToStartMultiline)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "line1\nline2\nline3", 17);
 	handle->buffer.cursor = 12; // In middle of "line2"
@@ -293,7 +293,7 @@ TEST(KeybindingsCtrlU, DeleteToStartMultiline)
 TEST(KeybindingsCtrlU, DeleteAtStartOfLine)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "test", 4);
 	handle->buffer.cursor = 0;
@@ -314,7 +314,7 @@ TEST(KeybindingsCtrlU, DeleteAtStartOfLine)
 TEST(KeybindingsCtrlA, MoveToStartSingleLine)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
 
@@ -329,7 +329,7 @@ TEST(KeybindingsCtrlA, MoveToStartSingleLine)
 TEST(KeybindingsCtrlA, MoveToStartMultiline)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "line1\nline2\nline3", 17);
 	handle->buffer.cursor = 12; // In middle of line2
@@ -345,7 +345,7 @@ TEST(KeybindingsCtrlA, MoveToStartMultiline)
 TEST(KeybindingsCtrlA, MoveToStartAlreadyAtStart)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "test", 4);
 	handle->buffer.cursor = 0;
@@ -365,7 +365,7 @@ TEST(KeybindingsCtrlA, MoveToStartAlreadyAtStart)
 TEST(KeybindingsCtrlE, MoveToEndSingleLine)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
 	handle->buffer.cursor = 0;
@@ -381,7 +381,7 @@ TEST(KeybindingsCtrlE, MoveToEndSingleLine)
 TEST(KeybindingsCtrlE, MoveToEndMultiline)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "line1\nline2\nline3", 17);
 	handle->buffer.cursor = 6; // Start of line2
@@ -397,7 +397,7 @@ TEST(KeybindingsCtrlE, MoveToEndMultiline)
 TEST(KeybindingsCtrlE, MoveToEndAlreadyAtEnd)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "test", 4);
 
@@ -416,7 +416,7 @@ TEST(KeybindingsCtrlE, MoveToEndAlreadyAtEnd)
 TEST(KeybindingsCombined, CtrlKThenCtrlU)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "hello world test", 16);
 	handle->buffer.cursor = 6; // After "hello "
@@ -435,7 +435,7 @@ TEST(KeybindingsCombined, CtrlKThenCtrlU)
 TEST(KeybindingsCombined, CtrlAThenCtrlE)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "test line", 9);
 	handle->buffer.cursor = 5; // Middle
@@ -452,7 +452,7 @@ TEST(KeybindingsCombined, CtrlAThenCtrlE)
 TEST(KeybindingsCombined, CtrlWMultipleWordsUTF8)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "hello 世界 test", 16);
 
@@ -501,7 +501,7 @@ static bool execute_ctrl_d(tprompt_handle_t handle)
 TEST(KeybindingsCtrlD, DeleteCharAtCursor)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert "hello" and position cursor at 'e' (index 1)
 	tprompt_buffer_insert(&handle->buffer, "hello", 5);
@@ -521,7 +521,7 @@ TEST(KeybindingsCtrlD, DeleteCharAtCursor)
 TEST(KeybindingsCtrlD, DeleteCharAtEnd)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert "test" and position cursor at end
 	tprompt_buffer_insert(&handle->buffer, "test", 4);
@@ -539,7 +539,7 @@ TEST(KeybindingsCtrlD, DeleteCharAtEnd)
 TEST(KeybindingsCtrlD, EOFOnEmptyBuffer)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Buffer is empty
 	EXPECT_EQ(handle->buffer.length, 0);
@@ -556,7 +556,7 @@ TEST(KeybindingsCtrlD, EOFOnEmptyBuffer)
 TEST(KeybindingsCtrlD, DeleteMultipleChars)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert "abcde"
 	tprompt_buffer_insert(&handle->buffer, "abcde", 5);
@@ -583,7 +583,7 @@ TEST(KeybindingsCtrlD, DeleteMultipleChars)
 TEST(KeybindingsCtrlD, DeleteUTF8Character)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert "hello世界"
 	tprompt_buffer_insert(&handle->buffer, "hello世界", 11);
@@ -602,7 +602,7 @@ TEST(KeybindingsCtrlD, DeleteUTF8Character)
 TEST(KeybindingsCtrlD, DeleteCharThenEOF)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert single character "x"
 	tprompt_buffer_insert(&handle->buffer, "x", 1);
@@ -624,7 +624,7 @@ TEST(KeybindingsCtrlD, DeleteCharThenEOF)
 TEST(KeybindingsCtrlD, DeleteInMultilineBuffer)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert multi-line text
 	tprompt_buffer_insert(&handle->buffer, "line1\nline2\nline3", 17);
@@ -705,7 +705,7 @@ TEST(CustomKeybindings, EnterConfirmsInMultilineMode)
 	};
 
 	tprompt_handle_t handle = create_test_handle_with_keybindings(custom_bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert some text
 	tprompt_buffer_insert(&handle->buffer, "test input", 10);
@@ -745,7 +745,7 @@ TEST(CustomKeybindings, ShiftEnterInsertsNewline)
 	};
 
 	tprompt_handle_t handle = create_test_handle_with_keybindings(custom_bindings, 2);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "line1", 5);
 
@@ -786,7 +786,7 @@ TEST(CustomKeybindings, NoValidationCallbackStillConfirms)
 	};
 
 	tprompt_handle_t handle = create_test_handle_with_keybindings(custom_bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "test", 4);
 
@@ -838,7 +838,7 @@ TEST(CustomKeybindings, DefaultBehaviorWithoutCustomBinding)
 
 	// Use existing helper without custom keybindings
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "test", 4);
 
@@ -880,7 +880,7 @@ TEST(CustomKeybindings, CtrlJInsertsNewline)
 	};
 
 	tprompt_handle_t handle = create_test_handle_with_keybindings(custom_bindings, 2);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "line1", 5);
 
@@ -919,7 +919,7 @@ TEST(CustomKeybindings, CtrlJInsertsNewline)
 TEST(TabKey, DoesNotInsertTabWithoutCompletion)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert some text
 	tprompt_buffer_insert(&handle->buffer, "hello", 5);
@@ -953,7 +953,7 @@ TEST(TabKey, DoesNotInsertTabWithoutCompletion)
 TEST(TabKey, MultipleTabsDoNotInsertCharacters)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert some text
 	tprompt_buffer_insert(&handle->buffer, "test", 4);
@@ -982,7 +982,7 @@ TEST(TabKey, MultipleTabsDoNotInsertCharacters)
 TEST(TabKey, DoesNotInsertAtDifferentPositions)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert text
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
@@ -1024,7 +1024,7 @@ TEST(TabKey, DoesNotInsertAtDifferentPositions)
 TEST(TabKey, DoesNotInsertInEmptyBuffer)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Press TAB in empty buffer
 	terse_event_t event = {
@@ -1055,7 +1055,7 @@ TEST(TabKey, DoesNotInsertInEmptyBuffer)
 TEST(CtrlKeyCaseInsensitive, CtrlWUppercase)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert "hello world"
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
@@ -1084,7 +1084,7 @@ TEST(CtrlKeyCaseInsensitive, CtrlWUppercase)
 TEST(CtrlKeyCaseInsensitive, CtrlWLowercase)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert "hello world"
 	tprompt_buffer_insert(&handle->buffer, "hello world", 11);
@@ -1116,7 +1116,7 @@ TEST(CtrlKeyCaseInsensitive, CtrlWLowercase)
 TEST(CtrlKeyCaseInsensitive, CtrlDUppercaseEOF)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Empty buffer
 	EXPECT_EQ(handle->buffer.length, 0);
@@ -1146,7 +1146,7 @@ TEST(CtrlKeyCaseInsensitive, CtrlDUppercaseEOF)
 TEST(CtrlKeyCaseInsensitive, CtrlDLowercaseEOF)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Empty buffer
 	EXPECT_EQ(handle->buffer.length, 0);
@@ -1179,7 +1179,7 @@ TEST(CtrlKeyCaseInsensitive, CtrlDLowercaseEOF)
 TEST(CtrlKeyCaseInsensitive, CtrlDUppercaseDeleteChar)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert "hello"
 	tprompt_buffer_insert(&handle->buffer, "hello", 5);
@@ -1211,7 +1211,7 @@ TEST(CtrlKeyCaseInsensitive, CtrlDUppercaseDeleteChar)
 TEST(CtrlKeyCaseInsensitive, CtrlDLowercaseDeleteChar)
 {
 	tprompt_handle_t handle = create_test_handle();
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert "hello"
 	tprompt_buffer_insert(&handle->buffer, "hello", 5);

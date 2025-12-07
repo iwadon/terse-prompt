@@ -60,7 +60,7 @@ static tprompt_handle_t create_test_handle(size_t term_width, size_t term_height
 TEST(MultilineDisplay, CalculateLayout_EmptyBuffer)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Empty buffer - should be 1 physical line (prompt only)
 	tprompt_display_calculate_layout(handle);
@@ -74,7 +74,7 @@ TEST(MultilineDisplay, CalculateLayout_EmptyBuffer)
 TEST(MultilineDisplay, CalculateLayout_SingleLine)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert short text that fits on one line
 	tprompt_buffer_insert(&handle->buffer, "Hello, World!", 13);
@@ -90,7 +90,7 @@ TEST(MultilineDisplay, CalculateLayout_SingleLine)
 TEST(MultilineDisplay, CalculateLayout_WrapsAtTerminalWidth)
 {
 	tprompt_handle_t handle = create_test_handle(20, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert text that wraps: "> " (2) + "12345678901234567890" (20) = 22 cols
 	// Should wrap to line 1 at column 2
@@ -107,7 +107,7 @@ TEST(MultilineDisplay, CalculateLayout_WrapsAtTerminalWidth)
 TEST(MultilineDisplay, CalculateLayout_MultipleWraps)
 {
 	tprompt_handle_t handle = create_test_handle(20, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert 50 characters: will span 3 physical lines
 	// Line 0: "> " + 18 chars = 20
@@ -129,7 +129,7 @@ TEST(MultilineDisplay, CalculateLayout_MultipleWraps)
 TEST(MultilineDisplay, CalculateLayout_CursorInMiddle)
 {
 	tprompt_handle_t handle = create_test_handle(20, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert 50 characters, move cursor to position 25
 	char text[51];
@@ -151,7 +151,7 @@ TEST(MultilineDisplay, CalculateLayout_CursorInMiddle)
 TEST(MultilineDisplay, CalculateLayout_UTF8Text)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert UTF-8: "日本語" (3 chars, 9 bytes, width 6 as full-width characters)
 	tprompt_buffer_insert(&handle->buffer, "日本語", 9);
@@ -170,7 +170,7 @@ TEST(MultilineDisplay, CalculateLayout_UTF8Text)
 TEST(MultilineCursor, HomeKey_FirstPress_PhysicalLineStart)
 {
 	tprompt_handle_t handle = create_test_handle(20, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert text with newlines to create multiple logical lines
 	// "AAAAAAAAAA\nBBBBBBBBBB\nCCCCCCCCCC"
@@ -192,7 +192,7 @@ TEST(MultilineCursor, HomeKey_FirstPress_PhysicalLineStart)
 TEST(MultilineCursor, HomeKey_SecondPress_LogicalLineStart)
 {
 	tprompt_handle_t handle = create_test_handle(20, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert text, cursor in middle
 	tprompt_buffer_insert(&handle->buffer, "Hello World", 11);
@@ -211,7 +211,7 @@ TEST(MultilineCursor, HomeKey_SecondPress_LogicalLineStart)
 TEST(MultilineCursor, EndKey_FirstPress_PhysicalLineEnd)
 {
 	tprompt_handle_t handle = create_test_handle(20, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert text with newlines to create multiple logical lines
 	tprompt_buffer_insert(&handle->buffer, "AAAAAAAAAA\nBBBBBBBBBB\nCCCCCCCCCC", 32);
@@ -232,7 +232,7 @@ TEST(MultilineCursor, EndKey_FirstPress_PhysicalLineEnd)
 TEST(MultilineCursor, EndKey_SecondPress_LogicalLineEnd)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert text, cursor at start
 	tprompt_buffer_insert(&handle->buffer, "Hello World", 11);
@@ -256,7 +256,7 @@ TEST(MultilineCursor, EndKey_SecondPress_LogicalLineEnd)
 TEST(MultilineCursor, UpKey_AtTopLine_NoMovement)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Single line text, cursor at end
 	tprompt_buffer_insert(&handle->buffer, "Hello", 5);
@@ -272,7 +272,7 @@ TEST(MultilineCursor, UpKey_AtTopLine_NoMovement)
 TEST(MultilineCursor, DownKey_AtBottomLine_NoMovement)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Single line text, cursor at end
 	tprompt_buffer_insert(&handle->buffer, "Hello", 5);
@@ -288,7 +288,7 @@ TEST(MultilineCursor, DownKey_AtBottomLine_NoMovement)
 TEST(MultilineCursor, UpKey_MovesToLineAbove)
 {
 	tprompt_handle_t handle = create_test_handle(20, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert text with newlines to create multiple logical lines
 	tprompt_buffer_insert(&handle->buffer, "AAAAAAAAAA\nBBBBBBBBBB\nCCCCCCCCCC", 32);
@@ -310,7 +310,7 @@ TEST(MultilineCursor, UpKey_MovesToLineAbove)
 TEST(MultilineCursor, DownKey_MovesToLineBelow)
 {
 	tprompt_handle_t handle = create_test_handle(20, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert text with newlines to create multiple logical lines
 	tprompt_buffer_insert(&handle->buffer, "AAAAAAAAAA\nBBBBBBBBBB\nCCCCCCCCCC", 32);
@@ -332,7 +332,7 @@ TEST(MultilineCursor, DownKey_MovesToLineBelow)
 TEST(MultilineCursor, UpDown_MaintainsGoalColumn)
 {
 	tprompt_handle_t handle = create_test_handle(20, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Create buffer with different logical line lengths
 	// Line 0: "AAAAAAAAAA" (10 chars)
@@ -359,7 +359,7 @@ TEST(MultilineCursor, UpDown_MaintainsGoalColumn)
 TEST(MultilineCursor, VerticalNavigation_ClearsGoalColumn)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Test", 4);
 
@@ -381,7 +381,7 @@ TEST(MultilineCursor, VerticalNavigation_ClearsGoalColumn)
 TEST(MultilineDisplay, Wrapping_ExactTerminalWidth)
 {
 	tprompt_handle_t handle = create_test_handle(10, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Prompt "> " (2) + "12345678" (8) = exactly 10 cols
 	// Cursor at position 8 (end of buffer)
@@ -402,7 +402,7 @@ TEST(MultilineDisplay, Wrapping_ExactTerminalWidth)
 TEST(MultilineDisplay, Wrapping_OneCharOverTerminalWidth)
 {
 	tprompt_handle_t handle = create_test_handle(10, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Prompt "> " (2) + "123456789" (9) = 11 cols - wraps to line 1
 	tprompt_buffer_insert(&handle->buffer, "123456789", 9);
@@ -418,7 +418,7 @@ TEST(MultilineDisplay, Wrapping_OneCharOverTerminalWidth)
 TEST(MultilineDisplay, Wrapping_LongPrompt)
 {
 	tprompt_handle_t handle = create_test_handle(20, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Change prompt to longer string
 	free(handle->prompt);
@@ -440,7 +440,7 @@ TEST(MultilineDisplay, Wrapping_LongPrompt)
 TEST(MultilineEdgeCases, EmptyBuffer_HomeEnd)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Empty buffer
 	tprompt_cursor_move_to_logical_line_start(handle);
@@ -455,7 +455,7 @@ TEST(MultilineEdgeCases, EmptyBuffer_HomeEnd)
 TEST(MultilineEdgeCases, SingleCharacter_VerticalMovement)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "X", 1);
 
@@ -473,7 +473,7 @@ TEST(MultilineEdgeCases, SingleCharacter_VerticalMovement)
 TEST(MultilineEdgeCases, VeryLongLine_NoWrap)
 {
 	tprompt_handle_t handle = create_test_handle(10, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert 100 characters - should span many physical lines
 	char text[101];
@@ -493,7 +493,7 @@ TEST(MultilineEdgeCases, VeryLongLine_NoWrap)
 TEST(MultilineEdgeCases, CursorAtBufferBoundaries)
 {
 	tprompt_handle_t handle = create_test_handle(20, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Test", 4);
 
@@ -513,7 +513,7 @@ TEST(MultilineEdgeCases, CursorAtBufferBoundaries)
 TEST(MultilineEdgeCases, NarrowTerminal_OnlyPrompt)
 {
 	tprompt_handle_t handle = create_test_handle(2, 24); // Very narrow!
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Prompt "> " exactly fills terminal width
 	tprompt_display_calculate_layout(handle);
@@ -533,7 +533,7 @@ TEST(MultilineEdgeCases, ZeroTerminalWidth_Fallback)
 	// With mock terse handle, size 0x0 will be mocked, and tprompt should
 	// detect this and apply the fallback dimensions
 	tprompt_handle_t handle = create_test_handle(0, 0);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Test", 4);
 
@@ -549,7 +549,7 @@ TEST(MultilineEdgeCases, ZeroTerminalWidth_Fallback)
 TEST(MultilineEdgeCases, UTF8_AtWrapBoundary)
 {
 	tprompt_handle_t handle = create_test_handle(10, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Insert text that places UTF-8 char exactly at wrap boundary
 	// Prompt "> " (2) + "1234567" (7) = 9 cols
@@ -575,7 +575,7 @@ TEST(MultilineEdgeCases, UTF8_AtWrapBoundary)
 TEST(MultilineInputState, GoalColumnPersistence)
 {
 	tprompt_handle_t handle = create_test_handle(20, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Create multi-line buffer with newlines
 	tprompt_buffer_insert(&handle->buffer, "AAAAAAAAAA\nBBBBBBBBBB\nCCCCCCCCCC", 32);
@@ -602,7 +602,7 @@ TEST(MultilineInputState, GoalColumnPersistence)
 TEST(MultilineInputState, LastKeyTracking)
 {
 	tprompt_handle_t handle = create_test_handle(80, 24);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	tprompt_buffer_insert(&handle->buffer, "Test", 4);
 

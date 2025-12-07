@@ -134,14 +134,14 @@ static tprompt_validation_result_t callback_reject_once_then_accept(
 TEST(Validation, NoCallback_AcceptsImmediately)
 {
 	terse_handle_t terse = test_create_terse_handle();
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
 	opts.terse_handle = terse;
 	opts.validation_callback = NULL; // No validation
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Type "hello" and press Enter (multiline mode default)
 	terse_event_t events[] = {
@@ -155,7 +155,7 @@ TEST(Validation, NoCallback_AcceptsImmediately)
 	test_mock_events(terse, events, 6);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "hello");
 
 	free(result);
@@ -166,14 +166,14 @@ TEST(Validation, NoCallback_AcceptsImmediately)
 TEST(Validation, AlwaysAccept_AcceptsImmediately)
 {
 	terse_handle_t terse = test_create_terse_handle();
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
 	opts.terse_handle = terse;
 	opts.validation_callback = callback_always_accept;
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Type "test" and press Enter (confirmation validates through callback)
 	terse_event_t events[] = {
@@ -186,7 +186,7 @@ TEST(Validation, AlwaysAccept_AcceptsImmediately)
 	test_mock_events(terse, events, 5);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "test");
 
 	free(result);
@@ -197,7 +197,7 @@ TEST(Validation, AlwaysAccept_AcceptsImmediately)
 TEST(Validation, AlwaysReject_BypassWithCustomBinding)
 {
 	terse_handle_t terse = test_create_terse_handle();
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	tprompt_validation_result_t result_value = TPROMPT_VALIDATION_REJECT;
 	validation_call_count = 0;
@@ -209,7 +209,7 @@ TEST(Validation, AlwaysReject_BypassWithCustomBinding)
 	set_bypass_binding(&opts);
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Type "test", press Enter (rejected), then Alt+Enter (accepted via custom binding without validation)
 	terse_event_t events[] = {
@@ -223,7 +223,7 @@ TEST(Validation, AlwaysReject_BypassWithCustomBinding)
 	test_mock_events(terse, events, 6);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "test");
 	EXPECT_EQ(validation_call_count, 1); // Alt+Enter bypasses validation
 
@@ -235,7 +235,7 @@ TEST(Validation, AlwaysReject_BypassWithCustomBinding)
 TEST(Validation, AltEnter_StillValidatesWhenUsingDefaults)
 {
 	terse_handle_t terse = test_create_terse_handle();
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	reject_once_call_count = 0;
 
@@ -244,7 +244,7 @@ TEST(Validation, AltEnter_StillValidatesWhenUsingDefaults)
 	opts.validation_callback = callback_reject_once_then_accept;
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Type "ok", press Alt+Enter twice (first rejected, second accepted)
 	terse_event_t events[] = {
@@ -256,7 +256,7 @@ TEST(Validation, AltEnter_StillValidatesWhenUsingDefaults)
 	test_mock_events(terse, events, 4);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "ok");
 	EXPECT_EQ(reject_once_call_count, 2); // Alt+Enter still runs validation by default
 
@@ -272,7 +272,7 @@ TEST(Validation, AltEnter_StillValidatesWhenUsingDefaults)
 TEST(Validation, Continue_InsertsNewlineInMultilineMode)
 {
 	terse_handle_t terse = test_create_terse_handle();
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
 	opts.terse_handle = terse;
@@ -281,7 +281,7 @@ TEST(Validation, Continue_InsertsNewlineInMultilineMode)
 	set_bypass_binding(&opts);
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Type "line1", press Enter (inserts newline), type "line2", press Alt+Enter (custom binding bypasses validation)
 	terse_event_t events[] = {
@@ -301,7 +301,7 @@ TEST(Validation, Continue_InsertsNewlineInMultilineMode)
 	test_mock_events(terse, events, 12);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "line1\nline2");
 
 	free(result);
@@ -312,7 +312,7 @@ TEST(Validation, Continue_InsertsNewlineInMultilineMode)
 TEST(Validation, Continue_BeepsInSingleLineMode)
 {
 	terse_handle_t terse = test_create_terse_handle();
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
 	opts.terse_handle = terse;
@@ -321,7 +321,7 @@ TEST(Validation, Continue_BeepsInSingleLineMode)
 	set_bypass_binding(&opts);
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Type "test", press Enter (should beep, not insert newline), press Alt+Enter (custom binding bypasses validation)
 	terse_event_t events[] = {
@@ -335,7 +335,7 @@ TEST(Validation, Continue_BeepsInSingleLineMode)
 	test_mock_events(terse, events, 6);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "test"); // No newline inserted
 
 	free(result);
@@ -350,7 +350,7 @@ TEST(Validation, Continue_BeepsInSingleLineMode)
 TEST(Validation, CallbackInvokedOnConfirmation)
 {
 	terse_handle_t terse = test_create_terse_handle();
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	tprompt_validation_result_t result_value = TPROMPT_VALIDATION_ACCEPT;
 	validation_call_count = 0;
@@ -361,7 +361,7 @@ TEST(Validation, CallbackInvokedOnConfirmation)
 	opts.validation_user_data = &result_value;
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Type "test" and press Enter
 	terse_event_t events[] = {
@@ -374,7 +374,7 @@ TEST(Validation, CallbackInvokedOnConfirmation)
 	test_mock_events(terse, events, 5);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "test");
 	EXPECT_EQ(validation_call_count, 1); // Callback should have been invoked once
 
@@ -386,7 +386,7 @@ TEST(Validation, CallbackInvokedOnConfirmation)
 TEST(Validation, CallbackNotInvokedOnBypassBinding)
 {
 	terse_handle_t terse = test_create_terse_handle();
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	tprompt_validation_result_t result_value = TPROMPT_VALIDATION_REJECT;
 	validation_call_count = 0;
@@ -398,7 +398,7 @@ TEST(Validation, CallbackNotInvokedOnBypassBinding)
 	set_bypass_binding(&opts);
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Type "test", press Enter twice (rejected), then Alt+Enter (bypasses validation via custom binding)
 	terse_event_t events[] = {
@@ -413,7 +413,7 @@ TEST(Validation, CallbackNotInvokedOnBypassBinding)
 	test_mock_events(terse, events, 7);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "test");
 	EXPECT_EQ(validation_call_count, 2); // Alt+Enter bypasses validation
 
@@ -429,7 +429,7 @@ TEST(Validation, CallbackNotInvokedOnBypassBinding)
 TEST(Validation, ParenthesisBalance_Balanced)
 {
 	terse_handle_t terse = test_create_terse_handle();
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
 	opts.terse_handle = terse;
@@ -437,7 +437,7 @@ TEST(Validation, ParenthesisBalance_Balanced)
 	opts.validation_callback = callback_check_parens;
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Type "func(arg)" and press Enter - should accept immediately
 	terse_event_t events[] = {
@@ -455,7 +455,7 @@ TEST(Validation, ParenthesisBalance_Balanced)
 	test_mock_events(terse, events, 10);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "func(arg)");
 
 	free(result);
@@ -466,7 +466,7 @@ TEST(Validation, ParenthesisBalance_Balanced)
 TEST(Validation, ParenthesisBalance_UnbalancedContinues)
 {
 	terse_handle_t terse = test_create_terse_handle();
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
 	opts.terse_handle = terse;
@@ -474,7 +474,7 @@ TEST(Validation, ParenthesisBalance_UnbalancedContinues)
 	opts.validation_callback = callback_check_parens;
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Type "func(", press Enter (inserts newline), type "arg)", press Enter (accepts)
 	terse_event_t events[] = {
@@ -493,7 +493,7 @@ TEST(Validation, ParenthesisBalance_UnbalancedContinues)
 	test_mock_events(terse, events, 11);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "func(\narg)");
 
 	free(result);
@@ -504,7 +504,7 @@ TEST(Validation, ParenthesisBalance_UnbalancedContinues)
 TEST(Validation, ParenthesisBalance_OverClosedRejects)
 {
 	terse_handle_t terse = test_create_terse_handle();
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
 	opts.terse_handle = terse;
@@ -512,7 +512,7 @@ TEST(Validation, ParenthesisBalance_OverClosedRejects)
 	opts.validation_callback = callback_check_parens;
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Type "test)", press Enter (rejected), backspace, press Enter (accepts)
 	terse_event_t events[] = {
@@ -528,7 +528,7 @@ TEST(Validation, ParenthesisBalance_OverClosedRejects)
 	test_mock_events(terse, events, 8);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "test");
 
 	free(result);
@@ -543,14 +543,14 @@ TEST(Validation, ParenthesisBalance_OverClosedRejects)
 TEST(Validation, SetValidationCallback_UpdatesAtRuntime)
 {
 	terse_handle_t terse = test_create_terse_handle();
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
 	opts.terse_handle = terse;
 	opts.validation_callback = NULL; // Start with no validation
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Update validation callback at runtime
 	tprompt_set_validation_callback(handle, callback_always_accept, NULL);
@@ -566,7 +566,7 @@ TEST(Validation, SetValidationCallback_UpdatesAtRuntime)
 	test_mock_events(terse, events, 5);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "test");
 
 	free(result);
@@ -577,14 +577,14 @@ TEST(Validation, SetValidationCallback_UpdatesAtRuntime)
 TEST(Validation, SetValidationCallback_DisableAtRuntime)
 {
 	terse_handle_t terse = test_create_terse_handle();
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
 	opts.terse_handle = terse;
 	opts.validation_callback = callback_always_reject;
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Disable validation at runtime
 	tprompt_set_validation_callback(handle, NULL, NULL);
@@ -600,7 +600,7 @@ TEST(Validation, SetValidationCallback_DisableAtRuntime)
 	test_mock_events(terse, events, 5);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "test");
 
 	free(result);

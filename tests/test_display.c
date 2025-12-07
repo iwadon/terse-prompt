@@ -41,7 +41,7 @@ TEST(DisplayBackspace, RestoresCursorAfterDeletion)
 {
 	terse_handle_t terse = NULL;
 	tprompt_handle_t handle = create_test_handle(&terse);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	ASSERT_EQ(tprompt_display_render_buffered(handle), 0);
 
@@ -70,7 +70,7 @@ TEST(DisplayBackspace, RestoresCursorAfterDeletion)
 
 	int count = 0;
 	const terse_call_record_t *calls = test_get_calls(terse, &count);
-	ASSERT_NE(calls, NULL);
+	ASSERT_NOT_NULL(calls);
 
 	bool blank_seen = false;
 	bool reposition_seen = false;

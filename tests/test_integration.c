@@ -57,11 +57,11 @@ TEST(Integration, BasicInput_TypeAndEnter)
 {
 	// Test: Type "hello" + Enter, expect "hello"
 	tprompt_handle_t handle = create_handle_with_keybindings(NULL, 0);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Access the terse handle directly (via internal structure)
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence: type "hello" + Enter
 	terse_event_t events[] = {
@@ -76,7 +76,7 @@ TEST(Integration, BasicInput_TypeAndEnter)
 
 	// Call tprompt_readline and verify result
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "hello");
 
 	free(result);
@@ -87,10 +87,10 @@ TEST(Integration, CtrlEnterInsertsNewlineByDefault)
 {
 	// Test: Ctrl+Enter inserts newline instead of confirming
 	tprompt_handle_t handle = create_handle_with_keybindings(NULL, 0);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence: type "line1" + Ctrl+Enter + "line2" + Enter
 	terse_event_t events[] = {
@@ -110,7 +110,7 @@ TEST(Integration, CtrlEnterInsertsNewlineByDefault)
 	test_mock_events(terse, events, 12);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "line1\nline2");
 
 	free(result);
@@ -125,11 +125,11 @@ TEST(Integration, CustomKeybinding_EnterConfirms)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Access the terse handle directly (via internal structure)
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence: type "test" + Enter (no modifiers)
 	terse_event_t events[] = {
@@ -142,7 +142,7 @@ TEST(Integration, CustomKeybinding_EnterConfirms)
 	test_mock_events(terse, events, 5);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "test");
 
 	free(result);
@@ -158,11 +158,11 @@ TEST(Integration, CustomKeybinding_ShiftEnterNewline)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 2);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Access the terse handle directly (via internal structure)
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence: type "line1" + Shift+Enter + "line2" + Enter
 	terse_event_t events[] = {
@@ -182,7 +182,7 @@ TEST(Integration, CustomKeybinding_ShiftEnterNewline)
 	test_mock_events(terse, events, 12);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "line1\nline2");
 
 	free(result);
@@ -224,14 +224,14 @@ TEST(Integration, ForceConfirmation_ValidationRejectThenConfirm)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Set validation callback
 	handle->options.validation_callback = validation_callback_reject_a_accept_ab;
 	handle->options.validation_user_data = NULL;
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence:
 	// 1. Type "a"
@@ -252,7 +252,7 @@ TEST(Integration, ForceConfirmation_ValidationRejectThenConfirm)
 	test_mock_events(terse, events, 4);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "ab");  // Should contain both characters
 
 	free(result);
@@ -288,14 +288,14 @@ TEST(Integration, PendingConfirmation_MultipleRounds)
 
 	// Don't use custom keybindings - rely on default multiline behavior (plain Enter triggers validation)
 	tprompt_handle_t handle = create_handle_with_keybindings(NULL, 0);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Set validation callback
 	handle->options.validation_callback = validation_callback_continue_on_incomplete;
 	handle->options.validation_user_data = NULL;
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence:
 	// 1. Type "line1" + Enter (validation returns CONTINUE -> inserts newline, continues editing)
@@ -327,7 +327,7 @@ TEST(Integration, PendingConfirmation_MultipleRounds)
 	test_mock_events(terse, events, 17);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "line1\nline2\ndone");
 
 	free(result);
@@ -364,14 +364,14 @@ TEST(Integration, CustomKeybinding_ValidationInteraction)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Set validation callback
 	handle->options.validation_callback = validation_callback_require_valid_prefix;
 	handle->options.validation_user_data = NULL;
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence:
 	// 1. Type "test"
@@ -397,7 +397,7 @@ TEST(Integration, CustomKeybinding_ValidationInteraction)
 	test_mock_events(terse, events, 12);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "test valid");
 
 	free(result);
@@ -413,10 +413,10 @@ TEST(ComplexInput, TypeEditConfirm)
 	// Test complex editing: type "hello" + backspace×2 + type "p me" = "help me"
 	// Purpose: Tests editing operations (insert + delete) through main loop
 	tprompt_handle_t handle = create_handle_with_keybindings(NULL, 0);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence: "hello" → backspace×2 → "p me" → Enter
 	terse_event_t events[] = {
@@ -436,7 +436,7 @@ TEST(ComplexInput, TypeEditConfirm)
 	test_mock_events(terse, events, 12);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "help me");
 
 	free(result);
@@ -455,10 +455,10 @@ TEST(EmptyInput, DirectConfirm)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence: Just Enter (no text typed)
 	terse_event_t events[] = {
@@ -468,7 +468,7 @@ TEST(EmptyInput, DirectConfirm)
 
 	char *result = tprompt_readline(handle, NULL);
 	// Should return empty string "" for empty confirmation (not NULL)
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "");
 
 	free(result);
@@ -485,10 +485,10 @@ TEST(MultipleNewlines, ComplexStructure)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 2);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence: "line1" + Shift+Enter + Shift+Enter + "line3" + Ctrl+Enter
 	terse_event_t events[] = {
@@ -509,7 +509,7 @@ TEST(MultipleNewlines, ComplexStructure)
 	test_mock_events(terse, events, 13);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "line1\n\nline3");
 
 	free(result);
@@ -541,14 +541,14 @@ TEST(ValidationContinue, WithEditing)
 	// Sequence: "short" (5 chars) + Enter (continue→newline) + "text here" (9 chars) + Enter (accept, total=15)
 	// Purpose: Tests VALIDATION_CONTINUE with buffer accumulation
 	tprompt_handle_t handle = create_handle_with_keybindings(NULL, 0);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Set validation callback
 	handle->options.validation_callback = validation_callback_continue_until_length_10;
 	handle->options.validation_user_data = NULL;
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence:
 	// "short" (5 chars) + Enter → continue (newline inserted, buffer="short\n", length=6)
@@ -576,7 +576,7 @@ TEST(ValidationContinue, WithEditing)
 	test_mock_events(terse, events, 16);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "short\ntext here");
 
 	free(result);
@@ -595,10 +595,10 @@ TEST(CtrlJNewline, CustomBinding)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 2);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence: "line1" + Ctrl+J + "line2" + Enter
 	terse_event_t events[] = {
@@ -618,7 +618,7 @@ TEST(CtrlJNewline, CustomBinding)
 	test_mock_events(terse, events, 12);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "line1\nline2");
 
 	free(result);
@@ -634,10 +634,10 @@ TEST(EOF, CtrlDOnEmptyBuffer)
 	// Test: Press Ctrl+D immediately on empty buffer, expect NULL (EOF)
 	// Purpose: Tests EOF handling with no input (Ctrl+D on empty line)
 	tprompt_handle_t handle = create_handle_with_keybindings(NULL, 0);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence: Just Ctrl+D (no text typed)
 	// Note: terse transmits Ctrl+D as uppercase 'D' with TERSE_MOD_CTRL
@@ -648,7 +648,7 @@ TEST(EOF, CtrlDOnEmptyBuffer)
 
 	char *result = tprompt_readline(handle, NULL);
 	// Ctrl+D on empty buffer should return NULL (EOF)
-	EXPECT_EQ(result, NULL);
+	EXPECT_NULL(result);
 
 	// Verify no error was set (EOF is not an error)
 	tprompt_error_info_t error = tprompt_get_last_error(handle);
@@ -667,10 +667,10 @@ TEST(EOF, CtrlDDeletesCharWhenBufferNotEmpty)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence: type "hello" + Left×3 (position at 'e') + Ctrl+D + Enter
 	terse_event_t events[] = {
@@ -689,7 +689,7 @@ TEST(EOF, CtrlDDeletesCharWhenBufferNotEmpty)
 	test_mock_events(terse, events, 11);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "hllo");  // 'e' should be deleted
 
 	free(result);
@@ -701,10 +701,10 @@ TEST(EOF, CtrlDAfterDeletingAllContent)
 	// Test: Type "x", backspace to delete it, press Ctrl+D, expect NULL (EOF)
 	// Purpose: Tests that Ctrl+D on buffer that became empty signals EOF
 	tprompt_handle_t handle = create_handle_with_keybindings(NULL, 0);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Mock event sequence: type "x" + backspace + Ctrl+D
 	terse_event_t events[] = {
@@ -716,7 +716,7 @@ TEST(EOF, CtrlDAfterDeletingAllContent)
 
 	char *result = tprompt_readline(handle, NULL);
 	// Ctrl+D on empty buffer should return NULL (EOF)
-	EXPECT_EQ(result, NULL);
+	EXPECT_NULL(result);
 
 	// Verify no error was set (EOF is not an error)
 	tprompt_error_info_t error = tprompt_get_last_error(handle);
@@ -740,10 +740,10 @@ TEST(EOF, EmptyInputVsEOFDistinction)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Test 1: Empty buffer + Enter → should return empty string ""
 	terse_event_t enter_events[] = {
@@ -752,7 +752,7 @@ TEST(EOF, EmptyInputVsEOFDistinction)
 	test_mock_events(terse, enter_events, 1);
 
 	char *result1 = tprompt_readline(handle, NULL);
-	ASSERT_NE(result1, NULL);  // Must NOT be NULL
+	ASSERT_NOT_NULL(result1);  // Must NOT be NULL
 	EXPECT_STREQ(result1, "");  // Must be empty string
 	free(result1);
 
@@ -763,7 +763,7 @@ TEST(EOF, EmptyInputVsEOFDistinction)
 	test_mock_events(terse, ctrl_d_events, 1);
 
 	char *result2 = tprompt_readline(handle, NULL);
-	EXPECT_EQ(result2, NULL);  // Must be NULL for EOF
+	EXPECT_NULL(result2);  // Must be NULL for EOF
 
 	// Verify no error for EOF
 	tprompt_error_info_t error = tprompt_get_last_error(handle);
@@ -781,10 +781,10 @@ TEST(EOF, MultipleEmptyInputsBeforeEOF)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Three empty inputs followed by EOF
 	for (int i = 0; i < 3; i++) {
@@ -794,7 +794,7 @@ TEST(EOF, MultipleEmptyInputsBeforeEOF)
 		test_mock_events(terse, enter_events, 1);
 
 		char *result = tprompt_readline(handle, NULL);
-		ASSERT_NE(result, NULL);  // Each should return empty string, not NULL
+		ASSERT_NOT_NULL(result);  // Each should return empty string, not NULL
 		EXPECT_STREQ(result, "");
 		free(result);
 	}
@@ -806,7 +806,7 @@ TEST(EOF, MultipleEmptyInputsBeforeEOF)
 	test_mock_events(terse, ctrl_d_events, 1);
 
 	char *result_eof = tprompt_readline(handle, NULL);
-	EXPECT_EQ(result_eof, NULL);
+	EXPECT_NULL(result_eof);
 
 	tprompt_close(handle);
 }
@@ -828,10 +828,10 @@ TEST(CursorPositioning, EmptyBufferFinalRender)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Enable test mode call recording to verify rendering behavior
 	// (Assumes terse library has call recording in test mode)
@@ -843,7 +843,7 @@ TEST(CursorPositioning, EmptyBufferFinalRender)
 	test_mock_events(terse, events, 1);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "");
 
 	// Verify that rendering occurred (buffer should be at cursor position)
@@ -864,10 +864,10 @@ TEST(CursorPositioning, NonEmptyBufferFinalRender)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Test: Type "test" + move left + Enter
 	// Cursor should be moved to end before final render
@@ -883,7 +883,7 @@ TEST(CursorPositioning, NonEmptyBufferFinalRender)
 	test_mock_events(terse, events, 7);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "test");
 
 	// After readline completes, cursor should have been moved to end (length 4)
@@ -909,10 +909,10 @@ TEST(MultipleReadline, PromptDisplaysOnSecondCall)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// First readline() call: type "first" + Enter
 	terse_event_t events1[] = {
@@ -926,7 +926,7 @@ TEST(MultipleReadline, PromptDisplaysOnSecondCall)
 	test_mock_events(terse, events1, 6);
 
 	char *result1 = tprompt_readline(handle, NULL);
-	ASSERT_NE(result1, NULL);
+	ASSERT_NOT_NULL(result1);
 	EXPECT_STREQ(result1, "first");
 	free(result1);
 
@@ -944,7 +944,7 @@ TEST(MultipleReadline, PromptDisplaysOnSecondCall)
 	test_mock_events(terse, events2, 7);
 
 	char *result2 = tprompt_readline(handle, NULL);
-	ASSERT_NE(result2, NULL);
+	ASSERT_NOT_NULL(result2);
 	EXPECT_STREQ(result2, "second");
 	free(result2);
 
@@ -964,10 +964,10 @@ TEST(MultipleReadline, EmptyInputsBetweenCalls)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Three consecutive empty inputs
 	for (int i = 0; i < 3; i++) {
@@ -977,7 +977,7 @@ TEST(MultipleReadline, EmptyInputsBetweenCalls)
 		test_mock_events(terse, enter_events, 1);
 
 		char *result = tprompt_readline(handle, NULL);
-		ASSERT_NE(result, NULL);
+		ASSERT_NOT_NULL(result);
 		EXPECT_STREQ(result, "");
 		free(result);
 	}
@@ -993,7 +993,7 @@ TEST(MultipleReadline, EmptyInputsBetweenCalls)
 	test_mock_events(terse, events, 5);
 
 	char *result = tprompt_readline(handle, NULL);
-	ASSERT_NE(result, NULL);
+	ASSERT_NOT_NULL(result);
 	EXPECT_STREQ(result, "test");
 	free(result);
 
@@ -1009,10 +1009,10 @@ TEST(MultipleReadline, AlternatingEmptyAndNonEmpty)
 	};
 
 	tprompt_handle_t handle = create_handle_with_keybindings(bindings, 1);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	terse_handle_t terse = handle->terse;
-	ASSERT_NE(terse, NULL);
+	ASSERT_NOT_NULL(terse);
 
 	// Round 1: Non-empty input
 	terse_event_t events1[] = {
@@ -1021,7 +1021,7 @@ TEST(MultipleReadline, AlternatingEmptyAndNonEmpty)
 	};
 	test_mock_events(terse, events1, 2);
 	char *result1 = tprompt_readline(handle, NULL);
-	ASSERT_NE(result1, NULL);
+	ASSERT_NOT_NULL(result1);
 	EXPECT_STREQ(result1, "a");
 	free(result1);
 
@@ -1031,7 +1031,7 @@ TEST(MultipleReadline, AlternatingEmptyAndNonEmpty)
 	};
 	test_mock_events(terse, events2, 1);
 	char *result2 = tprompt_readline(handle, NULL);
-	ASSERT_NE(result2, NULL);
+	ASSERT_NOT_NULL(result2);
 	EXPECT_STREQ(result2, "");
 	free(result2);
 
@@ -1042,7 +1042,7 @@ TEST(MultipleReadline, AlternatingEmptyAndNonEmpty)
 	};
 	test_mock_events(terse, events3, 2);
 	char *result3 = tprompt_readline(handle, NULL);
-	ASSERT_NE(result3, NULL);
+	ASSERT_NOT_NULL(result3);
 	EXPECT_STREQ(result3, "b");
 	free(result3);
 
@@ -1052,7 +1052,7 @@ TEST(MultipleReadline, AlternatingEmptyAndNonEmpty)
 	};
 	test_mock_events(terse, events4, 1);
 	char *result4 = tprompt_readline(handle, NULL);
-	ASSERT_NE(result4, NULL);
+	ASSERT_NOT_NULL(result4);
 	EXPECT_STREQ(result4, "");
 	free(result4);
 

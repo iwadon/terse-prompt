@@ -32,33 +32,33 @@ TEST(History, AddAndNavigate)
 
 	// Navigate backward (prev returns newer-to-older)
 	const char *entry = tprompt_history_prev(&history);
-	EXPECT_NE(entry, NULL);
+	EXPECT_NOT_NULL(entry);
 	EXPECT_STREQ(entry, "third");
 
 	entry = tprompt_history_prev(&history);
-	EXPECT_NE(entry, NULL);
+	EXPECT_NOT_NULL(entry);
 	EXPECT_STREQ(entry, "second");
 
 	entry = tprompt_history_prev(&history);
-	EXPECT_NE(entry, NULL);
+	EXPECT_NOT_NULL(entry);
 	EXPECT_STREQ(entry, "first");
 
 	// At the end, should return NULL
 	entry = tprompt_history_prev(&history);
-	EXPECT_EQ(entry, NULL);
+	EXPECT_NULL(entry);
 
 	// Navigate forward
 	entry = tprompt_history_next(&history);
-	EXPECT_NE(entry, NULL);
+	EXPECT_NOT_NULL(entry);
 	EXPECT_STREQ(entry, "second");
 
 	entry = tprompt_history_next(&history);
-	EXPECT_NE(entry, NULL);
+	EXPECT_NOT_NULL(entry);
 	EXPECT_STREQ(entry, "third");
 
 	// At the newest, should return NULL
 	entry = tprompt_history_next(&history);
-	EXPECT_EQ(entry, NULL);
+	EXPECT_NULL(entry);
 
 	tprompt_history_free(&history);
 }
@@ -118,7 +118,7 @@ TEST(History, LRUEviction)
 	EXPECT_STREQ(entry, "entry3");
 
 	entry = tprompt_history_prev(&history);
-	EXPECT_EQ(entry, NULL); // No more entries
+	EXPECT_NULL(entry); // No more entries
 
 	tprompt_history_free(&history);
 }
@@ -129,8 +129,8 @@ TEST(History, EmptyNavigation)
 	tprompt_history_init(&history, 100);
 
 	// Navigation on empty history should return NULL
-	EXPECT_EQ(tprompt_history_prev(&history), NULL);
-	EXPECT_EQ(tprompt_history_next(&history), NULL);
+	EXPECT_NULL(tprompt_history_prev(&history));
+	EXPECT_NULL(tprompt_history_next(&history));
 
 	tprompt_history_free(&history);
 }
@@ -186,11 +186,11 @@ TEST(History, ResetPosition)
 
 	// Navigate
 	tprompt_history_prev(&history);
-	EXPECT_NE(history.current, NULL);
+	EXPECT_NOT_NULL(history.current);
 
 	// Reset should set current to NULL
 	tprompt_history_reset_position(&history);
-	EXPECT_EQ(history.current, NULL);
+	EXPECT_NULL(history.current);
 
 	tprompt_history_free(&history);
 }

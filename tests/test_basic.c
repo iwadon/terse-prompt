@@ -125,7 +125,7 @@ TEST(BufferManagement, Init_Success)
 {
 	tprompt_buffer_t buffer;
 	EXPECT_EQ(tprompt_buffer_init(&buffer, 0), 0);
-	EXPECT_NE(buffer.data, NULL);
+	EXPECT_NOT_NULL(buffer.data);
 	EXPECT_GT(buffer.size, 0);
 	EXPECT_EQ(buffer.length, 0);
 	EXPECT_EQ(buffer.cursor, 0);
@@ -293,13 +293,13 @@ TEST(CursorMovement, MoveToOffset)
 TEST(HandleManagement, Open_DefaultOptions)
 {
 	tprompt_handle_t handle = tprompt_open(NULL);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 
 	// Verify default settings
-	EXPECT_NE(handle->terse, NULL);
+	EXPECT_NOT_NULL(handle->terse);
 	EXPECT_TRUE(handle->owns_terse);
-	EXPECT_NE(handle->buffer.data, NULL);
-	EXPECT_NE(handle->prompt, NULL);
+	EXPECT_NOT_NULL(handle->buffer.data);
+	EXPECT_NOT_NULL(handle->prompt);
 
 	// Note: Terminal size is not mocked for internally-created terse handles
 	// in production builds. Tests that need mocked terminal size should use
@@ -323,7 +323,7 @@ TEST(HandleManagement, Open_CustomOptions)
 	};
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
+	ASSERT_NOT_NULL(handle);
 	EXPECT_STREQ(handle->prompt, "test> ");
 	EXPECT_EQ(handle->options.max_input_size, 2048);
 	EXPECT_EQ(handle->history.max_size, 50);
@@ -336,7 +336,7 @@ TEST(HandleManagement, Open_WithMockTerseHandle)
 #ifdef TERSE_ENABLE_TEST_MODE
 	// Create mock terse handle
 	terse_handle_t terse_h = test_create_terse_handle();
-	ASSERT_NE(terse_h, NULL);
+	ASSERT_NOT_NULL(terse_h);
 
 	// Pass to tprompt
 	tprompt_options_t opts = {
@@ -345,8 +345,8 @@ TEST(HandleManagement, Open_WithMockTerseHandle)
 	};
 
 	tprompt_handle_t handle = tprompt_open(&opts);
-	ASSERT_NE(handle, NULL);
-	EXPECT_EQ(handle->terse, terse_h);
+	ASSERT_NOT_NULL(handle);
+	EXPECT_TRUE(handle->terse == terse_h);
 	EXPECT_FALSE(handle->owns_terse); // External handle
 
 	// Verify mock settings are active
@@ -400,11 +400,11 @@ TEST(History, Init)
 	tprompt_history_t history;
 	tprompt_history_init(&history, 100);
 
-	EXPECT_EQ(history.head, NULL);
-	EXPECT_EQ(history.tail, NULL);
+	EXPECT_NULL(history.head);
+	EXPECT_NULL(history.tail);
 	EXPECT_EQ(history.count, 0);
 	EXPECT_EQ(history.max_size, 100);
-	EXPECT_EQ(history.current, NULL);
+	EXPECT_NULL(history.current);
 
 	tprompt_history_free(&history);
 }
@@ -415,7 +415,7 @@ TEST(History, ResetPosition)
 	tprompt_history_init(&history, 100);
 
 	tprompt_history_reset_position(&history);
-	EXPECT_EQ(history.current, NULL);
+	EXPECT_NULL(history.current);
 
 	tprompt_history_free(&history);
 }
@@ -430,7 +430,7 @@ TEST(Completion, Init)
 	tprompt_completion_init(&state);
 
 	EXPECT_FALSE(state.active);
-	EXPECT_EQ(state.candidates, NULL);
+	EXPECT_NULL(state.candidates);
 	EXPECT_EQ(state.candidate_count, 0);
 	EXPECT_EQ(state.selected_index, 0);
 	EXPECT_EQ(state.trigger_offset, 0);
