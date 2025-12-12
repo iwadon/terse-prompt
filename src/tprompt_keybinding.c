@@ -184,6 +184,21 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 			}
 			return 0; // Continue editing
 
+		case TERSE_EVENT_ENTER: {
+			// Pressing Enter while completion is open should pick the current candidate
+			int mods = event->data.key.mods;
+			bool wants_newline = (mods & TERSE_MOD_SHIFT) || (mods & TERSE_MOD_CTRL);
+
+			if (!wants_newline) {
+				if (tprompt_completion_confirm(handle) == 0) {
+					tprompt_completion_deactivate(handle);
+				}
+				return 0; // Continue editing after inserting completion
+			}
+			// With modifiers, fall through to default handling (newline/submit)
+			break;
+		}
+
 		default:
 			break;
 		}
