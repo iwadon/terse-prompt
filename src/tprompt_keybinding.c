@@ -192,6 +192,10 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 			if (!wants_newline) {
 				if (tprompt_completion_confirm(handle) == 0) {
 					tprompt_completion_deactivate(handle);
+					// Re-render so the filled-in completion is visible before submitting
+					tprompt_display_mark_all_dirty(handle);
+					tprompt_display_render_buffered(handle);
+					handle->force_confirmation = true;
 					// Immediately submit after applying completion
 					handle->pending_confirmation = true;
 				}
