@@ -189,17 +189,19 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 			int mods = event->data.key.mods;
 			bool wants_newline = (mods & TERSE_MOD_SHIFT) || (mods & TERSE_MOD_CTRL);
 
-			if (!wants_newline) {
-				if (tprompt_completion_confirm(handle) == 0) {
-					tprompt_completion_deactivate(handle);
-					// Re-render so the filled-in completion is visible before submitting
-					tprompt_display_mark_all_dirty(handle);
-					tprompt_display_render_buffered(handle);
-					handle->force_confirmation = true;
-					// Immediately submit after applying completion
-					handle->pending_confirmation = true;
-				}
-				return 0; // Confirmation will be handled by main loop
+				if (!wants_newline) {
+					if (tprompt_completion_confirm(handle) == 0) {
+						tprompt_completion_deactivate(handle);
+						// Re-render so the filled-in completion is visible before submitting
+						tprompt_display_mark_all_dirty(handle);
+						if (tprompt_display_render_buffered(handle) != 0) {
+							return -1; // Rendering failed, abort submission
+						}
+						handle->force_confirmation = true;
+						// Immediately submit after applying completion
+						handle->pending_confirmation = true;
+					}
+					return 0; // Confirmation will be handled by main loop
 			}
 			// With modifiers, fall through to default handling (newline/submit)
 			break;
