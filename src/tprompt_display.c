@@ -150,7 +150,27 @@ static size_t tprompt_calculate_required_rows(tprompt_handle_t handle)
 	}
 
 	if (handle->completion_state.active) {
-		required_rows += handle->completion_state.candidate_count;
+		size_t candidate_count = handle->completion_state.candidate_count;
+		if (candidate_count > 0) {
+			// Only the visible window is drawn (max_visible + optional indicators)
+			size_t max_visible = TPROMPT_MAX_VISIBLE_COMPLETION_ROWS;
+			size_t visible_start = handle->completion_state.display_offset;
+			size_t visible_end = candidate_count < visible_start + max_visible
+				? candidate_count
+				: visible_start + max_visible;
+
+			size_t rows_for_candidates = visible_end - visible_start;
+			size_t rows_for_indicators = 0;
+
+			if (visible_start > 0) {
+				rows_for_indicators++; // "↑ N more above"
+			}
+			if (visible_end < candidate_count) {
+				rows_for_indicators++; // "↓ N more below"
+			}
+
+			required_rows += rows_for_candidates + rows_for_indicators;
+		}
 	}
 
 	if (required_rows == 0) {
