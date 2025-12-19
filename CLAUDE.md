@@ -7,9 +7,10 @@ terse-prompt is a C library that provides multi-line text input capabilities for
 **Current Stage**: Feature-complete (v0.1)
 - API design complete and implemented (`include/tprompt.h`)
 - All core editing features implemented and tested
-- All 8 test suites passing (100% pass rate)
 - Status line support implemented
 - Buffer-based differential rendering implemented
+
+See `docs/implementation-status.md` for current test status and details.
 
 **Dependencies**:
 - **terse**: Terminal control library (in `external/terse/`)
@@ -90,7 +91,7 @@ rmdir /s /q build
 **Why Mock Handles Are Required**:
 - Tests without mocks trigger actual terminal control (escape sequences, raw mode)
 - This causes terminal state corruption during test execution
-- Mock mode is 100x faster (0.02s vs 2.79s for full suite)
+- Mock mode is significantly faster by eliminating terminal I/O overhead
 - Enables testing in non-TTY environments (CI/CD pipelines)
 - Prevents test flakiness and terminal I/O interference
 
@@ -142,7 +143,7 @@ tprompt_handle_t handle = tprompt_open(&opts);
 ```
 
 **Reference Implementations**:
-- `tests/test_validation.c` - Comprehensive mock usage (12 tests)
+- `tests/test_validation.c` - Comprehensive mock usage example
 - `tests/test_keybindings.c` - Keybinding tests with mocks
 - `tests/test_helpers.h` - Mock helper function definitions
 
@@ -348,18 +349,7 @@ opts.keybinding_count = 3;
 
 ### Current Implementation Status
 
-**v0.1 Feature-Complete (2025-11-19)**
-
-All core features are fully implemented and tested:
-- ✅ Core editing loop (`tprompt_readline()`) - Complete with validation support
-- ✅ UTF-8 navigation helpers - Full character boundary handling
-- ✅ History file I/O - Load/save with LRU eviction
-- ✅ Completion logic - Incremental filtering with callback system
-- ✅ Display rendering - Buffer-based differential rendering
-- ✅ Status line support - Customizable with debug mode
-- ✅ All 8 test suites passing (100%)
-
-See `docs/implementation-status.md` for detailed information.
+All core features are fully implemented and tested. See `docs/implementation-status.md` for detailed feature status, test results, and platform support information.
 
 ### Platform Support
 
@@ -431,7 +421,7 @@ See `docs/implementation-status.md` for detailed information.
 **Architecture**: Virtual screen buffer with frame diffing
 - **Current/Previous buffers**: Two screen buffers for frame comparison
 - **Dirty cell tracking**: Per-cell dirty flags for minimal updates
-- **Dynamic resizing**: Buffers grow as needed (initial 20 rows, doubles when full)
+- **Dynamic resizing**: Buffers grow dynamically as needed
 
 **Performance Benefits**:
 - Eliminates flicker on slow terminals (e.g., Human68k)
