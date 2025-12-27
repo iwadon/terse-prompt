@@ -634,10 +634,12 @@ int tprompt_action_insert_newline(tprompt_handle_t handle, const terse_event_t *
 	}
 
 	// Insert newline at cursor position
-	if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-			"Failed to insert newline: buffer at %zu/%zu bytes",
-			handle->buffer.length, handle->buffer.size);
+	if (tprompt_buffer_insert_limited(handle, "\n", 1) != 0) {
+		if (handle->last_error.category == TPROMPT_ERROR_NONE) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+				"Failed to insert newline: buffer at %zu/%zu bytes",
+				handle->buffer.length, handle->buffer.size);
+		}
 		return -1;
 	}
 

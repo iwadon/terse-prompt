@@ -589,6 +589,7 @@ int tprompt_history_add(tprompt_handle_t handle, const char *entry);
  * @brief Load history from file
  *
  * Loads history entries from the specified file.
+ * Entries exceeding max_input_size may be skipped to avoid excessive memory use.
  * Usually not needed as tprompt_open() automatically loads if history_file is set.
  *
  * @param handle Session handle

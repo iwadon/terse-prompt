@@ -69,10 +69,12 @@ static int tprompt_insert_newline_at_cursor(tprompt_handle_t handle)
 	}
 
 	size_t insert_pos = handle->buffer.cursor;
-	if (tprompt_buffer_insert(&handle->buffer, "\n", 1) != 0) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
-			"Failed to insert newline: buffer at %zu/%zu bytes",
-			handle->buffer.length, handle->buffer.size);
+	if (tprompt_buffer_insert_limited(handle, "\n", 1) != 0) {
+		if (handle->last_error.category == TPROMPT_ERROR_NONE) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
+				"Failed to insert newline: buffer at %zu/%zu bytes",
+				handle->buffer.length, handle->buffer.size);
+		}
 		return -1;
 	}
 
@@ -106,7 +108,7 @@ int tprompt_handle_char_input(tprompt_handle_t handle, const char *ch, int width
 			// Insert the character first
 			size_t ch_len = strlen(ch);
 			size_t insert_pos = handle->buffer.cursor;
-			if (tprompt_buffer_insert(&handle->buffer, ch, ch_len) != 0) {
+			if (tprompt_buffer_insert_limited(handle, ch, ch_len) != 0) {
 				return -1;
 			}
 
@@ -125,7 +127,7 @@ int tprompt_handle_char_input(tprompt_handle_t handle, const char *ch, int width
 	// Normal character insertion
 	size_t ch_len = strlen(ch);
 	size_t insert_pos = handle->buffer.cursor;
-	if (tprompt_buffer_insert(&handle->buffer, ch, ch_len) != 0) {
+	if (tprompt_buffer_insert_limited(handle, ch, ch_len) != 0) {
 		return -1;
 	}
 

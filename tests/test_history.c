@@ -157,7 +157,7 @@ TEST(History, FilePersistence)
 	// Load into new history
 	tprompt_history_t history2;
 	tprompt_history_init(&history2, 100);
-	EXPECT_EQ(tprompt_history_load_internal(&history2, temp_file), 0);
+	EXPECT_EQ(tprompt_history_load_internal(&history2, temp_file, 0, 0), 0);
 	EXPECT_EQ(history2.count, 3);
 
 	// Verify loaded entries (should be in same order)

@@ -81,10 +81,15 @@ const char *tprompt_get_continuation_prompt(tprompt_handle_t handle)
 		// Right-pad with spaces
 		size_t padding = initial_width - cont_width;
 		size_t cont_len = strlen(cont_prompt);
+		size_t max_len = sizeof(formatted_prompt) - 1;
 
-		if (padding + cont_len >= sizeof(formatted_prompt)) {
-			// Truncate if too long
-			padding = sizeof(formatted_prompt) - cont_len - 1;
+		if (cont_len > max_len) {
+			cont_len = max_len;
+		}
+
+		if (padding > max_len - cont_len) {
+			// Truncate padding to fit buffer
+			padding = max_len - cont_len;
 		}
 
 		// Build padded prompt: spaces + continuation_prompt
@@ -139,4 +144,3 @@ const char *tprompt_get_continuation_prompt(tprompt_handle_t handle)
 		return formatted_prompt;
 	}
 }
-

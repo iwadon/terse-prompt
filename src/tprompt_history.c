@@ -9,10 +9,80 @@
 
 #include "tprompt_history.h"
 #include <errno.h>
+#include <limits.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#if defined(__unix__) || defined(__APPLE__)
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
+#define TPROMPT_HISTORY_MAX_ENTRY_FALLBACK (1024 * 1024)
+#define TPROMPT_HISTORY_MAX_TOTAL_FALLBACK (10 * 1024 * 1024)
+
+static FILE *tprompt_history_open_read(const char *file_path)
+{
+#if defined(__unix__) || defined(__APPLE__)
+	int flags = O_RDONLY;
+#ifdef O_NOFOLLOW
+	flags |= O_NOFOLLOW;
+#endif
+	int fd = open(file_path, flags);
+	if (fd < 0) {
+		return NULL;
+	}
+
+	struct stat st;
+	if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+		close(fd);
+		errno = EINVAL;
+		return NULL;
+	}
+
+	FILE *fp = fdopen(fd, "r");
+	if (!fp) {
+		close(fd);
+		return NULL;
+	}
+	return fp;
+#else
+	return fopen(file_path, "r");
+#endif
+}
+
+static FILE *tprompt_history_open_write(const char *file_path)
+{
+#if defined(__unix__) || defined(__APPLE__)
+	int flags = O_WRONLY | O_CREAT | O_TRUNC;
+#ifdef O_NOFOLLOW
+	flags |= O_NOFOLLOW;
+#endif
+	int fd = open(file_path, flags, 0600);
+	if (fd < 0) {
+		return NULL;
+	}
+
+	struct stat st;
+	if (fstat(fd, &st) != 0 || !S_ISREG(st.st_mode)) {
+		close(fd);
+		errno = EINVAL;
+		return NULL;
+	}
+
+	FILE *fp = fdopen(fd, "w");
+	if (!fp) {
+		close(fd);
+		return NULL;
+	}
+	return fp;
+#else
+	return fopen(file_path, "w");
+#endif
+}
 
 /* ========================================================================
  * History Management - Core Functions
@@ -212,6 +282,9 @@ static char *tprompt_history_escape(const char *text)
 
 	// Allocate buffer (original length + escape characters + null terminator)
 	size_t len = strlen(text);
+	if (len > SIZE_MAX - escape_count - 1) {
+		return NULL;
+	}
 	char *escaped = malloc(len + escape_count + 1);
 	if (!escaped) {
 		return NULL;
@@ -275,18 +348,39 @@ static void tprompt_history_unescape(char *text)
 	*dst = '\0';
 }
 
+static void tprompt_history_sanitize(char *text)
+{
+	if (!text) {
+		return;
+	}
+
+	char *src = text;
+	char *dst = text;
+
+	while (*src) {
+		unsigned char ch = (unsigned char)*src;
+		if ((ch < 0x20 && ch != '\n' && ch != '\t') || ch == 0x7F) {
+			src++;
+			continue;
+		}
+		*dst++ = *src++;
+	}
+	*dst = '\0';
+}
+
 /* ========================================================================
  * File Persistence - Load/Save
  * ======================================================================== */
 
-int tprompt_history_load_internal(tprompt_history_t *history, const char *file_path)
+int tprompt_history_load_internal(tprompt_history_t *history, const char *file_path,
+	size_t max_entry_size, size_t max_total_size)
 {
 	if (!history || !file_path) {
 		return -1;
 	}
 
 	// Open file for reading
-	FILE *fp = fopen(file_path, "r");
+	FILE *fp = tprompt_history_open_read(file_path);
 	if (!fp) {
 		// File not found is not an error (first time use)
 		if (errno == ENOENT) {
@@ -301,13 +395,39 @@ int tprompt_history_load_internal(tprompt_history_t *history, const char *file_p
 	char *line = NULL;
 	size_t line_len = 0;
 	size_t line_cap = 0;
+	size_t total_read = 0;
+	bool skipping_long_line = false;
+	size_t max_entry = max_entry_size > 0 ? max_entry_size : TPROMPT_HISTORY_MAX_ENTRY_FALLBACK;
+	size_t max_total = max_total_size > 0 ? max_total_size : TPROMPT_HISTORY_MAX_TOTAL_FALLBACK;
 
 	while (fgets(buffer, sizeof(buffer), fp)) {
 		size_t buffer_len = strlen(buffer);
+		total_read += buffer_len;
+		if (total_read > max_total) {
+			free(line);
+			fclose(fp);
+			return -1;
+		}
 
 		// Check if this is a continuation of a previous line
 		// (no newline at end means buffer was full)
 		bool has_newline = (buffer_len > 0 && buffer[buffer_len - 1] == '\n');
+
+		if (skipping_long_line) {
+			if (has_newline) {
+				skipping_long_line = false;
+			}
+			continue;
+		}
+
+		if (line_len + buffer_len > max_entry) {
+			skipping_long_line = !has_newline;
+			line_len = 0;
+			if (line) {
+				line[0] = '\0';
+			}
+			continue;
+		}
 
 		// Append buffer to line
 		if (line_len + buffer_len >= line_cap) {
@@ -315,6 +435,9 @@ int tprompt_history_load_internal(tprompt_history_t *history, const char *file_p
 			size_t new_cap = line_cap == 0 ? 4096 : line_cap * 2;
 			while (new_cap < line_len + buffer_len + 1) {
 				new_cap *= 2;
+			}
+			if (new_cap > max_entry + 1) {
+				new_cap = max_entry + 1;
 			}
 			char *new_line = realloc(line, new_cap);
 			if (!new_line) {
@@ -345,6 +468,7 @@ int tprompt_history_load_internal(tprompt_history_t *history, const char *file_p
 
 			// Unescape special characters
 			tprompt_history_unescape(line);
+			tprompt_history_sanitize(line);
 
 			// Add to history (skip empty lines handled by add_internal)
 			tprompt_history_add_internal(history, line);
@@ -366,6 +490,7 @@ int tprompt_history_load_internal(tprompt_history_t *history, const char *file_p
 		}
 
 		tprompt_history_unescape(line);
+		tprompt_history_sanitize(line);
 		tprompt_history_add_internal(history, line);
 	}
 
@@ -382,7 +507,7 @@ int tprompt_history_save_internal(tprompt_history_t *history, const char *file_p
 	}
 
 	// Open file for writing (truncate)
-	FILE *fp = fopen(file_path, "w");
+	FILE *fp = tprompt_history_open_write(file_path);
 	if (!fp) {
 		return -1;
 	}

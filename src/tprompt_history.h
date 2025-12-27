@@ -91,9 +91,12 @@ void tprompt_history_reset_position(tprompt_history_t *history);
  * @brief Load history from file (internal implementation)
  * @param history History structure
  * @param file_path File path
+ * @param max_entry_size Maximum entry size in bytes (0 = fallback default)
+ * @param max_total_size Maximum total bytes to read (0 = fallback default)
  * @return 0 on success, -1 on failure
  */
-int tprompt_history_load_internal(tprompt_history_t *history, const char *file_path);
+int tprompt_history_load_internal(tprompt_history_t *history, const char *file_path,
+	size_t max_entry_size, size_t max_total_size);
 
 /**
  * @brief Save history to file (internal implementation)

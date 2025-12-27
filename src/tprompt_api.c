@@ -90,6 +90,16 @@ int tprompt_history_add(tprompt_handle_t handle, const char *entry)
 		return 0;
 	}
 
+	if (handle->options.max_input_size > 0) {
+		size_t entry_len = strlen(entry);
+		if (entry_len > handle->options.max_input_size) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_SIZE_LIMIT, 0,
+				"History entry exceeds max_input_size (%zu bytes)",
+				handle->options.max_input_size);
+			return -1;
+		}
+	}
+
 	return tprompt_history_add_internal(&handle->history, entry);
 }
 
@@ -99,7 +109,13 @@ int tprompt_history_load(tprompt_handle_t handle, const char *file_path)
 		return -1;
 	}
 
-	return tprompt_history_load_internal(&handle->history, file_path);
+	int result = tprompt_history_load_internal(&handle->history, file_path,
+		handle->options.max_input_size, 0);
+	if (result != 0) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_HISTORY_FILE, errno,
+			"Failed to load history file");
+	}
+	return result;
 }
 
 int tprompt_history_save(tprompt_handle_t handle, const char *file_path)
@@ -108,7 +124,12 @@ int tprompt_history_save(tprompt_handle_t handle, const char *file_path)
 		return -1;
 	}
 
-	return tprompt_history_save_internal(&handle->history, file_path);
+	int result = tprompt_history_save_internal(&handle->history, file_path);
+	if (result != 0) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_HISTORY_FILE, errno,
+			"Failed to save history file");
+	}
+	return result;
 }
 
 void tprompt_history_clear(tprompt_handle_t handle)
@@ -308,4 +329,3 @@ tprompt_error_info_t tprompt_get_last_error(tprompt_handle_t handle)
 	}
 	return tprompt_global_error;
 }
-

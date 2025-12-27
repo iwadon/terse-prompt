@@ -9,6 +9,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "tprompt_internal.h"
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -124,6 +125,28 @@ int tprompt_buffer_insert(tprompt_buffer_t *buffer, const char *text, size_t len
 	buffer->data[buffer->length] = '\0';
 
 	return 0;
+}
+
+int tprompt_buffer_insert_limited(tprompt_handle_t handle, const char *text, size_t len)
+{
+	if (!handle) {
+		return -1;
+	}
+
+	if (!text || len == 0) {
+		return -1;
+	}
+
+	size_t max_size = handle->options.max_input_size;
+	if (max_size > 0) {
+		if (handle->buffer.length >= max_size || len > max_size - handle->buffer.length) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_SIZE_LIMIT, 0,
+				"Input exceeds max_input_size (%zu bytes)", max_size);
+			return -1;
+		}
+	}
+
+	return tprompt_buffer_insert(&handle->buffer, text, len);
 }
 
 size_t tprompt_buffer_delete_before(tprompt_buffer_t *buffer, size_t count)

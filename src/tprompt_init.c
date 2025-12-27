@@ -140,7 +140,8 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 			free(handle);
 			return NULL;
 		}
-		tprompt_history_load_internal(&handle->history, handle->history_file_path);
+		tprompt_history_load_internal(&handle->history, handle->history_file_path,
+			options->max_input_size, 0);
 		// Ignore errors on load
 	}
 
@@ -337,4 +338,3 @@ void tprompt_close(tprompt_handle_t handle)
 
 	free(handle);
 }
-

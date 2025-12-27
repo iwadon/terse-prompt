@@ -62,6 +62,15 @@ int tprompt_buffer_ensure_capacity(tprompt_buffer_t *buffer, size_t required_siz
 int tprompt_buffer_insert(tprompt_buffer_t *buffer, const char *text, size_t len);
 
 /**
+ * @brief Insert text with max_input_size enforcement
+ * @param handle Prompt handle
+ * @param text Text to insert (UTF-8)
+ * @param len Length of text in bytes
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_buffer_insert_limited(tprompt_handle_t handle, const char *text, size_t len);
+
+/**
  * @brief Delete characters before cursor (backspace)
  * @param buffer Buffer to modify
  * @param count Number of characters to delete (not bytes)

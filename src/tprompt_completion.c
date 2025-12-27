@@ -312,12 +312,12 @@ int tprompt_completion_confirm(tprompt_handle_t handle)
 
 	// Insert the selected candidate after the trigger character
 	size_t selected_len = strlen(selected);
-	if (tprompt_buffer_insert(&handle->buffer, selected, selected_len) != 0) {
+	if (tprompt_buffer_insert_limited(handle, selected, selected_len) != 0) {
 		return -1;
 	}
 
 	// Insert a trailing space after the completed text
-	if (tprompt_buffer_insert(&handle->buffer, " ", 1) != 0) {
+	if (tprompt_buffer_insert_limited(handle, " ", 1) != 0) {
 		return -1;
 	}
 
