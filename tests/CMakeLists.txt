@@ -207,3 +207,24 @@ target_link_libraries(test_status PRIVATE
 )
 
 add_test(NAME test_status COMMAND test_status)
+
+# Public API coverage tests
+add_executable(test_api
+    test_api.c
+)
+
+target_include_directories(test_api PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(test_api PRIVATE
+    _POSIX_C_SOURCE=200809L
+    $<$<BOOL:${TPROMPT_USE_TERSE_TEST_MODE}>:TERSE_ENABLE_TEST_MODE=1>
+)
+
+target_link_libraries(test_api PRIVATE
+    tprompt
+    attest
+)
+
+add_test(NAME test_api COMMAND test_api)
