@@ -576,11 +576,6 @@ int tprompt_cursor_move_to_physical_line_start(tprompt_handle_t handle)
 	}
 
 	// Walk backward through buffer to find where this physical line starts
-	size_t terminal_width = handle->display.terminal_width;
-	if (terminal_width == 0) {
-		terminal_width = 80;
-	}
-
 	const char *data = handle->buffer.data;
 	size_t target_offset = handle->buffer.cursor;
 
@@ -634,11 +629,6 @@ int tprompt_cursor_move_to_physical_line_end(tprompt_handle_t handle)
 		&current_phys_line, &current_phys_col);
 
 	// Walk forward through buffer to find where this physical line ends
-	size_t terminal_width = handle->display.terminal_width;
-	if (terminal_width == 0) {
-		terminal_width = 80;
-	}
-
 	const char *data = handle->buffer.data;
 	size_t target_offset = handle->buffer.cursor;
 	size_t buffer_length = handle->buffer.length;

@@ -34,9 +34,10 @@ static size_t tprompt_calculate_total_physical_lines(tprompt_handle_t handle)
 		return 1;
 	}
 
-	size_t terminal_width = handle->display.terminal_width;
-	if (terminal_width == 0) {
-		terminal_width = 80; // Fallback default
+	// Use buffer width for wrapping (terminal_width - 1 for cursor space)
+	size_t wrap_width = handle->display.current_buffer.cols;
+	if (wrap_width == 0) {
+		wrap_width = 79; // Fallback default (80 - 1)
 	}
 
 	// Start with prompt on first physical line
@@ -67,7 +68,7 @@ static size_t tprompt_calculate_total_physical_lines(tprompt_handle_t handle)
 		}
 
 		// Check if we need to wrap to next physical line (auto-wrap)
-		if (current_col >= terminal_width) {
+		if (current_col >= wrap_width) {
 			total_physical_lines++;
 			current_col = 0;
 		}
@@ -277,9 +278,10 @@ void tprompt_calculate_physical_position(tprompt_handle_t handle, size_t byte_of
 		return;
 	}
 
-	size_t terminal_width = handle->display.terminal_width;
-	if (terminal_width == 0) {
-		terminal_width = 80; // Fallback default
+	// Use buffer width for wrapping (terminal_width - 1 for cursor space)
+	size_t wrap_width = handle->display.current_buffer.cols;
+	if (wrap_width == 0) {
+		wrap_width = 79; // Fallback default (80 - 1)
 	}
 
 	// Clamp byte_offset to buffer length
@@ -314,7 +316,7 @@ void tprompt_calculate_physical_position(tprompt_handle_t handle, size_t byte_of
 		}
 
 		// Check if we need to wrap to next physical line (auto-wrap)
-		if (current_col >= terminal_width) {
+		if (current_col >= wrap_width) {
 			current_physical_line++;
 			current_col = 0;
 		}
@@ -855,10 +857,26 @@ int tprompt_buffer_based_rendering_init(tprompt_handle_t handle)
 		return 0;
 	}
 
+	// Get actual terminal size from terse before initializing buffers
+	// This ensures buffers are sized correctly for the current terminal
+	if (handle->terse) {
+		terse_size_t size = terse_get_size(handle->terse);
+		if (size.known && size.cols > 0 && size.rows > 0) {
+			handle->display.terminal_width = (size_t)size.cols;
+			handle->display.terminal_height = (size_t)size.rows;
+		}
+	}
+
 	// Determine buffer dimensions
 	// Use current terminal dimensions or reasonable defaults
 	size_t rows = handle->display.terminal_height > 0 ? handle->display.terminal_height : 24;
 	size_t cols = handle->display.terminal_width > 0 ? handle->display.terminal_width : 80;
+
+	// Reserve one column for cursor at end of line (Claude Code style)
+	// This ensures the cursor always has a dedicated cell and never overlaps with text
+	if (cols > 1) {
+		cols -= 1;
+	}
 
 	// We only need a few rows for the prompt area (input + status line + completion)
 	// Start with a reasonable size (20 rows covers most typical inputs, will grow dynamically if needed)
@@ -1003,7 +1021,8 @@ static int tprompt_render_to_buffer_input(tprompt_handle_t handle, size_t start_
 	}
 
 	tprompt_screen_buffer_t *buf = &handle->display.current_buffer;
-	size_t terminal_width = handle->display.terminal_width;
+	// Use buffer width for wrapping (which is terminal_width - 1 for cursor space)
+	size_t wrap_width = buf->cols;
 
 	size_t row = start_row;
 	size_t col = start_col;
@@ -1042,7 +1061,7 @@ static int tprompt_render_to_buffer_input(tprompt_handle_t handle, size_t start_
 		}
 
 		// Check if we need to wrap to next physical line
-		if (col >= terminal_width) {
+		if (col >= wrap_width) {
 			row++;
 			col = 0;
 
@@ -1074,7 +1093,7 @@ static int tprompt_render_to_buffer_input(tprompt_handle_t handle, size_t start_
 		}
 
 		// Check if character fits on current line
-		if (col + (size_t)char_width > terminal_width) {
+		if (col + (size_t)char_width > wrap_width) {
 			// Wrap to next line
 			row++;
 			col = 0;

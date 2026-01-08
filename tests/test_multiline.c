@@ -93,12 +93,14 @@ TEST(MultilineDisplay, CalculateLayout_WrapsAtTerminalWidth)
 	ASSERT_NOT_NULL(handle);
 
 	// Insert text that wraps: "> " (2) + "12345678901234567890" (20) = 22 cols
-	// Should wrap to line 1 at column 2
+	// With wrap_width = 19 (terminal_width - 1 for cursor space):
+	// Line 0: "> " (2) + 17 chars = 19 -> wrap
+	// Line 1: 3 chars remaining
 	tprompt_buffer_insert(&handle->buffer, "12345678901234567890", 20);
 	tprompt_display_calculate_layout(handle);
 
 	EXPECT_EQ(handle->display.physical_line, 1);
-	EXPECT_EQ(handle->display.physical_column, 2);
+	EXPECT_EQ(handle->display.physical_column, 3);
 	EXPECT_EQ(handle->display.total_physical_lines, 2);
 
 	tprompt_close(handle);
@@ -110,9 +112,10 @@ TEST(MultilineDisplay, CalculateLayout_MultipleWraps)
 	ASSERT_NOT_NULL(handle);
 
 	// Insert 50 characters: will span 3 physical lines
-	// Line 0: "> " + 18 chars = 20
-	// Line 1: 20 chars
-	// Line 2: 12 chars
+	// With wrap_width = 19 (terminal_width - 1 for cursor space):
+	// Line 0: "> " (2) + 17 chars = 19
+	// Line 1: 19 chars
+	// Line 2: 50 - 17 - 19 = 14 chars
 	char text[51];
 	memset(text, 'A', 50);
 	text[50] = '\0';
@@ -120,7 +123,7 @@ TEST(MultilineDisplay, CalculateLayout_MultipleWraps)
 	tprompt_display_calculate_layout(handle);
 
 	EXPECT_EQ(handle->display.physical_line, 2);
-	EXPECT_EQ(handle->display.physical_column, 12);
+	EXPECT_EQ(handle->display.physical_column, 14);
 	EXPECT_EQ(handle->display.total_physical_lines, 3);
 
 	tprompt_close(handle);
@@ -140,10 +143,12 @@ TEST(MultilineDisplay, CalculateLayout_CursorInMiddle)
 
 	tprompt_display_calculate_layout(handle);
 
-	// Cursor at byte 25 = absolute col 27 (2 + 25)
-	// Physical line = 27 / 20 = 1, col = 27 % 20 = 7
+	// With wrap_width = 19:
+	// Line 0: "> " (2) + 17 chars = 19
+	// Line 1: chars 17-35 (19 chars max)
+	// Cursor at byte 25 = char 25 -> 25 - 17 = 8 cols into Line 1
 	EXPECT_EQ(handle->display.physical_line, 1);
-	EXPECT_EQ(handle->display.physical_column, 7);
+	EXPECT_EQ(handle->display.physical_column, 8);
 
 	tprompt_close(handle);
 }
@@ -383,18 +388,17 @@ TEST(MultilineDisplay, Wrapping_ExactTerminalWidth)
 	tprompt_handle_t handle = create_test_handle(10, 24);
 	ASSERT_NOT_NULL(handle);
 
-	// Prompt "> " (2) + "12345678" (8) = exactly 10 cols
-	// Cursor at position 8 (end of buffer)
+	// With wrap_width = 9 (terminal_width - 1 for cursor space):
+	// Prompt "> " (2) + "12345678" (8) = 10 cols > wrap_width (9)
+	// Line 0: "> " (2) + 7 chars = 9
+	// Line 1: 1 char
 	tprompt_buffer_insert(&handle->buffer, "12345678", 8);
 	tprompt_display_calculate_layout(handle);
 
-	// At exact terminal width, cursor position is at end of first line
-	// Physical line calculation: column reaches terminal_width (10), wraps occur
-	// The implementation may place cursor at (1, 0) or (0, 10) depending on wrap behavior
-	// Since we're at exact boundary, accept either as valid
-	EXPECT_TRUE(handle->display.physical_line <= 1);
-	// Total lines = 1 (content fits in one line)
-	EXPECT_EQ(handle->display.total_physical_lines, 1);
+	// With -1 cursor space, 10 chars wraps to 2 lines
+	EXPECT_EQ(handle->display.physical_line, 1);
+	EXPECT_EQ(handle->display.physical_column, 1);
+	EXPECT_EQ(handle->display.total_physical_lines, 2);
 
 	tprompt_close(handle);
 }
@@ -404,12 +408,15 @@ TEST(MultilineDisplay, Wrapping_OneCharOverTerminalWidth)
 	tprompt_handle_t handle = create_test_handle(10, 24);
 	ASSERT_NOT_NULL(handle);
 
-	// Prompt "> " (2) + "123456789" (9) = 11 cols - wraps to line 1
+	// With wrap_width = 9 (terminal_width - 1 for cursor space):
+	// Prompt "> " (2) + "123456789" (9) = 11 cols
+	// Line 0: "> " (2) + 7 chars = 9
+	// Line 1: 2 chars
 	tprompt_buffer_insert(&handle->buffer, "123456789", 9);
 	tprompt_display_calculate_layout(handle);
 
 	EXPECT_EQ(handle->display.physical_line, 1);
-	EXPECT_EQ(handle->display.physical_column, 1);
+	EXPECT_EQ(handle->display.physical_column, 2);
 	EXPECT_EQ(handle->display.total_physical_lines, 2);
 
 	tprompt_close(handle);
@@ -551,19 +558,20 @@ TEST(MultilineEdgeCases, UTF8_AtWrapBoundary)
 	tprompt_handle_t handle = create_test_handle(10, 24);
 	ASSERT_NOT_NULL(handle);
 
-	// Insert text that places UTF-8 char exactly at wrap boundary
-	// Prompt "> " (2) + "1234567" (7) = 9 cols
+	// With wrap_width = 9 (terminal_width - 1 for cursor space):
+	// Prompt "> " (2) + "1234567" (7) = 9 cols (exactly wrap_width)
 	tprompt_buffer_insert(&handle->buffer, "1234567", 7);
 
-	// Add UTF-8 character (3 bytes, but counts as 1 char width)
-	// Total: 2 + 7 + 1 = 10 cols (exact terminal width)
+	// Add UTF-8 CJK character (3 bytes, 2 display columns)
+	// Line 0: 9 cols already full, "日" wraps to line 1
+	// Line 1: "日" (2 cols)
 	tprompt_buffer_insert(&handle->buffer, "日", 3);
 
 	tprompt_display_calculate_layout(handle);
-	// At exact terminal width boundary, accept either position
-	EXPECT_TRUE(handle->display.physical_line <= 1);
-	// Content fits in 1 line
-	EXPECT_EQ(handle->display.total_physical_lines, 1);
+	// Wide char causes wrap to second line
+	EXPECT_EQ(handle->display.physical_line, 1);
+	EXPECT_EQ(handle->display.physical_column, 2);
+	EXPECT_EQ(handle->display.total_physical_lines, 2);
 
 	tprompt_close(handle);
 }
