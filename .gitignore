@@ -105,3 +105,4 @@ CMakeUserPresets.json
 build-*/
 build/
 demo_history.txt
+.cache/
