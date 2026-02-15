@@ -290,10 +290,16 @@ int tprompt_completion_confirm(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// Calculate trigger character length (assume single-byte for now)
-	// Skip past the trigger character to get the start of user input
-	size_t trigger_char_len = 1;
-	size_t user_input_start = trigger_pos + trigger_char_len;
+	// Calculate start of user input
+	// For Tab-triggered completion, trigger_offset points to word start (no trigger char to skip)
+	// For prefix-triggered completion (e.g., ':'), skip past the trigger character
+	size_t user_input_start;
+	if (handle->completion_state.trigger_char == '\t') {
+		user_input_start = trigger_pos;
+	} else {
+		size_t trigger_char_len = 1;
+		user_input_start = trigger_pos + trigger_char_len;
+	}
 
 	// Move cursor to position after trigger character
 	handle->buffer.cursor = user_input_start;

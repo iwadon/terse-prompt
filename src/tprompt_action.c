@@ -81,8 +81,12 @@ int tprompt_action_delete_backward(tprompt_handle_t handle, const terse_event_t 
 		// If completion is active, check if we deleted the trigger character
 		if (handle->completion_state.active) {
 			size_t trigger_pos = handle->completion_state.trigger_offset;
-			// If we deleted at or before the trigger position, deactivate completion
-			if (old_cursor <= trigger_pos + 1) {
+			// For Tab completion, trigger_offset is word start (no trigger char to preserve)
+			// For prefix completion, trigger_offset is the prefix char position
+			size_t deactivate_threshold = (handle->completion_state.trigger_char == '\t')
+				? trigger_pos
+				: trigger_pos + 1;
+			if (old_cursor <= deactivate_threshold) {
 				tprompt_completion_deactivate(handle);
 			} else {
 				// Otherwise, update completion candidates with new input
@@ -614,9 +618,27 @@ int tprompt_action_complete(tprompt_handle_t handle, const terse_event_t *event)
 		return 0; // Continue editing
 	}
 
-	// Otherwise, do nothing (TAB is reserved for completion)
-	// This follows REPL conventions (Python, Ruby, Node.js, IPython, etc.)
-	// where TAB is dedicated to completion and does not insert literal tab characters
+	// Tab-triggered completion: scan backwards from cursor to find word boundary
+	// Only activate if a completion callback is registered
+	if (handle->completion_ex_callback || handle->completion_callback) {
+		size_t cursor = handle->buffer.cursor;
+		size_t word_start = cursor;
+
+		// Scan backwards to find identifier word boundary (alphanumeric + underscore)
+		while (word_start > 0) {
+			char ch = handle->buffer.data[word_start - 1];
+			if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
+				(ch >= '0' && ch <= '9') || ch == '_') {
+				word_start--;
+			} else {
+				break;
+			}
+		}
+
+		// Activate completion with '\t' as trigger, word_start as offset
+		tprompt_completion_activate(handle, '\t', word_start);
+	}
+
 	return 0; // Continue editing
 }
 
