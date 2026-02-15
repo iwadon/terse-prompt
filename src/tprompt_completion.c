@@ -162,11 +162,17 @@ int tprompt_completion_update(tprompt_handle_t handle)
 			handle->completion_state.use_extended = true;
 			return 0;
 		} else if (ret == 0 && count == 0) {
-			// No candidates - keep completion active but with empty list
-			handle->completion_state.candidates_ex = NULL;
-			handle->completion_state.candidate_count = 0;
-			handle->completion_state.selected_index = 0;
-			handle->completion_state.use_extended = true;
+			// No candidates
+			if (handle->completion_state.trigger_char == '\t') {
+				// Tab completion: deactivate when no candidates remain
+				tprompt_completion_deactivate(handle);
+			} else {
+				// Prefix completion: keep active (user may type more to match)
+				handle->completion_state.candidates_ex = NULL;
+				handle->completion_state.candidate_count = 0;
+				handle->completion_state.selected_index = 0;
+				handle->completion_state.use_extended = true;
+			}
 			return 0;
 		}
 		// Fall through to legacy callback on error
@@ -186,7 +192,10 @@ int tprompt_completion_update(tprompt_handle_t handle)
 		handle->completion_state.selected_index = 0;
 		handle->completion_state.use_extended = false;
 
-		// Keep completion active even if no candidates (will show empty list)
+		// Tab completion: deactivate when no candidates remain
+		if (result.count == 0 && handle->completion_state.trigger_char == '\t') {
+			tprompt_completion_deactivate(handle);
+		}
 		return 0;
 	}
 
