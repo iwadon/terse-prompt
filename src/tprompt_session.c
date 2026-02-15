@@ -397,22 +397,29 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 		// Calculate how many lines were used for input text
 		size_t total_lines = handle->display.total_physical_lines;
 
-		// Move cursor to the line AFTER the last input line (where status line starts)
-		// This preserves the input text while clearing status/completion areas
-		terse_error_t terr = terse_move_to(handle->terse,
-			handle->display.start_row + (int)total_lines, 0);
-		if (terr == TERSE_OK) {
-			// Clear from status line position to end of screen
-			// Using ED (Erase in Display): CSI J (clear from cursor to end of screen)
-			terse_write_text(handle->terse, "\x1b[J");
+		// Calculate the row just after the input area
+		int clear_row = handle->display.start_row + (int)total_lines;
+		int term_h = (int)handle->display.terminal_height;
 
-			// Move cursor back to end of input text
-			size_t cursor_line, cursor_col;
-			tprompt_calculate_physical_position(handle, handle->buffer.length,
-				true, &cursor_line, &cursor_col);
-			terse_move_to(handle->terse,
-				handle->display.start_row + (int)cursor_line, (int)cursor_col);
+		// Only clear status/completion area if there are actual rows below the input.
+		// When the input occupies the last row(s) of the terminal, moving past the
+		// terminal height and issuing CSI J would erase the input line itself because
+		// the terminal clamps the cursor to the last row.
+		if (term_h > 0 && clear_row < term_h) {
+			terse_error_t terr = terse_move_to(handle->terse, clear_row, 0);
+			if (terr == TERSE_OK) {
+				// Clear from status line position to end of screen
+				// Using ED (Erase in Display): CSI J (clear from cursor to end of screen)
+				terse_write_text(handle->terse, "\x1b[J");
+			}
 		}
+
+		// Move cursor back to end of input text
+		size_t cursor_line, cursor_col;
+		tprompt_calculate_physical_position(handle, handle->buffer.length,
+			true, &cursor_line, &cursor_col);
+		terse_move_to(handle->terse,
+			handle->display.start_row + (int)cursor_line, (int)cursor_col);
 	}
 
 	// Move to new line after input is confirmed
