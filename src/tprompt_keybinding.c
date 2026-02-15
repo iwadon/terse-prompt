@@ -533,13 +533,12 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 			if (handle->completion_state.active) {
 				// For Tab completion, trigger_offset is word start (no trigger char)
 				// For prefix completion, trigger_offset is the prefix char position
-				size_t deactivate_pos = (handle->completion_state.trigger_char == '\t')
-					? handle->completion_state.trigger_offset
-					: handle->completion_state.trigger_offset + 1;
-				if (old_cursor == deactivate_pos) {
-					tprompt_completion_deactivate(handle);
-				} else if (handle->buffer.cursor < deactivate_pos) {
-					// Cursor moved before deactivation point, also deactivate
+				size_t trigger_pos = handle->completion_state.trigger_offset;
+				bool is_tab = (handle->completion_state.trigger_char == '\t');
+				// Tab: deactivate when cursor reaches or passes word start
+				// Prefix: deactivate when the trigger char itself is deleted
+				if (is_tab ? (handle->buffer.cursor <= trigger_pos)
+						   : (old_cursor <= trigger_pos + 1)) {
 					tprompt_completion_deactivate(handle);
 				} else {
 					// Update completion candidates with new input

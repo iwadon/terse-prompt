@@ -78,15 +78,14 @@ int tprompt_action_delete_backward(tprompt_handle_t handle, const terse_event_t 
 		// Mark from new cursor position to old end as dirty (characters shift left)
 		tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
 
-		// If completion is active, check if we deleted the trigger character
+		// If completion is active, check if we should deactivate
 		if (handle->completion_state.active) {
 			size_t trigger_pos = handle->completion_state.trigger_offset;
-			// For Tab completion, trigger_offset is word start (no trigger char to preserve)
-			// For prefix completion, trigger_offset is the prefix char position
-			size_t deactivate_threshold = (handle->completion_state.trigger_char == '\t')
-				? trigger_pos
-				: trigger_pos + 1;
-			if (old_cursor <= deactivate_threshold) {
+			bool is_tab = (handle->completion_state.trigger_char == '\t');
+			// Tab: deactivate when cursor reaches or passes word start
+			// Prefix: deactivate when the trigger char itself is deleted
+			if (is_tab ? (handle->buffer.cursor <= trigger_pos)
+					   : (old_cursor <= trigger_pos + 1)) {
 				tprompt_completion_deactivate(handle);
 			} else {
 				// Otherwise, update completion candidates with new input
