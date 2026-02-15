@@ -582,6 +582,21 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 		return 0;
 	}
 
+	// Resolve action from default keybindings for unhandled key events
+	{
+		tprompt_action_t action = tprompt_resolve_action(handle, event);
+		if (action != TPROMPT_ACTION_NONE) {
+			int result = tprompt_execute_action(handle, action, event);
+			if (result != 0) {
+				return result;
+			}
+			handle->input_state.last_key_type = event->type;
+			handle->input_state.last_cursor_pos = handle->buffer.cursor;
+			handle->input_state.has_goal_column = false;
+			return 0;
+		}
+	}
+
 	// For any other key, clear the last key tracking and goal column
 	handle->input_state.last_key_type = event->type;
 	handle->input_state.last_cursor_pos = handle->buffer.cursor;
