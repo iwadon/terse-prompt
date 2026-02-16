@@ -1,6 +1,0 @@
-[submodule "external/attest"]
-	path = external/attest
-	url = https://github.com/iwadon/attest.git
-[submodule "external/terse"]
-	path = external/terse
-	url = https://github.com/iwadon/terse.git

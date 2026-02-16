@@ -13,8 +13,8 @@ terse-prompt is a C library that provides multi-line text input capabilities for
 See `docs/implementation-status.md` for current test status and details.
 
 **Dependencies**:
-- **terse**: Terminal control library (in `external/terse/`)
-- **attest**: Testing framework (in `external/attest/`)
+- **terse**: Terminal control library (via CMake FetchContent)
+- **attest**: Testing framework (via CMake FetchContent)
 
 ## Build System
 
@@ -359,11 +359,12 @@ All core features are fully implemented and tested. See `docs/implementation-sta
 ### External Dependencies
 
 **terse**: Core dependency for terminal control
-- Located in `external/terse/` as Git submodule
-- See `external/terse/CLAUDE.md` for terse-specific guidance
+- Fetched via CMake FetchContent (see `CMakeLists.txt` for pinned version)
+- Source: https://github.com/iwadon/terse.git
 
 **attest**: Test framework
-- Located in `external/attest/` as Git submodule
+- Fetched via CMake FetchContent (see `CMakeLists.txt` for pinned version)
+- Source: https://github.com/iwadon/attest.git
 - Only required when `TPROMPT_BUILD_TESTING` is enabled
 
 ### Design Principles

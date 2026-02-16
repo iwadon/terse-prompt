@@ -24,11 +24,23 @@ if(TPROMPT_USE_TERSE_TEST_MODE)
 	set(TERSE_ENABLE_TEST_MODE ON CACHE BOOL "Enable terse test mode" FORCE)
 endif()
 
-# 既存のサブモジュールを追加
-add_subdirectory(external/terse)
+# 外部依存をFetchContentで取得
+include(FetchContent)
+
+FetchContent_Declare(
+	terse
+	GIT_REPOSITORY https://github.com/iwadon/terse.git
+	GIT_TAG 93ca0efcf6767e58d9eb99d3209d823ee66dab93
+)
+FetchContent_MakeAvailable(terse)
 
 if(TPROMPT_BUILD_TESTING)
-	add_subdirectory(external/attest)
+	FetchContent_Declare(
+		attest
+		GIT_REPOSITORY https://github.com/iwadon/attest.git
+		GIT_TAG 29ffd9732399c02ad4759d5c1642e8786f665681
+	)
+	FetchContent_MakeAvailable(attest)
 endif()
 
 # tpromptライブラリの作成
@@ -52,7 +64,7 @@ target_include_directories(tprompt
 	PUBLIC
 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
 		$<INSTALL_INTERFACE:include>
-		${CMAKE_CURRENT_SOURCE_DIR}/external/terse/c/include
+		${terse_SOURCE_DIR}/c/include
 )
 
 target_link_libraries(tprompt

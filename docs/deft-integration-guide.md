@@ -162,22 +162,21 @@ See `examples/deft_integration_example.c` for a complete, production-ready examp
 
 ## 3. Build Integration
 
-### Option A: Git Submodule (Recommended)
-
-```bash
-# In your deft repository
-cd external/
-git submodule add --recursive https://github.com/iwadon/terse-prompt.git
-git submodule update --init --recursive
-```
+### Option A: FetchContent (Recommended)
 
 **CMakeLists.txt**:
 ```cmake
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.16)
 project(deft C)
 
-# Add terse-prompt as subdirectory
-add_subdirectory(external/terse-prompt EXCLUDE_FROM_ALL)
+include(FetchContent)
+
+FetchContent_Declare(
+    terse-prompt
+    GIT_REPOSITORY https://github.com/iwadon/terse-prompt.git
+    GIT_TAG master  # Or specific commit hash for reproducibility
+)
+FetchContent_MakeAvailable(terse-prompt)
 
 # Your deft executable
 add_executable(deft
@@ -193,25 +192,7 @@ target_link_libraries(deft PRIVATE tprompt)
 # No need to manually add include paths - CMake handles it
 ```
 
-### Option B: FetchContent (CMake 3.14+)
-
-```cmake
-include(FetchContent)
-
-FetchContent_Declare(
-    terse-prompt
-    GIT_REPOSITORY https://github.com/iwadon/terse-prompt.git
-    GIT_TAG master  # Or specific version tag
-    GIT_SUBMODULES_RECURSE TRUE
-)
-
-FetchContent_MakeAvailable(terse-prompt)
-
-add_executable(deft src/main.c)
-target_link_libraries(deft PRIVATE tprompt)
-```
-
-### Option C: System Installation
+### Option B: System Installation
 
 ```bash
 # Build and install terse-prompt
@@ -230,7 +211,7 @@ target_link_libraries(deft PRIVATE tprompt::tprompt)
 
 ### Build Notes
 
-1. **Submodules**: terse-prompt has a submodule dependency on `terse`. Always use `--recursive` when cloning.
+1. **Dependencies**: terse-prompt automatically fetches its dependency (`terse`) via CMake FetchContent. No manual setup required.
 
 2. **No External Dependencies**: terse-prompt only requires:
    - C11 compiler (GCC 4.9+, Clang 3.3+, MSVC 2019+)
@@ -371,7 +352,7 @@ All tests pass (100% - 8/8 test suites).
 
 ## Quick Checklist for deft Integration
 
-- [ ] Add terse-prompt as Git submodule with `--recursive`
+- [ ] Add terse-prompt via FetchContent in `CMakeLists.txt`
 - [ ] Update `CMakeLists.txt` to link against `tprompt`
 - [ ] Implement validation callback for deft syntax
 - [ ] Set `opts.prompt = "deft> "`
