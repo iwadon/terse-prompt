@@ -228,3 +228,24 @@ target_link_libraries(test_api PRIVATE
 )
 
 add_test(NAME test_api COMMAND test_api)
+
+# Completion matching helper tests
+add_executable(test_match
+    test_match.c
+)
+
+target_include_directories(test_match PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(test_match PRIVATE
+    _POSIX_C_SOURCE=200809L
+    $<$<BOOL:${TPROMPT_USE_TERSE_TEST_MODE}>:TERSE_ENABLE_TEST_MODE=1>
+)
+
+target_link_libraries(test_match PRIVATE
+    tprompt
+    attest
+)
+
+add_test(NAME test_match COMMAND test_match)

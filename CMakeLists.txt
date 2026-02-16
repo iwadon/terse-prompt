@@ -54,6 +54,7 @@ add_library(tprompt STATIC
 	src/tprompt_history.c
 	src/tprompt_init.c
 	src/tprompt_keybinding.c
+	src/tprompt_match.c
 	src/tprompt_prompt.c
 	src/tprompt_session.c
 	src/tprompt_status.c

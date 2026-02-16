@@ -12,6 +12,7 @@
 #ifndef TPROMPT_H
 #define TPROMPT_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <terse.h>
 
@@ -699,6 +700,50 @@ void tprompt_set_completion_ex_callback(
 	tprompt_handle_t handle,
 	tprompt_completion_ex_fn callback,
 	void *user_data);
+
+/* ========================================================================
+ * Completion Matching Helpers
+ * ======================================================================== */
+
+/**
+ * @brief Test if input is a prefix of candidate (case-insensitive)
+ *
+ * Case folding is applied to ASCII letters only (a-z, A-Z).
+ * Non-ASCII bytes are compared exactly.
+ *
+ * @param input The user's input text (NULL or empty matches everything)
+ * @param candidate The completion candidate to test (NULL returns false)
+ * @return true if input is a prefix of candidate
+ */
+bool tprompt_match_prefix(const char *input, const char *candidate);
+
+/**
+ * @brief Test if input appears as a substring of candidate (case-insensitive)
+ *
+ * Case folding is applied to ASCII letters only (a-z, A-Z).
+ * Non-ASCII bytes are compared exactly.
+ *
+ * @param input The user's input text (NULL or empty matches everything)
+ * @param candidate The completion candidate to test (NULL returns false)
+ * @return true if input is a substring of candidate
+ */
+bool tprompt_match_substring(const char *input, const char *candidate);
+
+/**
+ * @brief Test if input appears as a subsequence of candidate (case-insensitive)
+ *
+ * A subsequence match means each character of input appears in candidate
+ * in order, but not necessarily contiguously. For example, "xi" matches
+ * "exit" but "xe" does not.
+ *
+ * Case folding is applied to ASCII letters only (a-z, A-Z).
+ * Non-ASCII bytes are compared exactly.
+ *
+ * @param input The user's input text (NULL or empty matches everything)
+ * @param candidate The completion candidate to test (NULL returns false)
+ * @return true if input is a subsequence of candidate
+ */
+bool tprompt_match_subsequence(const char *input, const char *candidate);
 
 /* ========================================================================
  * Framework API - Validation
