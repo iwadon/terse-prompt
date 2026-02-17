@@ -5,6 +5,10 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
+if(MSVC)
+	add_compile_options(/utf-8)
+endif()
+
 include(CTest)
 
 # テストのデフォルト: トップレベルプロジェクトならON、サブプロジェクトならOFF
@@ -30,7 +34,7 @@ include(FetchContent)
 FetchContent_Declare(
 	terse
 	GIT_REPOSITORY https://github.com/iwadon/terse.git
-	GIT_TAG 3339d7d26546b0dfd022b3f0b7b59ca599cdd3f2
+	GIT_TAG b61f1c3bc288d38dc6057a61c8e48cdabb10e8d5
 )
 FetchContent_MakeAvailable(terse)
 

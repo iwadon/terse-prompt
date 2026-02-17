@@ -10,6 +10,21 @@
 #define TEST_HELPERS_H
 
 #include <terse.h>
+#include <stdio.h>
+#include <string.h>
+
+#ifdef _WIN32
+#include <io.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <stdlib.h>
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#define test_unlink _unlink
+#else
+#include <unistd.h>
+#define test_unlink unlink
+#endif
 
 #ifdef TERSE_ENABLE_TEST_MODE
 #include <terse_test.h>
@@ -195,6 +210,43 @@ static inline void test_reset_mocks(terse_handle_t handle)
 	terse_test_reset_mocks(handle);
 #else
 	(void)handle;
+#endif
+}
+
+/**
+ * @brief Create a temporary file for testing (cross-platform)
+ *
+ * @param path_buf buffer to receive the temporary file path
+ * @param buf_size size of path_buf
+ * @return 0 on success, -1 on failure
+ */
+static inline int test_create_temp_file(char *path_buf, size_t buf_size)
+{
+#ifdef _WIN32
+	char tmp_dir[260];
+	if (!GetTempPathA(sizeof(tmp_dir), tmp_dir)) {
+		return -1;
+	}
+	char tmp_path[260];
+	if (!GetTempFileNameA(tmp_dir, "tp_", 0, tmp_path)) {
+		return -1;
+	}
+	if (strlen(tmp_path) >= buf_size) {
+		return -1;
+	}
+	strcpy(path_buf, tmp_path);
+	return 0;
+#else
+	if (buf_size < 32) {
+		return -1;
+	}
+	strcpy(path_buf, "/tmp/tprompt_test_XXXXXX");
+	int fd = mkstemp(path_buf);
+	if (fd < 0) {
+		return -1;
+	}
+	close(fd);
+	return 0;
 #endif
 }
 
