@@ -11,7 +11,6 @@
 #include <attest/attest.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
 /* ========================================================================
  * Test Helpers
@@ -152,10 +151,8 @@ TEST(HistoryApi, SaveLoadRoundTrip)
 	tprompt_handle_t handle = create_test_handle_with_flags(&terse, 0);
 	ASSERT_NOT_NULL(handle);
 
-	char temp_file[] = "/tmp/tprompt_api_history_XXXXXX";
-	int fd = mkstemp(temp_file);
-	ASSERT_TRUE(fd >= 0);
-	close(fd);
+	char temp_file[260];
+	ASSERT_EQ(test_create_temp_file(temp_file, sizeof(temp_file)), 0);
 
 	EXPECT_EQ(tprompt_history_add(handle, "alpha"), 0);
 	EXPECT_EQ(tprompt_history_add(handle, "beta"), 0);
@@ -169,7 +166,7 @@ TEST(HistoryApi, SaveLoadRoundTrip)
 	entry = tprompt_history_prev(&handle->history);
 	EXPECT_STREQ(entry, "alpha");
 
-	unlink(temp_file);
+	test_unlink(temp_file);
 	tprompt_close(handle);
 	terse_close(terse);
 }

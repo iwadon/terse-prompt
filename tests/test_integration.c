@@ -629,7 +629,7 @@ TEST(CtrlJNewline, CustomBinding)
  * EOF Handling Tests
  * ======================================================================== */
 
-TEST(EOF, CtrlDOnEmptyBuffer)
+TEST(EofHandling, CtrlDOnEmptyBuffer)
 {
 	// Test: Press Ctrl+D immediately on empty buffer, expect NULL (EOF)
 	// Purpose: Tests EOF handling with no input (Ctrl+D on empty line)
@@ -658,7 +658,7 @@ TEST(EOF, CtrlDOnEmptyBuffer)
 	tprompt_close(handle);
 }
 
-TEST(EOF, CtrlDDeletesCharWhenBufferNotEmpty)
+TEST(EofHandling, CtrlDDeletesCharWhenBufferNotEmpty)
 {
 	// Test: Type "hello", position at 'e', press Ctrl+D, expect "hllo" (delete-char, not EOF)
 	// Purpose: Tests that Ctrl+D on non-empty buffer deletes character (like Delete key)
@@ -696,7 +696,7 @@ TEST(EOF, CtrlDDeletesCharWhenBufferNotEmpty)
 	tprompt_close(handle);
 }
 
-TEST(EOF, CtrlDAfterDeletingAllContent)
+TEST(EofHandling, CtrlDAfterDeletingAllContent)
 {
 	// Test: Type "x", backspace to delete it, press Ctrl+D, expect NULL (EOF)
 	// Purpose: Tests that Ctrl+D on buffer that became empty signals EOF
@@ -726,7 +726,7 @@ TEST(EOF, CtrlDAfterDeletingAllContent)
 	tprompt_close(handle);
 }
 
-TEST(EOF, EmptyInputVsEOFDistinction)
+TEST(EofHandling, EmptyInputVsEOFDistinction)
 {
 	// REGRESSION TEST: Verify that empty input confirmation returns "" while EOF returns NULL
 	// This test ensures we correctly distinguish between:
@@ -772,7 +772,7 @@ TEST(EOF, EmptyInputVsEOFDistinction)
 	tprompt_close(handle);
 }
 
-TEST(EOF, MultipleEmptyInputsBeforeEOF)
+TEST(EofHandling, MultipleEmptyInputsBeforeEOF)
 {
 	// REGRESSION TEST: Verify multiple empty confirmations work correctly before EOF
 	// This ensures the eof_signaled flag is properly reset between readline calls

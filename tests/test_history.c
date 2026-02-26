@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include "test_helpers.h"
 
 /* ========================================================================
  * History Basic Operations Tests
@@ -138,10 +138,8 @@ TEST(History, EmptyNavigation)
 TEST(History, FilePersistence)
 {
 	// Create temporary file
-	char temp_file[] = "/tmp/tprompt_test_XXXXXX";
-	int fd = mkstemp(temp_file);
-	ASSERT_GE(fd, 0);
-	close(fd);
+	char temp_file[260];
+	ASSERT_EQ(test_create_temp_file(temp_file, sizeof(temp_file)), 0);
 
 	// Create history and add entries
 	tprompt_history_t history1;
@@ -173,7 +171,7 @@ TEST(History, FilePersistence)
 	tprompt_history_free(&history2);
 
 	// Cleanup
-	unlink(temp_file);
+	test_unlink(temp_file);
 }
 
 TEST(History, ResetPosition)
