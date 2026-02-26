@@ -32,6 +32,9 @@ void tprompt_completion_init(tprompt_completion_state_t *state)
 	state->trigger_offset = 0;
 	state->trigger_char = '\0';
 	state->use_extended = false;
+	state->saved_text = NULL;
+	state->saved_cursor = 0;
+	state->has_applied = false;
 }
 
 void tprompt_completion_free(tprompt_completion_state_t *state)
@@ -57,6 +60,9 @@ void tprompt_completion_free(tprompt_completion_state_t *state)
 		free(state->candidates_ex);
 	}
 
+	// Free saved text
+	free(state->saved_text);
+
 	tprompt_completion_init(state);
 }
 
@@ -69,6 +75,12 @@ int tprompt_completion_activate(tprompt_handle_t handle, char trigger_char, size
 	if (!handle) {
 		return -1;
 	}
+
+	// Save current buffer state for ESC restore
+	free(handle->completion_state.saved_text);
+	handle->completion_state.saved_text = strdup(handle->buffer.data ? handle->buffer.data : "");
+	handle->completion_state.saved_cursor = handle->buffer.cursor;
+	handle->completion_state.has_applied = false;
 
 	// Set completion state
 	handle->completion_state.active = true;
@@ -101,6 +113,9 @@ void tprompt_completion_deactivate(tprompt_handle_t handle)
 		}
 		free(handle->completion_state.candidates_ex);
 	}
+
+	// Free saved text
+	free(handle->completion_state.saved_text);
 
 	// Reset state
 	tprompt_completion_init(&handle->completion_state);
@@ -331,11 +346,94 @@ int tprompt_completion_confirm(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// Insert a trailing space after the completed text
-	if (tprompt_buffer_insert_limited(handle, " ", 1) != 0) {
+	return 0;
+}
+
+/* ========================================================================
+ * Completion Trigger Detection
+ * ======================================================================== */
+
+/* ========================================================================
+ * Completion Inline Apply / Restore
+ * ======================================================================== */
+
+int tprompt_completion_apply_selection(tprompt_handle_t handle)
+{
+	if (!handle || !handle->completion_state.active) {
 		return -1;
 	}
 
+	if (handle->completion_state.candidate_count == 0 ||
+		handle->completion_state.selected_index >= handle->completion_state.candidate_count) {
+		return -1;
+	}
+
+	// Get the selected candidate text
+	const char *selected;
+	if (handle->completion_state.use_extended && handle->completion_state.candidates_ex) {
+		selected = handle->completion_state.candidates_ex[handle->completion_state.selected_index].text;
+	} else if (handle->completion_state.candidates) {
+		selected = handle->completion_state.candidates[handle->completion_state.selected_index];
+	} else {
+		return -1;
+	}
+
+	if (!selected) {
+		return -1;
+	}
+
+	// First, restore saved text to get a clean state before applying
+	if (handle->completion_state.has_applied && handle->completion_state.saved_text) {
+		tprompt_buffer_set(&handle->buffer, handle->completion_state.saved_text);
+		handle->buffer.cursor = handle->completion_state.saved_cursor;
+	}
+
+	// Now replace text from after trigger to cursor with candidate
+	size_t trigger_pos = handle->completion_state.trigger_offset;
+	size_t current_pos = handle->buffer.cursor;
+
+	if (trigger_pos > current_pos || trigger_pos > handle->buffer.length) {
+		return -1;
+	}
+
+	size_t user_input_start;
+	if (handle->completion_state.trigger_char == '\t') {
+		user_input_start = trigger_pos;
+	} else {
+		user_input_start = trigger_pos + 1;
+	}
+
+	// Move cursor to replacement start
+	handle->buffer.cursor = user_input_start;
+
+	// Delete from user_input_start to current_pos
+	size_t delete_count = current_pos - user_input_start;
+	if (delete_count > 0) {
+		memmove(handle->buffer.data + user_input_start,
+			handle->buffer.data + current_pos,
+			handle->buffer.length - current_pos);
+		handle->buffer.length -= delete_count;
+		handle->buffer.data[handle->buffer.length] = '\0';
+	}
+
+	// Insert selected candidate
+	size_t selected_len = strlen(selected);
+	if (tprompt_buffer_insert_limited(handle, selected, selected_len) != 0) {
+		return -1;
+	}
+
+	handle->completion_state.has_applied = true;
+	return 0;
+}
+
+int tprompt_completion_restore_saved(tprompt_handle_t handle)
+{
+	if (!handle || !handle->completion_state.saved_text) {
+		return -1;
+	}
+
+	tprompt_buffer_set(&handle->buffer, handle->completion_state.saved_text);
+	handle->buffer.cursor = handle->completion_state.saved_cursor;
 	return 0;
 }
 

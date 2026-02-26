@@ -116,6 +116,7 @@ int tprompt_handle_char_input(tprompt_handle_t handle, const char *ch, int width
 			tprompt_display_mark_dirty_range(handle, insert_pos, handle->buffer.cursor);
 
 			// Activate completion at the current cursor position
+			// Don't apply first candidate — let user type to filter first
 			if (tprompt_completion_activate(handle, ch[0], handle->buffer.cursor - ch_len) != 0) {
 				return -1;
 			}
@@ -166,60 +167,72 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 		return -1;
 	}
 
-	// If completion is active, handle UP/DOWN for candidate navigation
-	if (handle->completion_state.active && handle->completion_state.candidate_count > 0) {
-		switch (event->type) {
-		case TERSE_EVENT_ARROW_UP:
-			// Navigate to previous candidate
-			tprompt_completion_select_prev(&handle->completion_state);
-			return 0; // Continue editing (don't return input)
-
-		case TERSE_EVENT_ARROW_DOWN:
-			// Navigate to next candidate
-			tprompt_completion_select_next(&handle->completion_state);
-			return 0; // Continue editing
-
-		case TERSE_EVENT_TAB:
-			// Confirm selected completion
-			if (tprompt_completion_confirm(handle) == 0) {
-				tprompt_completion_deactivate(handle);
-			}
-			return 0; // Continue editing
-
-		case TERSE_EVENT_ENTER: {
-			// Pressing Enter while completion is open should pick the current candidate
-			int mods = event->data.key.mods;
-			bool wants_newline = (mods & TERSE_MOD_SHIFT) || (mods & TERSE_MOD_CTRL);
-
-				if (!wants_newline) {
-					if (tprompt_completion_confirm(handle) == 0) {
-						tprompt_completion_deactivate(handle);
-						// Re-render so the filled-in completion is visible before submitting
-						tprompt_display_mark_all_dirty(handle);
-						if (tprompt_display_render_buffered(handle) != 0) {
-							return -1; // Rendering failed, abort submission
-						}
-						handle->force_confirmation = true;
-						// Immediately submit after applying completion
-						handle->pending_confirmation = true;
-					}
-					return 0; // Confirmation will be handled by main loop
-			}
-			// With modifiers, fall through to default handling (newline/submit)
-			break;
-		}
-
-		default:
-			break;
-		}
-	}
-
-	// Handle ESC to cancel completion (check regardless of candidate count)
-	if (handle->completion_state.active && event->type == TERSE_EVENT_CHAR) {
-		if (event->data.ch.scalar == 27) { // ESC
+	// If completion is active, handle TAB-cycling and exit-on-other-key
+	if (handle->completion_state.active) {
+		// ESC: cancel completion and restore original text
+		if (event->type == TERSE_EVENT_CHAR && event->data.ch.scalar == 27) {
+			tprompt_completion_restore_saved(handle);
 			tprompt_completion_deactivate(handle);
+			tprompt_display_mark_all_dirty(handle);
 			return 0;
 		}
+
+		// TAB: cycle to next candidate
+		if (event->type == TERSE_EVENT_TAB && handle->completion_state.candidate_count > 0) {
+			int mods = event->data.key.mods;
+			if (mods & TERSE_MOD_SHIFT) {
+				// Shift+TAB: previous candidate
+				tprompt_completion_select_prev(&handle->completion_state);
+			} else {
+				// TAB: next candidate
+				tprompt_completion_select_next(&handle->completion_state);
+			}
+			// Apply the selected candidate to the buffer immediately
+			tprompt_completion_apply_selection(handle);
+			tprompt_display_mark_all_dirty(handle);
+			return 0;
+		}
+
+		// Backspace: if a candidate was applied, restore saved text first,
+		// then delete normally and re-filter candidates
+		if (event->type == TERSE_EVENT_BACKSPACE) {
+			// If a candidate is currently applied, restore original text
+			if (handle->completion_state.has_applied) {
+				tprompt_completion_restore_saved(handle);
+				handle->completion_state.has_applied = false;
+			}
+
+			size_t old_cursor = handle->buffer.cursor;
+			size_t old_length = handle->buffer.length;
+			size_t deleted_bytes = tprompt_buffer_delete_before(&handle->buffer, 1);
+			if (deleted_bytes > 0) {
+				tprompt_display_mark_dirty_range(handle, handle->buffer.cursor, old_length);
+
+				// Check if trigger character was deleted
+				size_t trigger_pos = handle->completion_state.trigger_offset;
+				bool is_tab = (handle->completion_state.trigger_char == '\t');
+				if (is_tab ? (handle->buffer.cursor <= trigger_pos)
+						   : (old_cursor <= trigger_pos + 1)) {
+					tprompt_completion_deactivate(handle);
+				} else {
+					// Update saved text/cursor to reflect the deletion
+					free(handle->completion_state.saved_text);
+					handle->completion_state.saved_text = strdup(handle->buffer.data ? handle->buffer.data : "");
+					handle->completion_state.saved_cursor = handle->buffer.cursor;
+					tprompt_completion_update(handle);
+				}
+			}
+			handle->input_state.last_key_type = event->type;
+			handle->input_state.last_cursor_pos = handle->buffer.cursor;
+			handle->input_state.has_goal_column = false;
+			return 0;
+		}
+
+		// Any other key: accept current state and exit completion,
+		// then process the key normally (fall through below)
+		tprompt_completion_deactivate(handle);
+		tprompt_display_mark_all_dirty(handle);
+		// Fall through to normal key handling
 	}
 
 	// If completion is not active, handle UP/DOWN for either line navigation or history

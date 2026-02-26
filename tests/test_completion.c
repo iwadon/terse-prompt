@@ -263,6 +263,186 @@ TEST(Completion, MultipleActivations)
 }
 
 /* ========================================================================
+ * TAB-Cycling Completion Tests
+ * ======================================================================== */
+
+#include "test_helpers.h"
+
+static tprompt_handle_t create_test_handle_with_completion(void)
+{
+	terse_handle_t terse_h = test_create_terse_handle();
+	if (!terse_h) {
+		return NULL;
+	}
+
+	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
+	opts.terse_handle = terse_h;
+	opts.completion_prefixes = "/:";
+
+	tprompt_handle_t handle = tprompt_open(&opts);
+	if (!handle) {
+		terse_close(terse_h);
+		return NULL;
+	}
+	return handle;
+}
+
+/* Mock extended completion callback for TAB-cycling tests */
+static int mock_ex_callback(
+	const char *text,
+	size_t cursor_pos,
+	const char *prefix_char,
+	void *user_data,
+	tprompt_completion_candidate_t **candidates,
+	size_t *count)
+{
+	(void)text;
+	(void)cursor_pos;
+	(void)prefix_char;
+
+	const char **words = (const char **)user_data;
+	if (!words) {
+		*candidates = NULL;
+		*count = 0;
+		return 0;
+	}
+
+	// Count words
+	size_t n = 0;
+	while (words[n]) n++;
+
+	tprompt_completion_candidate_t *cands = malloc(sizeof(*cands) * n);
+	for (size_t i = 0; i < n; i++) {
+		cands[i].text = strdup(words[i]);
+		cands[i].description = NULL;
+	}
+	*candidates = cands;
+	*count = n;
+	return 0;
+}
+
+TEST(CompletionCycling, ApplySelectionBasic)
+{
+	// Test tprompt_completion_apply_selection directly
+	tprompt_handle_t handle = create_test_handle_with_completion();
+	ASSERT_NOT_NULL(handle);
+
+	// Set up extended callback with test candidates
+	const char *words[] = { "help", "hello", "history", NULL };
+	handle->completion_ex_callback = mock_ex_callback;
+	handle->completion_user_data = (void *)words;
+
+	// Simulate: user typed "/h"
+	tprompt_buffer_insert(&handle->buffer, "/h", 2);
+
+	// Activate completion at '/' position
+	tprompt_completion_activate(handle, '/', 0);
+	EXPECT_TRUE(handle->completion_state.active);
+	EXPECT_EQ(handle->completion_state.candidate_count, 3);
+	EXPECT_EQ(handle->completion_state.selected_index, 0);
+
+	// Apply first candidate: should replace "/h" with "/help"
+	EXPECT_EQ(tprompt_completion_apply_selection(handle), 0);
+	EXPECT_STREQ(handle->buffer.data, "/help");
+	EXPECT_TRUE(handle->completion_state.has_applied);
+
+	// Select next and apply: should replace with "/hello"
+	tprompt_completion_select_next(&handle->completion_state);
+	EXPECT_EQ(handle->completion_state.selected_index, 1);
+	EXPECT_EQ(tprompt_completion_apply_selection(handle), 0);
+	EXPECT_STREQ(handle->buffer.data, "/hello");
+
+	// Select next and apply: should replace with "/history"
+	tprompt_completion_select_next(&handle->completion_state);
+	EXPECT_EQ(handle->completion_state.selected_index, 2);
+	EXPECT_EQ(tprompt_completion_apply_selection(handle), 0);
+	EXPECT_STREQ(handle->buffer.data, "/history");
+
+	tprompt_close(handle);
+}
+
+TEST(CompletionCycling, RestoreSaved)
+{
+	tprompt_handle_t handle = create_test_handle_with_completion();
+	ASSERT_NOT_NULL(handle);
+
+	const char *words[] = { "help", "hello", NULL };
+	handle->completion_ex_callback = mock_ex_callback;
+	handle->completion_user_data = (void *)words;
+
+	// Simulate: user typed "/h"
+	tprompt_buffer_insert(&handle->buffer, "/h", 2);
+
+	// Activate and apply
+	tprompt_completion_activate(handle, '/', 0);
+	tprompt_completion_apply_selection(handle);
+	EXPECT_STREQ(handle->buffer.data, "/help");
+
+	// Restore should bring back "/h"
+	EXPECT_EQ(tprompt_completion_restore_saved(handle), 0);
+	EXPECT_STREQ(handle->buffer.data, "/h");
+	EXPECT_EQ(handle->buffer.cursor, 2);
+
+	tprompt_close(handle);
+}
+
+TEST(CompletionCycling, NoTrailingSpace)
+{
+	// Verify that confirm no longer adds a trailing space
+	tprompt_handle_t handle = create_test_handle_with_completion();
+	ASSERT_NOT_NULL(handle);
+
+	const char *words[] = { "help", NULL };
+	handle->completion_ex_callback = mock_ex_callback;
+	handle->completion_user_data = (void *)words;
+
+	// Simulate: user typed "/h"
+	tprompt_buffer_insert(&handle->buffer, "/h", 2);
+
+	// Activate and confirm
+	tprompt_completion_activate(handle, '/', 0);
+	tprompt_completion_confirm(handle);
+
+	// Should be "/help" without trailing space
+	EXPECT_STREQ(handle->buffer.data, "/help");
+
+	tprompt_close(handle);
+}
+
+TEST(CompletionCycling, TabTriggeredApply)
+{
+	// Test TAB-triggered completion (identifier completion)
+	tprompt_handle_t handle = create_test_handle_with_completion();
+	ASSERT_NOT_NULL(handle);
+
+	const char *words[] = { "mkdir", "make", NULL };
+	handle->completion_ex_callback = mock_ex_callback;
+	handle->completion_user_data = (void *)words;
+
+	// Simulate: user typed "mk"
+	tprompt_buffer_insert(&handle->buffer, "mk", 2);
+
+	// Activate with TAB trigger (word start = 0)
+	tprompt_completion_activate(handle, '\t', 0);
+	EXPECT_TRUE(handle->completion_state.active);
+
+	// Apply first candidate: "mkdir"
+	EXPECT_EQ(tprompt_completion_apply_selection(handle), 0);
+	EXPECT_STREQ(handle->buffer.data, "mkdir");
+
+	// Cycle to next: "make"
+	tprompt_completion_select_next(&handle->completion_state);
+	EXPECT_EQ(tprompt_completion_apply_selection(handle), 0);
+	EXPECT_STREQ(handle->buffer.data, "make");
+
+	// Restore should bring back "mk"
+	EXPECT_EQ(tprompt_completion_restore_saved(handle), 0);
+	EXPECT_STREQ(handle->buffer.data, "mk");
+
+	tprompt_close(handle);
+}
+
+/* ========================================================================
  * Main Entry Point
  * ======================================================================== */
 

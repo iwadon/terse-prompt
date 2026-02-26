@@ -598,8 +598,8 @@ int tprompt_action_move_to_line_end(tprompt_handle_t handle, const terse_event_t
 /**
  * @brief Handle COMPLETE action (Tab)
  *
- * If completion is active, confirm selection.
- * Otherwise, do nothing (TAB is reserved for completion only, following REPL conventions).
+ * Activates completion if not already active. When completion is already active,
+ * TAB-cycling is handled by tprompt_handle_key_event() before this is called.
  */
 int tprompt_action_complete(tprompt_handle_t handle, const terse_event_t *event)
 {
@@ -609,12 +609,10 @@ int tprompt_action_complete(tprompt_handle_t handle, const terse_event_t *event)
 		return -1;
 	}
 
-	// If completion is active, confirm selected completion
+	// If completion is already active, this shouldn't normally be reached
+	// (TAB is handled directly in tprompt_handle_key_event)
 	if (handle->completion_state.active) {
-		if (tprompt_completion_confirm(handle) == 0) {
-			tprompt_completion_deactivate(handle);
-		}
-		return 0; // Continue editing
+		return 0;
 	}
 
 	// Tab-triggered completion: scan backwards from cursor to find word boundary
@@ -636,6 +634,12 @@ int tprompt_action_complete(tprompt_handle_t handle, const terse_event_t *event)
 
 		// Activate completion with '\t' as trigger, word_start as offset
 		tprompt_completion_activate(handle, '\t', word_start);
+
+		// Apply first candidate immediately if available
+		if (handle->completion_state.active && handle->completion_state.candidate_count > 0) {
+			tprompt_completion_apply_selection(handle);
+			tprompt_display_mark_all_dirty(handle);
+		}
 	}
 
 	return 0; // Continue editing

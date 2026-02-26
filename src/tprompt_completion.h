@@ -36,6 +36,9 @@ struct tprompt_completion_state {
 	size_t trigger_offset;	/**< Byte offset of completion trigger character */
 	char trigger_char;		/**< Character that triggered completion */
 	bool use_extended;		/**< Whether using extended candidates */
+	char *saved_text;		/**< Saved buffer text at activation (for ESC restore) */
+	size_t saved_cursor;	/**< Saved cursor position at activation */
+	bool has_applied;		/**< Whether a candidate has been applied to the buffer */
 };
 
 /* ========================================================================
@@ -94,6 +97,29 @@ void tprompt_completion_select_prev(tprompt_completion_state_t *state);
  * @return 0 on success, -1 on failure
  */
 int tprompt_completion_confirm(tprompt_handle_t handle);
+
+/**
+ * @brief Apply selected candidate to buffer (inline preview)
+ *
+ * Replaces the text from trigger offset to cursor with the selected candidate.
+ * Unlike confirm, this does not append a trailing space and does not deactivate
+ * completion. Used for TAB-cycling through candidates.
+ *
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_completion_apply_selection(tprompt_handle_t handle);
+
+/**
+ * @brief Restore saved text (undo candidate application)
+ *
+ * Restores the buffer to the state saved at completion activation.
+ * Used when ESC is pressed to cancel completion.
+ *
+ * @param handle Prompt handle
+ * @return 0 on success, -1 on failure
+ */
+int tprompt_completion_restore_saved(tprompt_handle_t handle);
 
 /**
  * @brief Check if character is a completion trigger
