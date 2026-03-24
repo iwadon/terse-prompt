@@ -11,13 +11,13 @@
 
 #include <terse.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #ifdef _WIN32
 #include <io.h>
 #include <fcntl.h>
 #include <sys/stat.h>
-#include <stdlib.h>
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #define test_unlink _unlink
