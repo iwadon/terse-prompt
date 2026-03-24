@@ -333,28 +333,47 @@ opts.keybinding_count = 3;
 **Key Documents**:
 - `docs/requirements.md`: Functional and non-functional requirements
 - `docs/api-design.md`: Detailed API specification with examples
+- `docs/implementation-status.md`: Remaining work, roadmap, known limitations
 - `include/tprompt.h`: API reference (authoritative source)
 
 **Relationship**:
 - Requirements define *what* to build
 - API design defines *how* to use it
+- Implementation status tracks *what remains* and *where we're going*
 - This document (CLAUDE.md) defines *how* it works internally
 
 **When to Consult**:
 - Requirements: Understanding feature scope and priorities
 - API design: Implementation details, usage patterns, examples
+- Implementation status: Remaining tasks, future roadmap, known limitations
 - tprompt.h: Current API surface, function signatures
+
+### Documentation Update Rules
+
+実装作業の中で以下のタイミングでドキュメントを更新する。
+
+**実装完了時 (`/recap` 実行時)**:
+- `docs/implementation-status.md` の残作業・制限事項に変化がないか確認
+- スコープ外にした項目があれば、ロードマップまたは制限事項に記録
+
+**新機能追加時**:
+- 既知の制限事項が解消された場合、該当項目を削除
+- 新しい制限事項が生じた場合、追記
+
+**更新しなくてよいもの**:
+- コードから自明な情報（API一覧、テスト数、行数統計、コミット履歴）
+- `include/tprompt.h` や `git log` で確認できる内容
 
 ## Important Notes
 
 ### Current Implementation Status
 
-All core features are fully implemented and tested. See `docs/implementation-status.md` for detailed feature status, test results, and platform support information.
+All core features are fully implemented and tested. See `docs/implementation-status.md` for remaining work, future roadmap, and known limitations.
 
 ### Platform Support
 
-**Current**: POSIX-based systems (macOS, Linux)
-**Future**: POSIX-specific code isolated for potential Windows support
+**Current**: POSIX-based systems (macOS, Linux), MSVC build support
+**Testing**: macOS verified, Linux/Windows untested
 
 ### External Dependencies
 

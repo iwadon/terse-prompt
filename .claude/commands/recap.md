@@ -1,21 +1,27 @@
+---
+description: Review recent work and identify next priorities
+argument-hint: <optional: review target in natural language>
+---
+
 Review recent work and identify next priorities.
 
-## Argument
+## Target Specification
 
 $ARGUMENTS
 
-- No argument: most recent unit of work (related commits)
-- "last N commits": review the most recent N commits
-- "today's work": all commits from today
-- Any other keyword: search-based review
+**Examples:**
+- (no argument) → Review the most recent unit of work (related commit group)
+- `last 3 commits` → Review recent 3 commits
+- `today's work` → All commits from today
+- Any other keyword → Search and review related commits
 
 ## Procedure
 
 ### 1. Identify Target
 
 - Run `git log --oneline -20` to see recent history
-- Identify the group of related commits that form the unit of work
-- Use timestamps and commit message patterns to group
+- Identify the most recent "unit of work" — a group of related commits
+- Use commit messages and timestamps to determine where the current work begins
 
 ### 2. Gather Information
 
@@ -24,7 +30,17 @@ $ARGUMENTS
 - `git status` for current state
 - Read relevant files to verify code state
 
-### 3. Report
+### 3. Documentation Check
+
+Read `docs/implementation-status.md` and check:
+- Did the work resolve any known limitations? → Remove from the document
+- Did the work introduce new limitations? → Add to the document
+- Were any items scoped out? → Add to roadmap or limitations as appropriate
+- Are the remaining tasks still accurate?
+
+If updates are needed, make them and include in the report.
+
+### 4. Report
 
 #### Accomplishments
 - Summary of what was done
@@ -35,14 +51,14 @@ $ARGUMENTS
 - Deviations from original plan
 
 #### Next Priority Items
-- Check `docs/implementation-status.md` for planned work
+- Check `docs/implementation-status.md` for remaining work and roadmap
 - Check `docs/requirements.md` for unimplemented features
 - Identify TODOs in code if relevant
 
 #### Decisions/Concerns (optional)
 - Architectural decisions made
 - Technical debt introduced
-- Items explicitly scoped out
+- Scope-out items (record in `docs/implementation-status.md` if any)
 
 ## Notes
 
