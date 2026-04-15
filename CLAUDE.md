@@ -352,7 +352,7 @@ opts.keybinding_count = 3;
 
 実装作業の中で以下のタイミングでドキュメントを更新する。
 
-**実装完了時 (`/recap` 実行時)**:
+**実装完了時 (`/review-session` 実行時)**:
 - `docs/implementation-status.md` の残作業・制限事項に変化がないか確認
 - スコープ外にした項目があれば、ロードマップまたは制限事項に記録
 
