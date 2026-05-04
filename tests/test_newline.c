@@ -14,6 +14,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const char UTF8_JP_WITH_NEWLINE[] = "\xE6\x97\xA5\xE6\x9C\xAC\n\xE8\xAA\x9E";
+
 /* ========================================================================
  * Test Helpers
  * ======================================================================== */
@@ -574,7 +576,7 @@ TEST(NewlineEdgeCases, UTF8WithNewlines)
 	ASSERT_NOT_NULL(handle);
 
 	// Japanese text with newlines: "日本\n語"
-	tprompt_buffer_insert(&handle->buffer, "日本\n語", 10);
+	tprompt_buffer_insert(&handle->buffer, UTF8_JP_WITH_NEWLINE, 10);
 
 	EXPECT_EQ(tprompt_count_logical_lines(handle), 2);
 	EXPECT_TRUE(tprompt_buffer_has_newlines(handle));

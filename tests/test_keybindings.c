@@ -13,6 +13,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const char UTF8_HELLO_SPACE_CJK_SPACE_TEST[] = "hello \xE4\xB8\x96\xE7\x95\x8C test";
+static const char UTF8_HELLO_SPACE_CJK_SPACE[] = "hello \xE4\xB8\x96\xE7\x95\x8C ";
+static const char UTF8_HELLO_CJK[] = "hello\xE4\xB8\x96\xE7\x95\x8C";
+static const char UTF8_HELLO_CJK_LAST[] = "hello\xE7\x95\x8C";
+
 /* ========================================================================
  * Helper Functions
  * ======================================================================== */
@@ -454,11 +459,11 @@ TEST(KeybindingsCombined, CtrlWMultipleWordsUTF8)
 	tprompt_handle_t handle = create_test_handle();
 	ASSERT_NOT_NULL(handle);
 
-	tprompt_buffer_insert(&handle->buffer, "hello 世界 test", 16);
+	tprompt_buffer_insert(&handle->buffer, UTF8_HELLO_SPACE_CJK_SPACE_TEST, 16);
 
 	// Delete "test"
 	execute_ctrl_char(handle, 'w');
-	EXPECT_STREQ(handle->buffer.data, "hello 世界 ");
+	EXPECT_STREQ(handle->buffer.data, UTF8_HELLO_SPACE_CJK_SPACE);
 
 	// Delete "世界"
 	execute_ctrl_char(handle, 'w');
@@ -586,14 +591,14 @@ TEST(KeybindingsCtrlD, DeleteUTF8Character)
 	ASSERT_NOT_NULL(handle);
 
 	// Insert "hello世界"
-	tprompt_buffer_insert(&handle->buffer, "hello世界", 11);
+	tprompt_buffer_insert(&handle->buffer, UTF8_HELLO_CJK, 11);
 	handle->buffer.cursor = 5; // Before '世'
 
 	bool eof = execute_ctrl_d(handle);
 
 	// Should delete '世' (3 bytes)
 	EXPECT_FALSE(eof);
-	EXPECT_STREQ(handle->buffer.data, "hello界");
+	EXPECT_STREQ(handle->buffer.data, UTF8_HELLO_CJK_LAST);
 	EXPECT_EQ(handle->buffer.cursor, 5);
 
 	tprompt_close(handle);

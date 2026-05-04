@@ -15,6 +15,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* UTF-8 byte sequences to avoid compiler execution-charset dependence. */
+static const char UTF8_JAPANESE_NIHONGO[] = "\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E";
+static const char UTF8_RUSSIAN_PRIVET[] = "\xD0\x9F\xD1\x80\xD0\xB8\xD0\xB2\xD0\xB5\xD1\x82";
+static const char UTF8_EMOJI_PARTY[] = "\xF0\x9F\x8E\x89";
+static const char UTF8_HELLO_WORLD_CJK[] = "Hello\xE4\xB8\x96\xE7\x95\x8C";
+
 /* ========================================================================
  * UTF-8 Utility Tests
  * ======================================================================== */
@@ -49,7 +55,7 @@ TEST(UTF8Utils, NextChar_ASCII)
 
 TEST(UTF8Utils, NextChar_UTF8)
 {
-	const char *text = "日本語";					  // 3 characters, 9 bytes
+	const char *text = UTF8_JAPANESE_NIHONGO; // 3 characters, 9 bytes
 	EXPECT_EQ(tprompt_utf8_next_char(text, 0, 9), 3); // '日' is 3 bytes
 	EXPECT_EQ(tprompt_utf8_next_char(text, 3, 9), 6); // '本' is 3 bytes
 	EXPECT_EQ(tprompt_utf8_next_char(text, 6, 9), 9); // '語' is 3 bytes
@@ -71,7 +77,7 @@ TEST(UTF8Utils, PrevChar_ASCII)
 
 TEST(UTF8Utils, PrevChar_UTF8)
 {
-	const char *text = "日本語";				   // 3 characters, 9 bytes
+	const char *text = UTF8_JAPANESE_NIHONGO; // 3 characters, 9 bytes
 	EXPECT_EQ(tprompt_utf8_prev_char(text, 9), 6); // Before '語'
 	EXPECT_EQ(tprompt_utf8_prev_char(text, 6), 3); // Before '本'
 	EXPECT_EQ(tprompt_utf8_prev_char(text, 3), 0); // Before '日'
@@ -85,9 +91,9 @@ TEST(UTF8Utils, Validate_ValidASCII)
 
 TEST(UTF8Utils, Validate_ValidUTF8)
 {
-	EXPECT_TRUE(tprompt_utf8_validate("日本語", 9));
-	EXPECT_TRUE(tprompt_utf8_validate("Привет", 12)); // Russian
-	EXPECT_TRUE(tprompt_utf8_validate("🎉", 4));	  // Emoji (4-byte)
+	EXPECT_TRUE(tprompt_utf8_validate(UTF8_JAPANESE_NIHONGO, 9));
+	EXPECT_TRUE(tprompt_utf8_validate(UTF8_RUSSIAN_PRIVET, 12)); // Russian
+	EXPECT_TRUE(tprompt_utf8_validate(UTF8_EMOJI_PARTY, 4));	  // Emoji (4-byte)
 }
 
 TEST(UTF8Utils, Validate_Invalid)
@@ -113,8 +119,8 @@ TEST(UTF8Utils, CharCount_ASCII)
 
 TEST(UTF8Utils, CharCount_UTF8)
 {
-	EXPECT_EQ(tprompt_utf8_char_count("日本語", 9), 3);
-	EXPECT_EQ(tprompt_utf8_char_count("Hello世界", 11), 7); // 5 + 2
+	EXPECT_EQ(tprompt_utf8_char_count(UTF8_JAPANESE_NIHONGO, 9), 3);
+	EXPECT_EQ(tprompt_utf8_char_count(UTF8_HELLO_WORLD_CJK, 11), 7); // 5 + 2
 }
 
 /* ========================================================================
@@ -205,7 +211,7 @@ TEST(BufferManagement, Insert_UTF8)
 	tprompt_buffer_t buffer;
 	tprompt_buffer_init(&buffer, 0);
 
-	const char *japanese = "日本語";
+	const char *japanese = UTF8_JAPANESE_NIHONGO;
 	EXPECT_EQ(tprompt_buffer_insert(&buffer, japanese, 9), 0);
 	EXPECT_EQ(buffer.length, 9);
 	EXPECT_STREQ(buffer.data, japanese);

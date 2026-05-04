@@ -14,6 +14,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const char UTF8_JAPANESE_NIHONGO[] = "\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E";
+
 /* ========================================================================
  * Test Helpers
  * ======================================================================== */
@@ -159,7 +161,7 @@ TEST(MultilineDisplay, CalculateLayout_UTF8Text)
 	ASSERT_NOT_NULL(handle);
 
 	// Insert UTF-8: "日本語" (3 chars, 9 bytes, width 6 as full-width characters)
-	tprompt_buffer_insert(&handle->buffer, "日本語", 9);
+	tprompt_buffer_insert(&handle->buffer, UTF8_JAPANESE_NIHONGO, 9);
 	tprompt_display_calculate_layout(handle);
 
 	// CJK characters are full-width (2 columns each): 3 chars × 2 width = 6 columns
