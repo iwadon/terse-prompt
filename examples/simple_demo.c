@@ -6,12 +6,15 @@
  */
 
 #include "tprompt.h"
+#include "example_console.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 int main(void)
 {
+	example_setup_console_utf8();
+
 	printf("terse-prompt Simple Demo\n");
 	printf("=========================\n");
 	printf("This demo uses the simple tprompt() wrapper API.\n");

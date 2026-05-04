@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <tprompt.h>
+#include "example_console.h"
 
 /* ========================================================================
  * Example 1: Debug Status (Built-in)
@@ -205,6 +206,8 @@ void demo_runtime_changes(void)
 
 int main(int argc, char **argv)
 {
+	example_setup_console_utf8();
+
 	printf("terse-prompt Status Line Demo\n");
 	printf("==============================\n\n");
 

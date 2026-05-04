@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <tprompt.h>
+#include "example_console.h"
 
 /* ========================================================================
  * Validation Callback - Bracket/Brace Balance Checker
@@ -68,6 +69,8 @@ static tprompt_validation_result_t deft_validate_input(
 
 int main(void)
 {
+	example_setup_console_utf8();
+
 	printf("=== deft REPL Integration Example ===\n");
 	printf("Multi-line editing with automatic bracket detection\n");
 	printf("Press Ctrl+D to exit\n\n");

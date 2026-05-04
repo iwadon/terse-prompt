@@ -8,6 +8,7 @@
  */
 
 #include "tprompt.h"
+#include "example_console.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -147,6 +148,8 @@ static void print_usage(void)
 
 int main(void)
 {
+	example_setup_console_utf8();
+
 	print_usage();
 
 	// Configure tprompt with completion enabled

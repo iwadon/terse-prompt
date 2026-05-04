@@ -7,9 +7,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <tprompt.h>
+#include "example_console.h"
 
 int main(void)
 {
+	example_setup_console_utf8();
+
 	printf("=== Continuation Prompt Demo ===\n");
 	printf("This demo shows custom continuation prompts.\n");
 	printf("Press Shift+Enter or Ctrl+Alt+Enter to insert newlines.\n");
