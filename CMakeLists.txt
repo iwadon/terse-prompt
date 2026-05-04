@@ -34,7 +34,7 @@ include(FetchContent)
 FetchContent_Declare(
 	terse
 	GIT_REPOSITORY https://github.com/iwadon/terse.git
-	GIT_TAG fbf52a5dbe0253ab9eebb459b409476c6dfb4fb7
+	GIT_TAG 20e3dd6b3fd17d73da3f331da83520925c935ebf
 )
 FetchContent_MakeAvailable(terse)
 
@@ -42,7 +42,7 @@ if(TPROMPT_BUILD_TESTING)
 	FetchContent_Declare(
 		attest
 		GIT_REPOSITORY https://github.com/iwadon/attest.git
-		GIT_TAG 29ffd9732399c02ad4759d5c1642e8786f665681
+		GIT_TAG 0ad168e38ad07802ce07b9b0616d21458799b8ff
 	)
 	FetchContent_MakeAvailable(attest)
 endif()
@@ -68,12 +68,12 @@ add_library(tprompt STATIC
 target_include_directories(tprompt
 	PUBLIC
 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+		$<BUILD_INTERFACE:${terse_SOURCE_DIR}/include>
 		$<INSTALL_INTERFACE:include>
-		${terse_SOURCE_DIR}/c/include
 )
 
 target_link_libraries(tprompt
-	PRIVATE
+	PUBLIC
 		terse
 )
 
