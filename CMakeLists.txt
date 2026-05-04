@@ -6,7 +6,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
 if(MSVC)
-	add_compile_options(/utf-8)
+	add_compile_options(/source-charset:utf-8)
 endif()
 
 include(CTest)
