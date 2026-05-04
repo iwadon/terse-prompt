@@ -15,40 +15,60 @@ int main(void)
 {
 	example_setup_console_utf8();
 
-	printf("terse-prompt Simple Demo\n");
-	printf("=========================\n");
-	printf("This demo uses the simple tprompt() wrapper API.\n");
-	printf("Type some text and press Enter to submit.\n");
-	printf("Press Ctrl+D to exit.\n\n");
+	terse_handle_t terse_h = terse_open(TERSE_PROFILE_AUTO, NULL);
+	if (!terse_h) {
+		fprintf(stderr, "Error: Failed to initialize terse\n");
+		return 1;
+	}
+
+	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
+	opts.terse_handle = terse_h;
+
+	tprompt_handle_t handle = tprompt_open(&opts);
+	if (!handle) {
+		tprompt_error_info_t err = tprompt_get_last_error(NULL);
+		fprintf(stderr, "Error: Failed to initialize tprompt: %s\n", err.message);
+		terse_close(terse_h);
+		return 1;
+	}
+
+	terse_write_text(terse_h, "terse-prompt Simple Demo\n");
+	terse_write_text(terse_h, "=========================\n");
+	terse_write_text(terse_h, "This demo uses the simple tprompt() wrapper API.\n");
+	terse_write_text(terse_h, "Type some text and press Enter to submit.\n");
+	terse_write_text(terse_h, "Press Ctrl+D to exit.\n\n");
 
 	while (1) {
-		char *line = tprompt(">>> ");
+		char *line = tprompt_readline(handle, ">>> ");
 
 		if (line == NULL) {
-			// Check if this was an error or EOF
-			tprompt_error_info_t err = tprompt_get_last_error(NULL);
+			tprompt_error_info_t err = tprompt_get_last_error(handle);
 			if (err.category != TPROMPT_ERROR_NONE) {
-				fprintf(stderr, "\nError: %s (code: %d)\n", err.message, err.code);
+				terse_write_text(terse_h, "\nError: ");
+				terse_write_text(terse_h, err.message);
+				terse_write_text(terse_h, "\n");
+				tprompt_close(handle);
+				terse_close(terse_h);
 				return 1;
 			}
-			// EOF (Ctrl+D)
-			printf("\nGoodbye!\n");
+			terse_write_text(terse_h, "\nGoodbye!\n");
 			break;
 		}
 
-		// Echo what was entered
-		printf("You entered: \"%s\"\n", line);
+		terse_write_text(terse_h, "You entered: \"");
+		terse_write_text(terse_h, line);
+		terse_write_text(terse_h, "\"\n");
 
-		// Check for quit command
 		if (strcmp(line, "quit") == 0 || strcmp(line, "exit") == 0) {
 			free(line);
-			printf("Goodbye!\n");
+			terse_write_text(terse_h, "Goodbye!\n");
 			break;
 		}
 
-		// Free the line (tprompt() allocates memory)
 		free(line);
 	}
 
+	tprompt_close(handle);
+	terse_close(terse_h);
 	return 0;
 }
