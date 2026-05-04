@@ -317,6 +317,10 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 		// Wait for next event
 		terse_event_t event;
 		terse_error_t result = terse_read_event(handle->terse, -1, &event); // -1 = wait indefinitely
+		if (result == TERSE_ERR_NO_EVENT) {
+			// Non-input event (e.g., focus, mouse, menu on Windows) - skip and keep waiting
+			continue;
+		}
 		if (result != TERSE_OK) {
 			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)result,
 				"Failed to read event");
