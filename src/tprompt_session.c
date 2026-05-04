@@ -23,6 +23,9 @@
 #include <termios.h>
 #include <unistd.h>
 #endif
+#if defined(_WIN32)
+#include <windows.h>
+#endif
 
 /* ========================================================================
  * Public API - Framework: Editing Session - Helper Functions
@@ -55,8 +58,42 @@ static int tprompt_readline_enable_raw_mode(tprompt_handle_t handle)
 		}
 	}
 	return -1;
+#elif defined(_WIN32)
+	if (!handle) {
+		return -1;
+	}
+
+	HANDLE h_in = GetStdHandle(STD_INPUT_HANDLE);
+	HANDLE h_out = GetStdHandle(STD_OUTPUT_HANDLE);
+	if (h_in == INVALID_HANDLE_VALUE || h_out == INVALID_HANDLE_VALUE) {
+		return -1;
+	}
+
+	DWORD in_mode = 0, out_mode = 0;
+	if (!GetConsoleMode(h_in, &in_mode) || !GetConsoleMode(h_out, &out_mode)) {
+		return -1;
+	}
+	handle->original_input_mode = in_mode;
+	handle->original_output_mode = out_mode;
+
+	/* Configure input mode for raw editing:
+	 * disable line buffering, echo, processed input, and quick-edit
+	 * (so Ctrl+keys / mouse don't trigger selection).
+	 *
+	 * Note: console code pages are intentionally NOT changed here.
+	 * The application is responsible for ensuring the console is in
+	 * UTF-8 mode (CP 65001) before calling tprompt_readline(), since
+	 * the strings returned by terse-prompt are UTF-8 encoded. */
+	DWORD new_in_mode = in_mode;
+	new_in_mode &= ~(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT);
+	new_in_mode |= ENABLE_EXTENDED_FLAGS;
+	new_in_mode &= ~ENABLE_QUICK_EDIT_MODE;
+	SetConsoleMode(h_in, new_in_mode);
+
+	handle->raw_mode_active = true;
+	return 0;
 #else
-	(void)handle; // Unused on non-POSIX platforms
+	(void)handle;
 	return 0;
 #endif
 }
@@ -73,8 +110,20 @@ static void tprompt_readline_disable_raw_mode(tprompt_handle_t handle)
 		tcsetattr(STDIN_FILENO, TCSANOW, &handle->original_termios);
 		handle->raw_mode_active = false;
 	}
+#elif defined(_WIN32)
+	if (handle && handle->raw_mode_active) {
+		HANDLE h_in = GetStdHandle(STD_INPUT_HANDLE);
+		HANDLE h_out = GetStdHandle(STD_OUTPUT_HANDLE);
+		if (h_in != INVALID_HANDLE_VALUE) {
+			SetConsoleMode(h_in, handle->original_input_mode);
+		}
+		if (h_out != INVALID_HANDLE_VALUE) {
+			SetConsoleMode(h_out, handle->original_output_mode);
+		}
+		handle->raw_mode_active = false;
+	}
 #else
-	(void)handle; // Unused on non-POSIX platforms
+	(void)handle;
 #endif
 }
 

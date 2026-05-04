@@ -24,6 +24,10 @@
 #include <termios.h>
 #endif
 
+#if defined(_WIN32)
+#include <windows.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -123,6 +127,11 @@ struct tprompt_handle {
 #if defined(__unix__) || defined(__APPLE__)
 	struct termios original_termios; /**< Original terminal settings */
 	bool raw_mode_active;			 /**< Whether raw mode is currently active */
+#endif
+#if defined(_WIN32)
+	DWORD original_input_mode;	 /**< Original console input mode */
+	DWORD original_output_mode;	 /**< Original console output mode */
+	bool raw_mode_active;		 /**< Whether raw mode is currently active */
 #endif
 
 	/* Input buffer */

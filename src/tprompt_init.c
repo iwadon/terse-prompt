@@ -95,6 +95,11 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 #if defined(__unix__) || defined(__APPLE__)
 	handle->raw_mode_active = false;
 #endif
+#if defined(_WIN32)
+	handle->raw_mode_active = false;
+	handle->original_input_mode = 0;
+	handle->original_output_mode = 0;
+#endif
 
 	// Enable enhanced keyboard features if supported
 	// In test mode, skip keyboard protocol setup to avoid escape sequences in test output
