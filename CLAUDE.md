@@ -301,7 +301,8 @@ opts.keybinding_count = 3;
 **File Extensions**: `.c` and `.h`
 
 **Formatting**:
-- Consistent indentation (tabs/spaces as per existing code)
+- `.clang-format` (WebKit profile, tab width 4) で整形: `clang-format -i src/*.c include/*.h`
+- `.editorconfig` により C/C++ はタブインデント・LF 改行を強制。スペースは CMake/YAML/JSON のみ
 - Function documentation in header files
 - Implementation comments for non-obvious logic
 
