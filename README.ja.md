@@ -20,11 +20,11 @@ CLIアプリケーション向けの軽量でモダンなC言語製マルチラ�
 ### ビルド
 
 ```bash
-# サブモジュールを含めてクローン
-git clone --recursive https://github.com/iwadon/terse-prompt.git
+# リポジトリをクローン
+git clone https://github.com/iwadon/terse-prompt.git
 cd terse-prompt
 
-# 設定とビルド
+# 設定とビルド（依存ライブラリはCMake FetchContentにより自動取得されます）
 cmake -B build -G Ninja
 cmake --build build
 

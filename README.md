@@ -20,11 +20,11 @@ A lightweight, modern C library for multi-line text input in CLI applications. T
 ### Building
 
 ```bash
-# Clone with submodules
-git clone --recursive https://github.com/iwadon/terse-prompt.git
+# Clone the repository
+git clone https://github.com/iwadon/terse-prompt.git
 cd terse-prompt
 
-# Configure and build
+# Configure and build (dependencies are fetched automatically via CMake FetchContent)
 cmake -B build -G Ninja
 cmake --build build
 
