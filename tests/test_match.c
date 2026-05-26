@@ -45,13 +45,13 @@ TEST(MatchPrefix, UTF8Japanese)
 {
 	/* "日本" is a prefix of "日本語" */
 	EXPECT_TRUE(tprompt_match_prefix("\xe6\x97\xa5\xe6\x9c\xac",
-	                                 "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"));
+		"\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"));
 	/* "日本語" exact match */
 	EXPECT_TRUE(tprompt_match_prefix("\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e",
-	                                 "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"));
+		"\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"));
 	/* "語" is not a prefix of "日本語" */
 	EXPECT_FALSE(tprompt_match_prefix("\xe8\xaa\x9e",
-	                                  "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"));
+		"\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"));
 }
 
 /* ========================================================================
@@ -98,10 +98,10 @@ TEST(MatchSubstring, UTF8)
 {
 	/* "本語" is a substring of "日本語" */
 	EXPECT_TRUE(tprompt_match_substring("\xe6\x9c\xac\xe8\xaa\x9e",
-	                                    "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"));
+		"\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"));
 	/* "語" is a substring of "日本語" (tail) */
 	EXPECT_TRUE(tprompt_match_substring("\xe8\xaa\x9e",
-	                                    "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"));
+		"\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e"));
 }
 
 /* ========================================================================

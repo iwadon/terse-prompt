@@ -7,12 +7,12 @@
  * - Up/Down navigation through scrollable list
  */
 
-#include "tprompt.h"
 #include "example_console.h"
+#include "tprompt.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 // Large list of commands to test scrolling (25 items)
 typedef struct {
@@ -21,32 +21,32 @@ typedef struct {
 } command_info_t;
 
 static const command_info_t commands[] = {
-	{"help", "ヘルプを表示"},
-	{"clear", "画面をクリア"},
-	{"quit", "プログラムを終了"},
-	{"exit", "プログラムを終了"},
-	{"history", "コマンド履歴を表示"},
-	{"status", "ステータスを表示"},
-	{"config", "設定を表示"},
-	{"hello", "挨拶メッセージ"},
-	{"version", "バージョン情報を表示"},
-	{"about", "アプリケーション情報"},
-	{"settings", "設定画面を開く"},
-	{"preferences", "環境設定"},
-	{"export", "データをエクスポート"},
-	{"import", "データをインポート"},
-	{"backup", "バックアップを作成"},
-	{"restore", "バックアップから復元"},
-	{"search", "検索機能"},
-	{"find", "ファイルを検索"},
-	{"replace", "置換機能"},
-	{"copy", "コピーする"},
-	{"paste", "貼り付ける"},
-	{"cut", "切り取る"},
-	{"undo", "元に戻す"},
-	{"redo", "やり直す"},
-	{"save", "保存する"},
-	{NULL, NULL}
+	{ "help", "ヘルプを表示" },
+	{ "clear", "画面をクリア" },
+	{ "quit", "プログラムを終了" },
+	{ "exit", "プログラムを終了" },
+	{ "history", "コマンド履歴を表示" },
+	{ "status", "ステータスを表示" },
+	{ "config", "設定を表示" },
+	{ "hello", "挨拶メッセージ" },
+	{ "version", "バージョン情報を表示" },
+	{ "about", "アプリケーション情報" },
+	{ "settings", "設定画面を開く" },
+	{ "preferences", "環境設定" },
+	{ "export", "データをエクスポート" },
+	{ "import", "データをインポート" },
+	{ "backup", "バックアップを作成" },
+	{ "restore", "バックアップから復元" },
+	{ "search", "検索機能" },
+	{ "find", "ファイルを検索" },
+	{ "replace", "置換機能" },
+	{ "copy", "コピーする" },
+	{ "paste", "貼り付ける" },
+	{ "cut", "切り取る" },
+	{ "undo", "元に戻す" },
+	{ "redo", "やり直す" },
+	{ "save", "保存する" },
+	{ NULL, NULL }
 };
 
 /**
@@ -68,7 +68,7 @@ static int starts_with_ignore_case(const char *str, const char *prefix)
  * Extended completion callback for commands
  */
 static int complete_commands_ex(const char *text, size_t cursor_pos, const char *prefix_char, void *user_data,
-                                 tprompt_completion_candidate_t **candidates, size_t *count)
+	tprompt_completion_candidate_t **candidates, size_t *count)
 {
 	(void)cursor_pos;
 	(void)prefix_char;

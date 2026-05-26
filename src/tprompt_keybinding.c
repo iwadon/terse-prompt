@@ -9,13 +9,13 @@
 
 #include "tprompt_keybinding.h"
 #include "tprompt_action.h"
-#include "tprompt_internal.h"
 #include "tprompt_buffer.h"
 #include "tprompt_completion.h"
-#include <string.h>
+#include "tprompt_internal.h"
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
+#include <string.h>
 
 /* ========================================================================
  * Default Keybindings
@@ -34,29 +34,29 @@
  */
 static const tprompt_keybinding_t default_keybindings[] = {
 	/* Special keys */
-	{TERSE_EVENT_BACKSPACE, 0, {.scalar = 0}, TPROMPT_ACTION_DELETE_BACKWARD},
-	{TERSE_EVENT_DELETE, 0, {.scalar = 0}, TPROMPT_ACTION_DELETE_FORWARD},
-	{TERSE_EVENT_ARROW_LEFT, 0, {.scalar = 0}, TPROMPT_ACTION_MOVE_LEFT},
-	{TERSE_EVENT_ARROW_RIGHT, 0, {.scalar = 0}, TPROMPT_ACTION_MOVE_RIGHT},
-	{TERSE_EVENT_ARROW_UP, 0, {.scalar = 0}, TPROMPT_ACTION_HISTORY_PREV},
-	{TERSE_EVENT_ARROW_DOWN, 0, {.scalar = 0}, TPROMPT_ACTION_HISTORY_NEXT},
-	{TERSE_EVENT_HOME, 0, {.scalar = 0}, TPROMPT_ACTION_MOVE_HOME},
-	{TERSE_EVENT_END, 0, {.scalar = 0}, TPROMPT_ACTION_MOVE_END},
-	{TERSE_EVENT_TAB, 0, {.scalar = 0}, TPROMPT_ACTION_COMPLETE},
-	{TERSE_EVENT_ENTER, 0, {.scalar = 0}, TPROMPT_ACTION_CONFIRM_INPUT},
+	{ TERSE_EVENT_BACKSPACE, 0, { .scalar = 0 }, TPROMPT_ACTION_DELETE_BACKWARD },
+	{ TERSE_EVENT_DELETE, 0, { .scalar = 0 }, TPROMPT_ACTION_DELETE_FORWARD },
+	{ TERSE_EVENT_ARROW_LEFT, 0, { .scalar = 0 }, TPROMPT_ACTION_MOVE_LEFT },
+	{ TERSE_EVENT_ARROW_RIGHT, 0, { .scalar = 0 }, TPROMPT_ACTION_MOVE_RIGHT },
+	{ TERSE_EVENT_ARROW_UP, 0, { .scalar = 0 }, TPROMPT_ACTION_HISTORY_PREV },
+	{ TERSE_EVENT_ARROW_DOWN, 0, { .scalar = 0 }, TPROMPT_ACTION_HISTORY_NEXT },
+	{ TERSE_EVENT_HOME, 0, { .scalar = 0 }, TPROMPT_ACTION_MOVE_HOME },
+	{ TERSE_EVENT_END, 0, { .scalar = 0 }, TPROMPT_ACTION_MOVE_END },
+	{ TERSE_EVENT_TAB, 0, { .scalar = 0 }, TPROMPT_ACTION_COMPLETE },
+	{ TERSE_EVENT_ENTER, 0, { .scalar = 0 }, TPROMPT_ACTION_CONFIRM_INPUT },
 
 	/* Ctrl + Arrow keys */
-	{TERSE_EVENT_ARROW_LEFT, TERSE_MOD_CTRL, {.scalar = 0}, TPROMPT_ACTION_MOVE_WORD_LEFT},
-	{TERSE_EVENT_ARROW_RIGHT, TERSE_MOD_CTRL, {.scalar = 0}, TPROMPT_ACTION_MOVE_WORD_RIGHT},
+	{ TERSE_EVENT_ARROW_LEFT, TERSE_MOD_CTRL, { .scalar = 0 }, TPROMPT_ACTION_MOVE_WORD_LEFT },
+	{ TERSE_EVENT_ARROW_RIGHT, TERSE_MOD_CTRL, { .scalar = 0 }, TPROMPT_ACTION_MOVE_WORD_RIGHT },
 
 	/* Ctrl shortcuts */
-	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'w'}, TPROMPT_ACTION_DELETE_WORD_BACKWARD},
-	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'k'}, TPROMPT_ACTION_DELETE_TO_END_OF_LINE},
-	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'u'}, TPROMPT_ACTION_DELETE_TO_START_OF_LINE},
-	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'a'}, TPROMPT_ACTION_MOVE_TO_LINE_START},
-	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'e'}, TPROMPT_ACTION_MOVE_TO_LINE_END},
-	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'p'}, TPROMPT_ACTION_HISTORY_PREV},
-	{TERSE_EVENT_CHAR, TERSE_MOD_CTRL, {.scalar = 'n'}, TPROMPT_ACTION_HISTORY_NEXT},
+	{ TERSE_EVENT_CHAR, TERSE_MOD_CTRL, { .scalar = 'w' }, TPROMPT_ACTION_DELETE_WORD_BACKWARD },
+	{ TERSE_EVENT_CHAR, TERSE_MOD_CTRL, { .scalar = 'k' }, TPROMPT_ACTION_DELETE_TO_END_OF_LINE },
+	{ TERSE_EVENT_CHAR, TERSE_MOD_CTRL, { .scalar = 'u' }, TPROMPT_ACTION_DELETE_TO_START_OF_LINE },
+	{ TERSE_EVENT_CHAR, TERSE_MOD_CTRL, { .scalar = 'a' }, TPROMPT_ACTION_MOVE_TO_LINE_START },
+	{ TERSE_EVENT_CHAR, TERSE_MOD_CTRL, { .scalar = 'e' }, TPROMPT_ACTION_MOVE_TO_LINE_END },
+	{ TERSE_EVENT_CHAR, TERSE_MOD_CTRL, { .scalar = 'p' }, TPROMPT_ACTION_HISTORY_PREV },
+	{ TERSE_EVENT_CHAR, TERSE_MOD_CTRL, { .scalar = 'n' }, TPROMPT_ACTION_HISTORY_NEXT },
 	/* Ctrl+D is handled specially in tprompt_handle_char_event() for EOF behavior */
 };
 

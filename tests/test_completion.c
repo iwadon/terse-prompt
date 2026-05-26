@@ -309,7 +309,8 @@ static int mock_ex_callback(
 
 	// Count words
 	size_t n = 0;
-	while (words[n]) n++;
+	while (words[n])
+		n++;
 
 	tprompt_completion_candidate_t *cands = malloc(sizeof(*cands) * n);
 	for (size_t i = 0; i < n; i++) {

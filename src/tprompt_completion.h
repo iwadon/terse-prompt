@@ -27,18 +27,18 @@ typedef struct tprompt_completion_state tprompt_completion_state_t;
  * @brief Completion state structure
  */
 struct tprompt_completion_state {
-	bool active;			/**< Whether completion is active */
-	char **candidates;		/**< Current candidate list (legacy, NULL-terminated) */
+	bool active;								   /**< Whether completion is active */
+	char **candidates;							   /**< Current candidate list (legacy, NULL-terminated) */
 	tprompt_completion_candidate_t *candidates_ex; /**< Extended candidates with descriptions */
-	size_t candidate_count; /**< Number of candidates */
-	size_t selected_index;	/**< Currently selected candidate index */
-	size_t display_offset;	/**< First visible candidate index (for scrolling) */
-	size_t trigger_offset;	/**< Byte offset of completion trigger character */
-	char trigger_char;		/**< Character that triggered completion */
-	bool use_extended;		/**< Whether using extended candidates */
-	char *saved_text;		/**< Saved buffer text at activation (for ESC restore) */
-	size_t saved_cursor;	/**< Saved cursor position at activation */
-	bool has_applied;		/**< Whether a candidate has been applied to the buffer */
+	size_t candidate_count;						   /**< Number of candidates */
+	size_t selected_index;						   /**< Currently selected candidate index */
+	size_t display_offset;						   /**< First visible candidate index (for scrolling) */
+	size_t trigger_offset;						   /**< Byte offset of completion trigger character */
+	char trigger_char;							   /**< Character that triggered completion */
+	bool use_extended;							   /**< Whether using extended candidates */
+	char *saved_text;							   /**< Saved buffer text at activation (for ESC restore) */
+	size_t saved_cursor;						   /**< Saved cursor position at activation */
+	bool has_applied;							   /**< Whether a candidate has been applied to the buffer */
 };
 
 /* ========================================================================

@@ -7,9 +7,9 @@
 
 #define _POSIX_C_SOURCE 200809L
 
-#include "tprompt_internal.h"
 #include "tprompt_completion.h"
 #include "tprompt_buffer.h"
+#include "tprompt_internal.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -363,8 +363,7 @@ int tprompt_completion_apply_selection(tprompt_handle_t handle)
 		return -1;
 	}
 
-	if (handle->completion_state.candidate_count == 0 ||
-		handle->completion_state.selected_index >= handle->completion_state.candidate_count) {
+	if (handle->completion_state.candidate_count == 0 || handle->completion_state.selected_index >= handle->completion_state.candidate_count) {
 		return -1;
 	}
 

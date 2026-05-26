@@ -8,11 +8,11 @@
  * - Multi-line editing with automatic continuation
  */
 
+#include "example_console.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <tprompt.h>
-#include "example_console.h"
 
 /* ========================================================================
  * Validation Callback - Bracket/Brace Balance Checker
@@ -40,12 +40,24 @@ static tprompt_validation_result_t deft_validate_input(
 	// Count opening and closing delimiters
 	for (size_t i = 0; i < length; i++) {
 		switch (text[i]) {
-			case '(': paren_count++; break;
-			case ')': paren_count--; break;
-			case '{': brace_count++; break;
-			case '}': brace_count--; break;
-			case '[': bracket_count++; break;
-			case ']': bracket_count--; break;
+		case '(':
+			paren_count++;
+			break;
+		case ')':
+			paren_count--;
+			break;
+		case '{':
+			brace_count++;
+			break;
+		case '}':
+			brace_count--;
+			break;
+		case '[':
+			bracket_count++;
+			break;
+		case ']':
+			bracket_count--;
+			break;
 		}
 	}
 
@@ -77,13 +89,13 @@ int main(void)
 
 	// Configure tprompt options for deft
 	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
-	opts.prompt = "deft> ";              // Primary prompt
-	opts.continuation_prompt = "...   "; // Continuation prompt (same width as "deft> ")
-	opts.history_file = ".deft_history"; // Persistent history
-	opts.max_history_size = 1000;        // Keep last 1000 commands
-	opts.flags = TPROMPT_FLAG_MULTILINE; // Enable multi-line mode
+	opts.prompt = "deft> ";							// Primary prompt
+	opts.continuation_prompt = "...   ";			// Continuation prompt (same width as "deft> ")
+	opts.history_file = ".deft_history";			// Persistent history
+	opts.max_history_size = 1000;					// Keep last 1000 commands
+	opts.flags = TPROMPT_FLAG_MULTILINE;			// Enable multi-line mode
 	opts.validation_callback = deft_validate_input; // Bracket balancing
-	opts.validation_user_data = NULL;    // No user data needed
+	opts.validation_user_data = NULL;				// No user data needed
 
 	// Open tprompt session
 	tprompt_handle_t handle = tprompt_open(&opts);
@@ -176,7 +188,7 @@ deft> let nested = {
 --- Command #3 ---
 let nested = {
   inner: {
-    value: [1, 2, 3]
+	value: [1, 2, 3]
   }
 }
 --- End ---

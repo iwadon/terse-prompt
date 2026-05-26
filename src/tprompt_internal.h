@@ -46,7 +46,6 @@ typedef struct tprompt_buffer {
 	size_t cursor; /**< Cursor position in bytes (byte offset) */
 } tprompt_buffer_t;
 
-
 /**
  * @brief Screen cell for virtual buffer-based rendering
  *
@@ -55,16 +54,16 @@ typedef struct tprompt_buffer {
  * Reserved fields for future color/attribute support.
  */
 typedef struct tprompt_screen_cell {
-	char utf8_char[5];		/**< UTF-8 character (max 4 bytes + NUL terminator) */
-	uint8_t char_len;		/**< Byte length of UTF-8 character (0 = empty cell) */
-	uint8_t display_width;	/**< Display width in columns (1 or 2 for wide chars) */
-	bool is_continuation;	/**< True if this cell is the 2nd column of a wide char */
+	char utf8_char[5];	   /**< UTF-8 character (max 4 bytes + NUL terminator) */
+	uint8_t char_len;	   /**< Byte length of UTF-8 character (0 = empty cell) */
+	uint8_t display_width; /**< Display width in columns (1 or 2 for wide chars) */
+	bool is_continuation;  /**< True if this cell is the 2nd column of a wide char */
 
 	/* Reserved for future extensions */
-	uint8_t reserved1;		/**< Reserved for fg_color */
-	uint8_t reserved2;		/**< Reserved for bg_color */
-	uint8_t reserved3;		/**< Reserved for attributes (bold, underline, etc.) */
-	uint8_t reserved4;		/**< Reserved for future use */
+	uint8_t reserved1; /**< Reserved for fg_color */
+	uint8_t reserved2; /**< Reserved for bg_color */
+	uint8_t reserved3; /**< Reserved for attributes (bold, underline, etc.) */
+	uint8_t reserved4; /**< Reserved for future use */
 } tprompt_screen_cell_t;
 
 /**
@@ -74,9 +73,9 @@ typedef struct tprompt_screen_cell {
  * Used for detecting changes between frames and rendering only differences.
  */
 typedef struct tprompt_screen_buffer {
-	tprompt_screen_cell_t *cells;	/**< 2D array of cells (rows * cols) */
-	size_t rows;					/**< Number of rows in buffer */
-	size_t cols;					/**< Number of columns in buffer */
+	tprompt_screen_cell_t *cells; /**< 2D array of cells (rows * cols) */
+	size_t rows;				  /**< Number of rows in buffer */
+	size_t cols;				  /**< Number of columns in buffer */
 } tprompt_screen_buffer_t;
 
 /**
@@ -93,10 +92,10 @@ typedef struct tprompt_display_state {
 	bool start_row_known;			  /**< Whether start_row has been initialized */
 
 	/* Dirty region tracking for differential rendering (legacy) */
-	bool is_dirty;					  /**< Whether any region needs redrawing */
-	size_t dirty_start_byte;		  /**< Start byte offset of dirty region */
-	size_t dirty_end_byte;			  /**< End byte offset of dirty region (exclusive) */
-	bool force_full_redraw;			  /**< Force full redraw on next render */
+	bool is_dirty;			 /**< Whether any region needs redrawing */
+	size_t dirty_start_byte; /**< Start byte offset of dirty region */
+	size_t dirty_end_byte;	 /**< End byte offset of dirty region (exclusive) */
+	bool force_full_redraw;	 /**< Force full redraw on next render */
 
 	/* Virtual screen buffer for new buffer-based differential rendering */
 	tprompt_screen_buffer_t current_buffer;	 /**< Current frame buffer */
@@ -129,9 +128,9 @@ struct tprompt_handle {
 	bool raw_mode_active;			 /**< Whether raw mode is currently active */
 #endif
 #if defined(_WIN32)
-	DWORD original_input_mode;	 /**< Original console input mode */
-	DWORD original_output_mode;	 /**< Original console output mode */
-	bool raw_mode_active;		 /**< Whether raw mode is currently active */
+	DWORD original_input_mode;	/**< Original console input mode */
+	DWORD original_output_mode; /**< Original console output mode */
+	bool raw_mode_active;		/**< Whether raw mode is currently active */
 #endif
 
 	/* Input buffer */
@@ -142,11 +141,11 @@ struct tprompt_handle {
 	char *history_file_path;   /**< History file path (NULL if none) */
 
 	/* Completion */
-	tprompt_completion_fn completion_callback;	 /**< Completion callback function (legacy) */
+	tprompt_completion_fn completion_callback;		 /**< Completion callback function (legacy) */
 	tprompt_completion_ex_fn completion_ex_callback; /**< Extended completion callback (with descriptions) */
-	void *completion_user_data;					 /**< User data for completion callback */
-	char *completion_prefixes;					 /**< Completion trigger prefix characters */
-	tprompt_completion_state_t completion_state; /**< Current completion state */
+	void *completion_user_data;						 /**< User data for completion callback */
+	char *completion_prefixes;						 /**< Completion trigger prefix characters */
+	tprompt_completion_state_t completion_state;	 /**< Current completion state */
 
 	/* Display */
 	tprompt_display_state_t display; /**< Display state for rendering */
@@ -161,12 +160,12 @@ struct tprompt_handle {
 	size_t keybinding_count;		   /**< Number of custom keybindings */
 
 	/* Validation */
-	bool pending_confirmation;	 /**< Whether input confirmation is pending validation */
-	bool force_confirmation;	 /**< Whether confirmation is forced by custom keybinding (bypass default multiline behavior) */
-	char *validation_error_msg;	 /**< Validation error message to display (NULL if none) */
+	bool pending_confirmation;	/**< Whether input confirmation is pending validation */
+	bool force_confirmation;	/**< Whether confirmation is forced by custom keybinding (bypass default multiline behavior) */
+	char *validation_error_msg; /**< Validation error message to display (NULL if none) */
 
 	/* EOF tracking */
-	bool eof_signaled;			 /**< Whether EOF (Ctrl+D on empty buffer) was signaled */
+	bool eof_signaled; /**< Whether EOF (Ctrl+D on empty buffer) was signaled */
 
 	/* Status line */
 	tprompt_status_line_fn status_line_callback; /**< Status line callback function */
@@ -273,7 +272,6 @@ int tprompt_get_char_width(unsigned int scalar);
  * @return Number of bytes written (1-4), or -1 on error
  */
 int tprompt_utf8_encode(unsigned int scalar, char *out_buf, size_t max_buf_size);
-
 
 /* ========================================================================
  * Internal Helper Functions - Display and Rendering

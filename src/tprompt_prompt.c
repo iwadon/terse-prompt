@@ -8,8 +8,8 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "tprompt_internal.h"
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
 #define DEFAULT_CONTINUATION_PROMPT "| "
 

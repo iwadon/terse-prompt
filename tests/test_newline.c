@@ -8,8 +8,8 @@
  * navigation with newlines (UP/DOWN/Home/End), and Enter vs modifier Enter.
  */
 
-#include "tprompt_internal.h"
 #include "test_helpers.h"
+#include "tprompt_internal.h"
 #include <attest/attest.h>
 #include <stdlib.h>
 #include <string.h>

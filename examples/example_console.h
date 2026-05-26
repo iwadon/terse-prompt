@@ -45,7 +45,7 @@ static void example_setup_console_utf8(void)
 	atexit(example_restore_console_cp);
 }
 #else
-static inline void example_setup_console_utf8(void) {}
+static inline void example_setup_console_utf8(void) { }
 #endif
 
 #endif /* EXAMPLE_CONSOLE_H */

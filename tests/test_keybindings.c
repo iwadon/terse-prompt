@@ -41,7 +41,7 @@ static tprompt_handle_t create_test_handle(void)
 		.completion_callback = NULL,
 		.completion_user_data = NULL,
 		.completion_prefixes = NULL,
-		.terse_handle = terse_h,  // Use mock terse handle
+		.terse_handle = terse_h, // Use mock terse handle
 		.flags = TPROMPT_FLAG_MULTILINE
 	};
 
@@ -67,9 +67,7 @@ static void execute_ctrl_char(tprompt_handle_t handle, char ch)
 			.ch = {
 				.scalar = (unsigned int)ch,
 				.mods = TERSE_MOD_CTRL,
-				.width = 1
-			}
-		}
+				.width = 1 } }
 	};
 
 	tprompt_action_t action = tprompt_resolve_action(handle, &event);
@@ -490,9 +488,7 @@ static bool execute_ctrl_d(tprompt_handle_t handle)
 			.ch = {
 				.scalar = 'D',
 				.mods = TERSE_MOD_CTRL,
-				.width = 1
-			}
-		}
+				.width = 1 } }
 	};
 
 	bool should_break = false;
@@ -673,7 +669,7 @@ static tprompt_handle_t create_test_handle_with_keybindings(
 		.completion_callback = NULL,
 		.completion_user_data = NULL,
 		.completion_prefixes = NULL,
-		.terse_handle = terse_h,  // Use mock terse handle
+		.terse_handle = terse_h, // Use mock terse handle
 		.flags = TPROMPT_FLAG_MULTILINE,
 		.custom_keybindings = (tprompt_keybinding_t *)bindings,
 		.keybinding_count = count
@@ -720,9 +716,7 @@ TEST(CustomKeybindings, EnterConfirmsInMultilineMode)
 		.type = TERSE_EVENT_ENTER,
 		.data = {
 			.key = {
-				.mods = 0
-			}
-		}
+				.mods = 0 } }
 	};
 
 	// Execute Enter key event
@@ -759,9 +753,7 @@ TEST(CustomKeybindings, ShiftEnterInsertsNewline)
 		.type = TERSE_EVENT_ENTER,
 		.data = {
 			.key = {
-				.mods = TERSE_MOD_SHIFT
-			}
-		}
+				.mods = TERSE_MOD_SHIFT } }
 	};
 
 	int result = execute_key_event(handle, &shift_enter);
@@ -800,9 +792,7 @@ TEST(CustomKeybindings, NoValidationCallbackStillConfirms)
 		.type = TERSE_EVENT_ENTER,
 		.data = {
 			.key = {
-				.mods = 0
-			}
-		}
+				.mods = 0 } }
 	};
 
 	execute_key_event(handle, &enter_event);
@@ -852,9 +842,7 @@ TEST(CustomKeybindings, DefaultBehaviorWithoutCustomBinding)
 		.type = TERSE_EVENT_ENTER,
 		.data = {
 			.key = {
-				.mods = 0
-			}
-		}
+				.mods = 0 } }
 	};
 
 	execute_key_event(handle, &enter_event);
@@ -869,7 +857,7 @@ TEST(CustomKeybindings, DefaultBehaviorWithoutCustomBinding)
 
 	// Default behavior: confirm input
 	EXPECT_EQ(result, 0);
-	EXPECT_TRUE(should_break); // Confirm editing
+	EXPECT_TRUE(should_break);				   // Confirm editing
 	EXPECT_STREQ(handle->buffer.data, "test"); // No newline added
 
 	tprompt_close(handle);
@@ -896,9 +884,7 @@ TEST(CustomKeybindings, CtrlJInsertsNewline)
 			.ch = {
 				.scalar = 'j',
 				.mods = TERSE_MOD_CTRL,
-				.width = 1
-			}
-		}
+				.width = 1 } }
 	};
 
 	int result = execute_key_event(handle, &ctrl_j);
@@ -934,7 +920,7 @@ TEST(TabKey, DoesNotInsertTabWithoutCompletion)
 	// Simulate TAB key press (without completion callback set)
 	terse_event_t event = {
 		.type = TERSE_EVENT_TAB,
-		.data = {0}
+		.data = { 0 }
 	};
 
 	int result = tprompt_handle_key_event(handle, &event);
@@ -966,7 +952,7 @@ TEST(TabKey, MultipleTabsDoNotInsertCharacters)
 	// Simulate multiple TAB key presses
 	terse_event_t event = {
 		.type = TERSE_EVENT_TAB,
-		.data = {0}
+		.data = { 0 }
 	};
 
 	for (int i = 0; i < 5; i++) {
@@ -999,7 +985,7 @@ TEST(TabKey, DoesNotInsertAtDifferentPositions)
 	// Press TAB
 	terse_event_t event = {
 		.type = TERSE_EVENT_TAB,
-		.data = {0}
+		.data = { 0 }
 	};
 
 	int result = tprompt_handle_key_event(handle, &event);
@@ -1034,7 +1020,7 @@ TEST(TabKey, DoesNotInsertInEmptyBuffer)
 	// Press TAB in empty buffer
 	terse_event_t event = {
 		.type = TERSE_EVENT_TAB,
-		.data = {0}
+		.data = { 0 }
 	};
 
 	int result = tprompt_handle_key_event(handle, &event);
@@ -1072,9 +1058,7 @@ TEST(CtrlKeyCaseInsensitive, CtrlWUppercase)
 			.ch = {
 				.scalar = 'W',
 				.mods = TERSE_MOD_CTRL,
-				.width = 1
-			}
-		}
+				.width = 1 } }
 	};
 
 	tprompt_action_t action = tprompt_resolve_action(handle, &event);
@@ -1101,9 +1085,7 @@ TEST(CtrlKeyCaseInsensitive, CtrlWLowercase)
 			.ch = {
 				.scalar = 'w',
 				.mods = TERSE_MOD_CTRL,
-				.width = 1
-			}
-		}
+				.width = 1 } }
 	};
 
 	tprompt_action_t action = tprompt_resolve_action(handle, &event);
@@ -1133,9 +1115,7 @@ TEST(CtrlKeyCaseInsensitive, CtrlDUppercaseEOF)
 			.ch = {
 				.scalar = 'D',
 				.mods = TERSE_MOD_CTRL,
-				.width = 1
-			}
-		}
+				.width = 1 } }
 	};
 
 	bool should_break = false;
@@ -1163,9 +1143,7 @@ TEST(CtrlKeyCaseInsensitive, CtrlDLowercaseEOF)
 			.ch = {
 				.scalar = 'd',
 				.mods = TERSE_MOD_CTRL,
-				.width = 1
-			}
-		}
+				.width = 1 } }
 	};
 
 	bool should_break = false;
@@ -1197,9 +1175,7 @@ TEST(CtrlKeyCaseInsensitive, CtrlDUppercaseDeleteChar)
 			.ch = {
 				.scalar = 'D',
 				.mods = TERSE_MOD_CTRL,
-				.width = 1
-			}
-		}
+				.width = 1 } }
 	};
 
 	bool should_break = false;
@@ -1229,9 +1205,7 @@ TEST(CtrlKeyCaseInsensitive, CtrlDLowercaseDeleteChar)
 			.ch = {
 				.scalar = 'd',
 				.mods = TERSE_MOD_CTRL,
-				.width = 1
-			}
-		}
+				.width = 1 } }
 	};
 
 	bool should_break = false;

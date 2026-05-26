@@ -30,16 +30,14 @@ static unsigned char ascii_tolower(unsigned char c)
  *
  * @return true if the codepoints are equal (case-insensitive for ASCII)
  */
-static bool codepoints_equal_ci(const char *a, size_t a_len,
-                                const char *b, size_t b_len)
+static bool codepoints_equal_ci(const char *a, size_t a_len, const char *b, size_t b_len)
 {
 	if (a_len != b_len) {
 		return false;
 	}
 
 	if (a_len == 1) {
-		return ascii_tolower((unsigned char)a[0]) ==
-		       ascii_tolower((unsigned char)b[0]);
+		return ascii_tolower((unsigned char)a[0]) == ascii_tolower((unsigned char)b[0]);
 	}
 
 	for (size_t i = 0; i < a_len; i++) {
@@ -75,7 +73,7 @@ bool tprompt_match_prefix(const char *input, const char *candidate)
 		size_t c_len = tprompt_utf8_char_length((unsigned char)candidate[c_pos]);
 
 		if (!codepoints_equal_ci(input + i_pos, i_len,
-		                         candidate + c_pos, c_len)) {
+				candidate + c_pos, c_len)) {
 			return false;
 		}
 
@@ -113,7 +111,7 @@ bool tprompt_match_substring(const char *input, const char *candidate)
 			size_t t_len = tprompt_utf8_char_length((unsigned char)candidate[t_pos]);
 
 			if (!codepoints_equal_ci(input + i_pos, i_len,
-			                         candidate + t_pos, t_len)) {
+					candidate + t_pos, t_len)) {
 				match = false;
 				break;
 			}
@@ -150,7 +148,7 @@ bool tprompt_match_subsequence(const char *input, const char *candidate)
 		size_t c_len = tprompt_utf8_char_length((unsigned char)candidate[c_pos]);
 
 		if (codepoints_equal_ci(input + i_pos, i_len,
-		                        candidate + c_pos, c_len)) {
+				candidate + c_pos, c_len)) {
 			i_pos += i_len;
 		}
 

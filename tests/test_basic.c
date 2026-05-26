@@ -55,7 +55,7 @@ TEST(UTF8Utils, NextChar_ASCII)
 
 TEST(UTF8Utils, NextChar_UTF8)
 {
-	const char *text = UTF8_JAPANESE_NIHONGO; // 3 characters, 9 bytes
+	const char *text = UTF8_JAPANESE_NIHONGO;		  // 3 characters, 9 bytes
 	EXPECT_EQ(tprompt_utf8_next_char(text, 0, 9), 3); // '日' is 3 bytes
 	EXPECT_EQ(tprompt_utf8_next_char(text, 3, 9), 6); // '本' is 3 bytes
 	EXPECT_EQ(tprompt_utf8_next_char(text, 6, 9), 9); // '語' is 3 bytes
@@ -77,7 +77,7 @@ TEST(UTF8Utils, PrevChar_ASCII)
 
 TEST(UTF8Utils, PrevChar_UTF8)
 {
-	const char *text = UTF8_JAPANESE_NIHONGO; // 3 characters, 9 bytes
+	const char *text = UTF8_JAPANESE_NIHONGO;	   // 3 characters, 9 bytes
 	EXPECT_EQ(tprompt_utf8_prev_char(text, 9), 6); // Before '語'
 	EXPECT_EQ(tprompt_utf8_prev_char(text, 6), 3); // Before '本'
 	EXPECT_EQ(tprompt_utf8_prev_char(text, 3), 0); // Before '日'
@@ -93,7 +93,7 @@ TEST(UTF8Utils, Validate_ValidUTF8)
 {
 	EXPECT_TRUE(tprompt_utf8_validate(UTF8_JAPANESE_NIHONGO, 9));
 	EXPECT_TRUE(tprompt_utf8_validate(UTF8_RUSSIAN_PRIVET, 12)); // Russian
-	EXPECT_TRUE(tprompt_utf8_validate(UTF8_EMOJI_PARTY, 4));	  // Emoji (4-byte)
+	EXPECT_TRUE(tprompt_utf8_validate(UTF8_EMOJI_PARTY, 4));	 // Emoji (4-byte)
 }
 
 TEST(UTF8Utils, Validate_Invalid)

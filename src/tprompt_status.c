@@ -8,9 +8,9 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "tprompt_status.h"
-#include "tprompt_session.h"
-#include "tprompt_internal.h"
 #include "tprompt_display.h"
+#include "tprompt_internal.h"
+#include "tprompt_session.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -95,4 +95,3 @@ size_t tprompt_get_cursor_column(tprompt_handle_t handle)
 
 	return handle->display.physical_column;
 }
-

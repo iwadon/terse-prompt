@@ -8,17 +8,17 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "tprompt_session.h"
-#include "tprompt_keybinding.h"
 #include "tprompt_action.h"
-#include "tprompt_internal.h"
 #include "tprompt_buffer.h"
-#include "tprompt_history.h"
 #include "tprompt_completion.h"
 #include "tprompt_display.h"
-#include <string.h>
+#include "tprompt_history.h"
+#include "tprompt_internal.h"
+#include "tprompt_keybinding.h"
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
+#include <string.h>
 #if defined(__unix__) || defined(__APPLE__)
 #include <termios.h>
 #include <unistd.h>
@@ -160,8 +160,8 @@ int tprompt_handle_char_event(tprompt_handle_t handle, const terse_event_t *even
 	if ((scalar == 'd' || scalar == 'D') && (mods & TERSE_MOD_CTRL)) {
 		if (handle->buffer.length == 0) {
 			tprompt_clear_error(&handle->last_error); // EOF is not an error
-			handle->eof_signaled = true; // Mark EOF
-			*should_break = true; // Signal EOF
+			handle->eof_signaled = true;			  // Mark EOF
+			*should_break = true;					  // Signal EOF
 			return 0;
 		}
 		// Buffer is non-empty: delete character at cursor (delete-char)

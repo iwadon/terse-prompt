@@ -54,9 +54,9 @@ typedef struct tprompt_keybinding tprompt_keybinding_t;
  * rejected, or continued (insert newline).
  */
 typedef enum tprompt_validation_result {
-	TPROMPT_VALIDATION_ACCEPT = 0,   /**< Accept input and return to caller */
+	TPROMPT_VALIDATION_ACCEPT = 0,	 /**< Accept input and return to caller */
 	TPROMPT_VALIDATION_CONTINUE = 1, /**< Insert newline and continue editing (multiline mode only) */
-	TPROMPT_VALIDATION_REJECT = 2    /**< Reject input and continue editing */
+	TPROMPT_VALIDATION_REJECT = 2	 /**< Reject input and continue editing */
 } tprompt_validation_result_t;
 
 /**
@@ -210,38 +210,38 @@ typedef int (*tprompt_completion_ex_fn)(
  * by action handlers. This provides a unified, table-driven architecture.
  */
 typedef enum tprompt_action {
-	TPROMPT_ACTION_NONE = 0,		 /**< No action (use default behavior) */
+	TPROMPT_ACTION_NONE = 0, /**< No action (use default behavior) */
 
 	/* Input confirmation and control */
 	TPROMPT_ACTION_CONFIRM_INPUT = 1,  /**< Confirm input and return to caller */
 	TPROMPT_ACTION_INSERT_NEWLINE = 2, /**< Insert newline at cursor position */
 
 	/* Character editing */
-	TPROMPT_ACTION_DELETE_BACKWARD = 3,      /**< Delete character before cursor (Backspace) */
-	TPROMPT_ACTION_DELETE_FORWARD = 4,       /**< Delete character at cursor (Delete) */
-	TPROMPT_ACTION_DELETE_WORD_BACKWARD = 5, /**< Delete word before cursor (Ctrl+W) */
-	TPROMPT_ACTION_DELETE_TO_END_OF_LINE = 6, /**< Delete from cursor to end of line (Ctrl+K) */
+	TPROMPT_ACTION_DELETE_BACKWARD = 3,			/**< Delete character before cursor (Backspace) */
+	TPROMPT_ACTION_DELETE_FORWARD = 4,			/**< Delete character at cursor (Delete) */
+	TPROMPT_ACTION_DELETE_WORD_BACKWARD = 5,	/**< Delete word before cursor (Ctrl+W) */
+	TPROMPT_ACTION_DELETE_TO_END_OF_LINE = 6,	/**< Delete from cursor to end of line (Ctrl+K) */
 	TPROMPT_ACTION_DELETE_TO_START_OF_LINE = 7, /**< Delete from start of line to cursor (Ctrl+U) */
-	TPROMPT_ACTION_INSERT_CHAR = 8,          /**< Insert character at cursor */
+	TPROMPT_ACTION_INSERT_CHAR = 8,				/**< Insert character at cursor */
 
 	/* Cursor movement */
-	TPROMPT_ACTION_MOVE_LEFT = 9,            /**< Move cursor left one character */
-	TPROMPT_ACTION_MOVE_RIGHT = 10,          /**< Move cursor right one character */
-	TPROMPT_ACTION_MOVE_UP = 11,             /**< Move cursor up one line */
-	TPROMPT_ACTION_MOVE_DOWN = 12,           /**< Move cursor down one line */
-	TPROMPT_ACTION_MOVE_WORD_LEFT = 13,      /**< Move cursor to previous word (Ctrl+Left) */
-	TPROMPT_ACTION_MOVE_WORD_RIGHT = 14,     /**< Move cursor to next word (Ctrl+Right) */
-	TPROMPT_ACTION_MOVE_HOME = 15,           /**< Move to start of line (Home, staged) */
-	TPROMPT_ACTION_MOVE_END = 16,            /**< Move to end of line (End, staged) */
-	TPROMPT_ACTION_MOVE_TO_LINE_START = 17,  /**< Move to start of logical line (Ctrl+A) */
-	TPROMPT_ACTION_MOVE_TO_LINE_END = 18,    /**< Move to end of logical line (Ctrl+E) */
+	TPROMPT_ACTION_MOVE_LEFT = 9,			/**< Move cursor left one character */
+	TPROMPT_ACTION_MOVE_RIGHT = 10,			/**< Move cursor right one character */
+	TPROMPT_ACTION_MOVE_UP = 11,			/**< Move cursor up one line */
+	TPROMPT_ACTION_MOVE_DOWN = 12,			/**< Move cursor down one line */
+	TPROMPT_ACTION_MOVE_WORD_LEFT = 13,		/**< Move cursor to previous word (Ctrl+Left) */
+	TPROMPT_ACTION_MOVE_WORD_RIGHT = 14,	/**< Move cursor to next word (Ctrl+Right) */
+	TPROMPT_ACTION_MOVE_HOME = 15,			/**< Move to start of line (Home, staged) */
+	TPROMPT_ACTION_MOVE_END = 16,			/**< Move to end of line (End, staged) */
+	TPROMPT_ACTION_MOVE_TO_LINE_START = 17, /**< Move to start of logical line (Ctrl+A) */
+	TPROMPT_ACTION_MOVE_TO_LINE_END = 18,	/**< Move to end of logical line (Ctrl+E) */
 
 	/* History navigation */
-	TPROMPT_ACTION_HISTORY_PREV = 19,        /**< Navigate to previous history entry (Up/Ctrl+P) */
-	TPROMPT_ACTION_HISTORY_NEXT = 20,        /**< Navigate to next history entry (Down/Ctrl+N) */
+	TPROMPT_ACTION_HISTORY_PREV = 19, /**< Navigate to previous history entry (Up/Ctrl+P) */
+	TPROMPT_ACTION_HISTORY_NEXT = 20, /**< Navigate to next history entry (Down/Ctrl+N) */
 
 	/* Completion */
-	TPROMPT_ACTION_COMPLETE = 21,            /**< Trigger or advance completion (Tab) */
+	TPROMPT_ACTION_COMPLETE = 21, /**< Trigger or advance completion (Tab) */
 
 	/* Validation control */
 	TPROMPT_ACTION_CONFIRM_WITHOUT_VALIDATION = 22, /**< Confirm input without running validation */
@@ -285,23 +285,23 @@ struct tprompt_keybinding {
  * @brief Options structure for tprompt_open()
  */
 typedef struct tprompt_options {
-	const char *prompt;								/**< Prompt string (NULL = "> ") */
-	const char *continuation_prompt;				/**< Continuation line prompt (NULL = "| ") */
-	const char *history_file;						/**< History file path (NULL = memory only) */
-	size_t max_input_size;							/**< Max input size in bytes (0 = unlimited) */
-	size_t max_history_size;						/**< Max history entries (0 = unlimited) */
-	tprompt_completion_fn completion_callback;		/**< Completion callback (NULL = disabled) */
+	const char *prompt;								 /**< Prompt string (NULL = "> ") */
+	const char *continuation_prompt;				 /**< Continuation line prompt (NULL = "| ") */
+	const char *history_file;						 /**< History file path (NULL = memory only) */
+	size_t max_input_size;							 /**< Max input size in bytes (0 = unlimited) */
+	size_t max_history_size;						 /**< Max history entries (0 = unlimited) */
+	tprompt_completion_fn completion_callback;		 /**< Completion callback (NULL = disabled) */
 	tprompt_completion_ex_fn completion_ex_callback; /**< Extended completion callback with descriptions (NULL = disabled) */
-	void *completion_user_data;						/**< User data for completion callback */
-	const char *completion_prefixes;				/**< Completion trigger chars (e.g., "/@", NULL = disabled) */
-	terse_handle_t terse_handle;					/**< Existing terse handle (NULL = auto-create) */
-	int flags;										/**< Behavior flags (TPROMPT_FLAG_*) */
-	const tprompt_keybinding_t *custom_keybindings; /**< Custom keybindings array (NULL = use defaults) */
-	size_t keybinding_count;						/**< Number of custom keybindings */
-	tprompt_validation_fn validation_callback;		/**< Validation callback (NULL = no validation) */
-	void *validation_user_data;						/**< User data for validation callback */
-	tprompt_status_line_fn status_line_callback;	/**< Status line callback (NULL = no status line) */
-	void *status_line_user_data;					/**< User data for status line callback */
+	void *completion_user_data;						 /**< User data for completion callback */
+	const char *completion_prefixes;				 /**< Completion trigger chars (e.g., "/@", NULL = disabled) */
+	terse_handle_t terse_handle;					 /**< Existing terse handle (NULL = auto-create) */
+	int flags;										 /**< Behavior flags (TPROMPT_FLAG_*) */
+	const tprompt_keybinding_t *custom_keybindings;	 /**< Custom keybindings array (NULL = use defaults) */
+	size_t keybinding_count;						 /**< Number of custom keybindings */
+	tprompt_validation_fn validation_callback;		 /**< Validation callback (NULL = no validation) */
+	void *validation_user_data;						 /**< User data for validation callback */
+	tprompt_status_line_fn status_line_callback;	 /**< Status line callback (NULL = no status line) */
+	void *status_line_user_data;					 /**< User data for status line callback */
 } tprompt_options_t;
 
 /**
@@ -311,7 +311,7 @@ typedef struct tprompt_options {
  * Used in the completion result to provide rich candidate information.
  */
 struct tprompt_completion_candidate {
-	char *text;        /**< Candidate text (required, must not be NULL) */
+	char *text;		   /**< Candidate text (required, must not be NULL) */
 	char *description; /**< Optional description (NULL if not provided) */
 };
 
@@ -400,7 +400,6 @@ typedef struct tprompt_error_info {
  */
 #define TPROMPT_MAX_VISIBLE_COMPLETION_ROWS 8
 
-
 /* ========================================================================
  * Keybinding Helper Macros
  * ======================================================================== */
@@ -435,24 +434,24 @@ typedef struct tprompt_error_info {
 /**
  * @brief Default options initializer
  */
-#define TPROMPT_OPTIONS_DEFAULT {      \
-	.prompt = "> ",                    \
-	.continuation_prompt = "| ",       \
-	.history_file = NULL,              \
-	.max_input_size = 1024 * 1024,     \
-	.max_history_size = 100,           \
-	.completion_callback = NULL,       \
-	.completion_ex_callback = NULL,    \
-	.completion_user_data = NULL,      \
-	.completion_prefixes = NULL,       \
-	.terse_handle = NULL,              \
-	.flags = TPROMPT_FLAG_MULTILINE,   \
-	.custom_keybindings = NULL,        \
-	.keybinding_count = 0,             \
-	.validation_callback = NULL,       \
-	.validation_user_data = NULL,      \
-	.status_line_callback = NULL,      \
-	.status_line_user_data = NULL      \
+#define TPROMPT_OPTIONS_DEFAULT {    \
+	.prompt = "> ",                  \
+	.continuation_prompt = "| ",     \
+	.history_file = NULL,            \
+	.max_input_size = 1024 * 1024,   \
+	.max_history_size = 100,         \
+	.completion_callback = NULL,     \
+	.completion_ex_callback = NULL,  \
+	.completion_user_data = NULL,    \
+	.completion_prefixes = NULL,     \
+	.terse_handle = NULL,            \
+	.flags = TPROMPT_FLAG_MULTILINE, \
+	.custom_keybindings = NULL,      \
+	.keybinding_count = 0,           \
+	.validation_callback = NULL,     \
+	.validation_user_data = NULL,    \
+	.status_line_callback = NULL,    \
+	.status_line_user_data = NULL    \
 }
 
 /* ========================================================================

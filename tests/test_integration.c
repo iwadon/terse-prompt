@@ -35,7 +35,7 @@ static tprompt_handle_t create_handle_with_keybindings(
 	}
 
 	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
-	opts.terse_handle = terse_h;  // Use mock terse handle
+	opts.terse_handle = terse_h; // Use mock terse handle
 	opts.flags = TPROMPT_FLAG_MULTILINE;
 	opts.custom_keybindings = (tprompt_keybinding_t *)bindings;
 	opts.keybinding_count = count;
@@ -171,13 +171,13 @@ TEST(Integration, CustomKeybinding_ShiftEnterNewline)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = '1', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_SHIFT },  // Insert newline
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_SHIFT }, // Insert newline
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'i', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = '2', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }  // Confirm input
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 } // Confirm input
 	};
 	test_mock_events(terse, events, 12);
 
@@ -244,16 +244,16 @@ TEST(Integration, ForceConfirmation_ValidationRejectThenConfirm)
 	terse_event_t events[] = {
 		// First attempt: type "a" + Enter (will be rejected)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'a', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },  // Custom keybinding: force_confirmation=true
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }, // Custom keybinding: force_confirmation=true
 		// Second attempt: type "b" + Enter (should accept "ab")
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'b', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }   // Custom keybinding: force_confirmation=true
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 } // Custom keybinding: force_confirmation=true
 	};
 	test_mock_events(terse, events, 4);
 
 	char *result = tprompt_readline(handle, NULL);
 	ASSERT_NOT_NULL(result);
-	EXPECT_STREQ(result, "ab");  // Should contain both characters
+	EXPECT_STREQ(result, "ab"); // Should contain both characters
 
 	free(result);
 	tprompt_close(handle);
@@ -309,20 +309,20 @@ TEST(Integration, PendingConfirmation_MultipleRounds)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = '1', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },  // Plain Enter
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }, // Plain Enter
 		// Round 2: "line2" + Enter (continues with newline)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'i', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = '2', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },  // Plain Enter
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }, // Plain Enter
 		// Round 3: "done" + Enter (accepts and exits)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'd', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'o', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }   // Plain Enter
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 } // Plain Enter
 	};
 	test_mock_events(terse, events, 17);
 
@@ -384,7 +384,7 @@ TEST(Integration, CustomKeybinding_ValidationInteraction)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 's', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },  // Rejected
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }, // Rejected
 		// Second attempt: " valid" + Enter (will be accepted)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = ' ', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'v', .data.ch.mods = 0, .data.ch.width = 1 },
@@ -392,7 +392,7 @@ TEST(Integration, CustomKeybinding_ValidationInteraction)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'i', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'd', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }  // Accepted
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 } // Accepted
 	};
 	test_mock_events(terse, events, 12);
 
@@ -425,8 +425,8 @@ TEST(ComplexInput, TypeEditConfirm)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'o', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_BACKSPACE, .data.key.mods = 0 },  // Delete 'o'
-		{ .type = TERSE_EVENT_BACKSPACE, .data.key.mods = 0 },  // Delete 'l'
+		{ .type = TERSE_EVENT_BACKSPACE, .data.key.mods = 0 }, // Delete 'o'
+		{ .type = TERSE_EVENT_BACKSPACE, .data.key.mods = 0 }, // Delete 'l'
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'p', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = ' ', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'm', .data.ch.mods = 0, .data.ch.width = 1 },
@@ -497,14 +497,14 @@ TEST(MultipleNewlines, ComplexStructure)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = '1', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_SHIFT },  // First newline
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_SHIFT },  // Second newline
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_SHIFT }, // First newline
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_SHIFT }, // Second newline
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'i', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = '3', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL }  // Confirm
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_CTRL } // Confirm
 	};
 	test_mock_events(terse, events, 13);
 
@@ -560,7 +560,7 @@ TEST(ValidationContinue, WithEditing)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'o', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'r', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },  // Plain Enter
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }, // Plain Enter
 		// Round 2: "text here" + Enter (accepts)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
@@ -571,7 +571,7 @@ TEST(ValidationContinue, WithEditing)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'r', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }   // Plain Enter
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 } // Plain Enter
 	};
 	test_mock_events(terse, events, 16);
 
@@ -590,7 +590,7 @@ TEST(CtrlJNewline, CustomBinding)
 	// Sequence: "line1" + Ctrl+J + "line2" + Enter
 	// Purpose: Tests character-based keybinding with modifiers
 	tprompt_keybinding_t bindings[] = {
-		TPROMPT_BIND_CHAR('j', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE),  // Ctrl+J
+		TPROMPT_BIND_CHAR('j', TERSE_MOD_CTRL, TPROMPT_ACTION_INSERT_NEWLINE), // Ctrl+J
 		TPROMPT_BIND_KEY(TERSE_EVENT_ENTER, 0, TPROMPT_ACTION_CONFIRM_INPUT),
 	};
 
@@ -607,13 +607,13 @@ TEST(CtrlJNewline, CustomBinding)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = '1', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'j', .data.ch.mods = TERSE_MOD_CTRL, .data.ch.width = 1 },  // Ctrl+J
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'j', .data.ch.mods = TERSE_MOD_CTRL, .data.ch.width = 1 }, // Ctrl+J
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'i', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = '2', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }  // Confirm
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 } // Confirm
 	};
 	test_mock_events(terse, events, 12);
 
@@ -679,18 +679,18 @@ TEST(EofHandling, CtrlDDeletesCharWhenBufferNotEmpty)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'o', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },  // Move to 'o'
-		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },  // Move to 'l'
-		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },  // Move to 'l'
-		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },  // Move to 'e'
-		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'D', .data.ch.mods = TERSE_MOD_CTRL, .data.ch.width = 1 },  // Delete 'e'
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }  // Confirm input
+		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },													 // Move to 'o'
+		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },													 // Move to 'l'
+		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },													 // Move to 'l'
+		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },													 // Move to 'e'
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'D', .data.ch.mods = TERSE_MOD_CTRL, .data.ch.width = 1 }, // Delete 'e'
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }														 // Confirm input
 	};
 	test_mock_events(terse, events, 11);
 
 	char *result = tprompt_readline(handle, NULL);
 	ASSERT_NOT_NULL(result);
-	EXPECT_STREQ(result, "hllo");  // 'e' should be deleted
+	EXPECT_STREQ(result, "hllo"); // 'e' should be deleted
 
 	free(result);
 	tprompt_close(handle);
@@ -709,8 +709,8 @@ TEST(EofHandling, CtrlDAfterDeletingAllContent)
 	// Mock event sequence: type "x" + backspace + Ctrl+D
 	terse_event_t events[] = {
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'x', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_BACKSPACE, .data.key.mods = 0 },  // Delete 'x', buffer now empty
-		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'D', .data.ch.mods = TERSE_MOD_CTRL, .data.ch.width = 1 }  // EOF
+		{ .type = TERSE_EVENT_BACKSPACE, .data.key.mods = 0 },													// Delete 'x', buffer now empty
+		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'D', .data.ch.mods = TERSE_MOD_CTRL, .data.ch.width = 1 } // EOF
 	};
 	test_mock_events(terse, events, 3);
 
@@ -753,7 +753,7 @@ TEST(EofHandling, EmptyInputVsEOFDistinction)
 
 	char *result1 = tprompt_readline(handle, NULL);
 	ASSERT_NOT_NULL(result1);  // Must NOT be NULL
-	EXPECT_STREQ(result1, "");  // Must be empty string
+	EXPECT_STREQ(result1, ""); // Must be empty string
 	free(result1);
 
 	// Test 2: Empty buffer + Ctrl+D → should return NULL (EOF)
@@ -763,7 +763,7 @@ TEST(EofHandling, EmptyInputVsEOFDistinction)
 	test_mock_events(terse, ctrl_d_events, 1);
 
 	char *result2 = tprompt_readline(handle, NULL);
-	EXPECT_NULL(result2);  // Must be NULL for EOF
+	EXPECT_NULL(result2); // Must be NULL for EOF
 
 	// Verify no error for EOF
 	tprompt_error_info_t error = tprompt_get_last_error(handle);
@@ -794,7 +794,7 @@ TEST(EofHandling, MultipleEmptyInputsBeforeEOF)
 		test_mock_events(terse, enter_events, 1);
 
 		char *result = tprompt_readline(handle, NULL);
-		ASSERT_NOT_NULL(result);  // Each should return empty string, not NULL
+		ASSERT_NOT_NULL(result); // Each should return empty string, not NULL
 		EXPECT_STREQ(result, "");
 		free(result);
 	}
@@ -876,9 +876,9 @@ TEST(CursorPositioning, NonEmptyBufferFinalRender)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 's', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },  // Move cursor left
-		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 },  // Move cursor left again
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }        // Confirm
+		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 }, // Move cursor left
+		{ .type = TERSE_EVENT_ARROW_LEFT, .data.key.mods = 0 }, // Move cursor left again
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }		// Confirm
 	};
 	test_mock_events(terse, events, 7);
 

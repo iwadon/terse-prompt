@@ -8,12 +8,12 @@
  * and file persistence.
  */
 
+#include "test_helpers.h"
 #include "tprompt_internal.h"
 #include <attest/attest.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "test_helpers.h"
 
 /* ========================================================================
  * History Basic Operations Tests

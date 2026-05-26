@@ -7,16 +7,16 @@
 
 #define _POSIX_C_SOURCE 200809L
 
-#include "tprompt_keybinding.h"
-#include "tprompt_internal.h"
 #include "tprompt_buffer.h"
-#include "tprompt_history.h"
 #include "tprompt_completion.h"
 #include "tprompt_display.h"
+#include "tprompt_history.h"
+#include "tprompt_internal.h"
+#include "tprompt_keybinding.h"
+#include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <errno.h>
 #if defined(__unix__) || defined(__APPLE__)
 #include <termios.h>
 #include <unistd.h>

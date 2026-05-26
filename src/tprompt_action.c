@@ -8,17 +8,17 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include "tprompt_action.h"
-#include "tprompt_keybinding.h"
-#include "tprompt_internal.h"
 #include "tprompt_buffer.h"
-#include "tprompt_history.h"
 #include "tprompt_completion.h"
 #include "tprompt_display.h"
-#include <string.h>
+#include "tprompt_history.h"
+#include "tprompt_internal.h"
+#include "tprompt_keybinding.h"
+#include <ctype.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
-#include <ctype.h>
+#include <string.h>
 
 /* ========================================================================
  * Action Execution - Internal Helpers
@@ -132,8 +132,7 @@ int tprompt_action_move_home(tprompt_handle_t handle, const terse_event_t *event
 	}
 
 	// Check if this is a consecutive Home press
-	bool is_consecutive = (handle->input_state.last_key_type == event->type &&
-	                       handle->input_state.last_cursor_pos == handle->buffer.cursor);
+	bool is_consecutive = (handle->input_state.last_key_type == event->type && handle->input_state.last_cursor_pos == handle->buffer.cursor);
 
 	if (is_consecutive) {
 		// Second press: move to logical line start
@@ -164,8 +163,7 @@ int tprompt_action_move_end(tprompt_handle_t handle, const terse_event_t *event)
 	}
 
 	// Check if this is a consecutive End press
-	bool is_consecutive = (handle->input_state.last_key_type == event->type &&
-	                       handle->input_state.last_cursor_pos == handle->buffer.cursor);
+	bool is_consecutive = (handle->input_state.last_key_type == event->type && handle->input_state.last_cursor_pos == handle->buffer.cursor);
 
 	if (is_consecutive) {
 		// Second press: move to logical line end
@@ -624,8 +622,7 @@ int tprompt_action_complete(tprompt_handle_t handle, const terse_event_t *event)
 		// Scan backwards to find identifier word boundary (alphanumeric + underscore)
 		while (word_start > 0) {
 			char ch = handle->buffer.data[word_start - 1];
-			if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') ||
-				(ch >= '0' && ch <= '9') || ch == '_') {
+			if ((ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9') || ch == '_') {
 				word_start--;
 			} else {
 				break;

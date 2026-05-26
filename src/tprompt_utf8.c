@@ -7,8 +7,8 @@
  */
 
 #include "tprompt_internal.h"
-#include <string.h>
 #include <stdbool.h>
+#include <string.h>
 
 /* ========================================================================
  * UTF-8 Utilities - Internal Helpers

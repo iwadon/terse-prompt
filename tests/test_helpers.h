@@ -9,14 +9,14 @@
 #ifndef TEST_HELPERS_H
 #define TEST_HELPERS_H
 
-#include <terse.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <terse.h>
 
 #ifdef _WIN32
-#include <io.h>
 #include <fcntl.h>
+#include <io.h>
 #include <sys/stat.h>
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>

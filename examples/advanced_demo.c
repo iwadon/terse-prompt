@@ -7,8 +7,8 @@
  * - Error handling
  */
 
-#include "tprompt.h"
 #include "example_console.h"
+#include "tprompt.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

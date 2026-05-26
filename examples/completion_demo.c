@@ -7,12 +7,12 @@
  * - Multiple completion contexts
  */
 
-#include "tprompt.h"
 #include "example_console.h"
+#include "tprompt.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 // Sample data for completion with descriptions
 typedef struct {
@@ -21,23 +21,23 @@ typedef struct {
 } command_info_t;
 
 static const command_info_t commands[] = {
-	{"help", "ヘルプを表示する"},
-	{"clear", "クリアする"},
-	{"quit", "終了する"},
-	{"exit", "終了する"},
-	{"history", "入力履歴を表示する"},
-	{"status", "ステータスを表示する"},
-	{"config", "設定を表示する"},
-	{"hello", "挨拶する"},
-	{"version", "バージョン情報を表示する"},
-	{"about", "アプリケーション情報を表示する"},
-	{"save", "現在の状態を保存する"},
-	{"load", "保存した状態を読み込む"},
-	{"export", "データをエクスポートする"},
-	{"import", "データをインポートする"},
-	{"settings", "設定画面を開く"},
-	{"refresh", "表示を更新する"},
-	{NULL, NULL}
+	{ "help", "ヘルプを表示する" },
+	{ "clear", "クリアする" },
+	{ "quit", "終了する" },
+	{ "exit", "終了する" },
+	{ "history", "入力履歴を表示する" },
+	{ "status", "ステータスを表示する" },
+	{ "config", "設定を表示する" },
+	{ "hello", "挨拶する" },
+	{ "version", "バージョン情報を表示する" },
+	{ "about", "アプリケーション情報を表示する" },
+	{ "save", "現在の状態を保存する" },
+	{ "load", "保存した状態を読み込む" },
+	{ "export", "データをエクスポートする" },
+	{ "import", "データをインポートする" },
+	{ "settings", "設定画面を開く" },
+	{ "refresh", "表示を更新する" },
+	{ NULL, NULL }
 };
 
 // Mentions without descriptions (simple text list)
@@ -76,10 +76,10 @@ static int starts_with_ignore_case(const char *str, const char *prefix)
  * Extended completion callback for commands (prefix: '/')
  */
 static int complete_commands_ex(const char *text, size_t cursor_pos, void *user_data,
-                                 tprompt_completion_candidate_t **candidates, size_t *count)
+	tprompt_completion_candidate_t **candidates, size_t *count)
 {
 	(void)cursor_pos; // Unused in this simple demo
-	(void)user_data; // Unused
+	(void)user_data;  // Unused
 
 	*candidates = NULL;
 	*count = 0;
@@ -139,10 +139,10 @@ static int complete_commands_ex(const char *text, size_t cursor_pos, void *user_
  * This example shows candidates WITHOUT descriptions
  */
 static int complete_mentions_ex(const char *text, size_t cursor_pos, void *user_data,
-                                 tprompt_completion_candidate_t **candidates, size_t *count)
+	tprompt_completion_candidate_t **candidates, size_t *count)
 {
 	(void)cursor_pos; // Unused in this simple demo
-	(void)user_data; // Unused
+	(void)user_data;  // Unused
 
 	*candidates = NULL;
 	*count = 0;
@@ -177,7 +177,7 @@ static int complete_mentions_ex(const char *text, size_t cursor_pos, void *user_
 	for (size_t i = 0; mentions[i] != NULL; i++) {
 		if (starts_with_ignore_case(mentions[i], mention_start)) {
 			cands[idx].text = strdup(mentions[i]);
-			cands[idx].description = NULL;  // No description for mentions
+			cands[idx].description = NULL; // No description for mentions
 
 			if (cands[idx].text == NULL) {
 				// Cleanup on error

@@ -42,7 +42,7 @@ static tprompt_handle_t create_test_handle(size_t term_width, size_t term_height
 		.completion_callback = NULL,
 		.completion_user_data = NULL,
 		.completion_prefixes = NULL,
-		.terse_handle = terse_h,  // Use mock terse handle
+		.terse_handle = terse_h, // Use mock terse handle
 		.flags = TPROMPT_FLAG_MULTILINE
 	};
 

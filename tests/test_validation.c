@@ -83,10 +83,14 @@ static tprompt_validation_result_t callback_check_parens(
 	int brace_count = 0;
 
 	for (size_t i = 0; i < length; i++) {
-		if (text[i] == '(') paren_count++;
-		if (text[i] == ')') paren_count--;
-		if (text[i] == '{') brace_count++;
-		if (text[i] == '}') brace_count--;
+		if (text[i] == '(')
+			paren_count++;
+		if (text[i] == ')')
+			paren_count--;
+		if (text[i] == '{')
+			brace_count++;
+		if (text[i] == '}')
+			brace_count--;
 	}
 
 	// If unbalanced, request continuation (newline)
@@ -217,7 +221,7 @@ TEST(Validation, AlwaysReject_BypassWithCustomBinding)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 's', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },        // Should be rejected (beep)
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },			  // Should be rejected (beep)
 		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_ALT } // Alt+Enter accepts
 	};
 	test_mock_events(terse, events, 6);
@@ -290,7 +294,7 @@ TEST(Validation, Continue_InsertsNewlineInMultilineMode)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = '1', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },        // Should insert newline
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }, // Should insert newline
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'l', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'i', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
@@ -329,7 +333,7 @@ TEST(Validation, Continue_BeepsInSingleLineMode)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 's', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },        // Should beep (treated as REJECT)
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },			  // Should beep (treated as REJECT)
 		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_ALT } // Alt+Enter accepts
 	};
 	test_mock_events(terse, events, 6);
@@ -406,8 +410,8 @@ TEST(Validation, CallbackNotInvokedOnBypassBinding)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'e', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 's', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },        // Rejected
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },        // Rejected
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },			  // Rejected
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },			  // Rejected
 		{ .type = TERSE_EVENT_ENTER, .data.key.mods = TERSE_MOD_ALT } // Accepted (validation called)
 	};
 	test_mock_events(terse, events, 7);
@@ -483,12 +487,12 @@ TEST(Validation, ParenthesisBalance_UnbalancedContinues)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'n', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'c', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = '(', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },        // Unbalanced, insert newline
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }, // Unbalanced, insert newline
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'a', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'r', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 'g', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = ')', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }         // Now balanced, accept
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 } // Now balanced, accept
 	};
 	test_mock_events(terse, events, 11);
 
@@ -521,9 +525,9 @@ TEST(Validation, ParenthesisBalance_OverClosedRejects)
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 's', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = 't', .data.ch.mods = 0, .data.ch.width = 1 },
 		{ .type = TERSE_EVENT_CHAR, .data.ch.scalar = ')', .data.ch.mods = 0, .data.ch.width = 1 },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 },        // Over-closed, reject
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }, // Over-closed, reject
 		{ .type = TERSE_EVENT_BACKSPACE },
-		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 }         // Now balanced, accept
+		{ .type = TERSE_EVENT_ENTER, .data.key.mods = 0 } // Now balanced, accept
 	};
 	test_mock_events(terse, events, 8);
 

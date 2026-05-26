@@ -6,8 +6,8 @@
  * after edits such as backspace/delete.
  */
 
-#include "tprompt_internal.h"
 #include "test_helpers.h"
+#include "tprompt_internal.h"
 #include <attest/attest.h>
 #include <stdbool.h>
 #include <stdlib.h>
@@ -77,15 +77,13 @@ TEST(DisplayBackspace, RestoresCursorAfterDeletion)
 	for (int i = 0; i < count; i++) {
 		const terse_call_record_t *call = &calls[i];
 
-		if (!blank_seen && call->type == TERSE_CALL_WRITE_TEXT &&
-			strcmp(call->data.write_text.text, " ") == 0) {
+		if (!blank_seen && call->type == TERSE_CALL_WRITE_TEXT && strcmp(call->data.write_text.text, " ") == 0) {
 			blank_seen = true;
 			continue;
 		}
 
 		if (blank_seen && call->type == TERSE_CALL_MOVE_TO) {
-			if (call->data.move_to.row == expected_row &&
-				call->data.move_to.col == expected_col) {
+			if (call->data.move_to.row == expected_row && call->data.move_to.col == expected_col) {
 				reposition_seen = true;
 				break;
 			}

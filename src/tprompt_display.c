@@ -4,12 +4,12 @@
  */
 
 #include "tprompt_display.h"
+#include "terse.h"
 #include "tprompt_internal.h"
 #include "tprompt_status.h"
-#include "terse.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 /* ========================================================================
  * Internal Helper Functions
@@ -244,7 +244,6 @@ static int tprompt_ensure_vertical_space(tprompt_handle_t handle, size_t require
 	return 0;
 }
 
-
 /* ========================================================================
  * Physical Position Calculation
  * ======================================================================== */
@@ -389,7 +388,6 @@ void tprompt_display_calculate_layout(tprompt_handle_t handle)
 	handle->display.total_physical_lines = tprompt_calculate_total_physical_lines(handle);
 }
 
-
 int tprompt_display_update_cursor(tprompt_handle_t handle)
 {
 	if (!handle) {
@@ -470,7 +468,6 @@ int tprompt_display_clear(tprompt_handle_t handle)
 	return 0;
 }
 
-
 /* ========================================================================
  * Dirty Region Tracking for Differential Rendering
  * ======================================================================== */
@@ -528,7 +525,6 @@ void tprompt_display_clear_dirty(tprompt_handle_t handle)
 	handle->display.dirty_end_byte = 0;
 	handle->display.force_full_redraw = false;
 }
-
 
 /* ========================================================================
  * Screen Buffer Management (Buffer-based Differential Rendering)
@@ -705,7 +701,8 @@ int tprompt_screen_buffer_write_string(tprompt_handle_t handle,
 
 		// Write character to buffer
 		if (tprompt_screen_buffer_write_char(buffer, row, current_col,
-			&str[i], char_len, (size_t)char_width) != 0) {
+				&str[i], char_len, (size_t)char_width)
+			!= 0) {
 			return -1;
 		}
 
@@ -738,13 +735,9 @@ void tprompt_screen_buffer_diff(const tprompt_screen_buffer_t *prev,
 
 	for (size_t i = 0; i < total_cells; i++) {
 		// Compare cell contents
-		if (prev->cells[i].char_len != curr->cells[i].char_len ||
-			prev->cells[i].display_width != curr->cells[i].display_width ||
-			prev->cells[i].is_continuation != curr->cells[i].is_continuation) {
+		if (prev->cells[i].char_len != curr->cells[i].char_len || prev->cells[i].display_width != curr->cells[i].display_width || prev->cells[i].is_continuation != curr->cells[i].is_continuation) {
 			dirty_cells[i] = true;
-		} else if (prev->cells[i].char_len > 0 &&
-				   memcmp(prev->cells[i].utf8_char, curr->cells[i].utf8_char,
-					   prev->cells[i].char_len) != 0) {
+		} else if (prev->cells[i].char_len > 0 && memcmp(prev->cells[i].utf8_char, curr->cells[i].utf8_char, prev->cells[i].char_len) != 0) {
 			dirty_cells[i] = true;
 		} else {
 			dirty_cells[i] = false;
@@ -939,8 +932,7 @@ int tprompt_display_resize_buffers(tprompt_handle_t handle, size_t new_rows, siz
 	}
 
 	// Check if resize is actually needed
-	if (handle->display.current_buffer.rows >= new_rows &&
-		handle->display.current_buffer.cols >= new_cols) {
+	if (handle->display.current_buffer.rows >= new_rows && handle->display.current_buffer.cols >= new_cols) {
 		return 0; // Already large enough
 	}
 
@@ -1111,7 +1103,8 @@ static int tprompt_render_to_buffer_input(tprompt_handle_t handle, size_t start_
 
 		// Write character to buffer
 		if (tprompt_screen_buffer_write_char(buf, row, col,
-			&handle->buffer.data[i], char_len, (size_t)char_width) != 0) {
+				&handle->buffer.data[i], char_len, (size_t)char_width)
+			!= 0) {
 			return -1;
 		}
 
@@ -1421,8 +1414,7 @@ int tprompt_display_render_buffered(tprompt_handle_t handle)
 
 	// Ensure we have enough rows to render input + status + completion lines
 	size_t required_rows = tprompt_calculate_required_rows(handle);
-	if (required_rows > 0 &&
-		tprompt_ensure_vertical_space(handle, required_rows) != 0) {
+	if (required_rows > 0 && tprompt_ensure_vertical_space(handle, required_rows) != 0) {
 		return -1;
 	}
 

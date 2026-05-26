@@ -3,11 +3,11 @@
  * @brief Demonstration of custom continuation prompts
  */
 
+#include "example_console.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <tprompt.h>
-#include "example_console.h"
 
 int main(void)
 {
@@ -67,8 +67,8 @@ int main(void)
 	printf("Test 3: Short continuation prompt (will be right-padded with spaces)\n");
 	{
 		tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
-		opts.prompt = "tprompt> ";  // 9 characters
-		opts.continuation_prompt = ">>";  // 2 characters (will be padded to 9)
+		opts.prompt = "tprompt> ";		 // 9 characters
+		opts.continuation_prompt = ">>"; // 2 characters (will be padded to 9)
 
 		tprompt_handle_t handle = tprompt_open(&opts);
 		if (!handle) {
@@ -89,8 +89,8 @@ int main(void)
 	printf("Test 4: Long continuation prompt (will be truncated with warning)\n");
 	{
 		tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
-		opts.prompt = "cmd> ";  // 5 characters
-		opts.continuation_prompt = "continuation> ";  // 14 characters (will be truncated to 5)
+		opts.prompt = "cmd> ";						 // 5 characters
+		opts.continuation_prompt = "continuation> "; // 14 characters (will be truncated to 5)
 
 		tprompt_handle_t handle = tprompt_open(&opts);
 		if (!handle) {

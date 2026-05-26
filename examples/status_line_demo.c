@@ -8,11 +8,11 @@
  * 3. Multi-line status with ANSI colors
  */
 
+#include "example_console.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <tprompt.h>
-#include "example_console.h"
 
 /* ========================================================================
  * Example 1: Debug Status (Built-in)
