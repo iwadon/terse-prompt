@@ -567,7 +567,7 @@ TEST(MultilineEdgeCases, UTF8_AtWrapBoundary)
 	// Add UTF-8 CJK character (3 bytes, 2 display columns)
 	// Line 0: 9 cols already full, "日" wraps to line 1
 	// Line 1: "日" (2 cols)
-	tprompt_buffer_insert(&handle->buffer, "日", 3);
+	tprompt_buffer_insert(&handle->buffer, "\xe6\x97\xa5", 3); // "日"
 
 	tprompt_display_calculate_layout(handle);
 	// Wide char causes wrap to second line

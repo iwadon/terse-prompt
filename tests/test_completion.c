@@ -193,7 +193,7 @@ TEST(Completion, UTF8BufferIntegration)
 
 	// Insert UTF-8 text: "/日本"
 	EXPECT_EQ(tprompt_buffer_insert(&buffer, "/", 1), 0);
-	EXPECT_EQ(tprompt_buffer_insert(&buffer, "日本", 6), 0); // 2 chars, 6 bytes
+	EXPECT_EQ(tprompt_buffer_insert(&buffer, "\xe6\x97\xa5\xe6\x9c\xac", 6), 0); // "日本": 2 chars, 6 bytes
 	EXPECT_EQ(buffer.length, 7);
 
 	// Simulate completion replacement using memmove
@@ -208,8 +208,8 @@ TEST(Completion, UTF8BufferIntegration)
 		buffer.cursor = trigger_offset;
 	}
 
-	EXPECT_EQ(tprompt_buffer_insert(&buffer, "日本語", 9), 0);
-	EXPECT_STREQ(buffer.data, "/日本語");
+	EXPECT_EQ(tprompt_buffer_insert(&buffer, "\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e", 9), 0); // "日本語"
+	EXPECT_STREQ(buffer.data, "/\xe6\x97\xa5\xe6\x9c\xac\xe8\xaa\x9e");                     // "/日本語"
 
 	tprompt_buffer_free(&buffer);
 }
