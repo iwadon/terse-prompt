@@ -27,3 +27,8 @@ target_link_libraries(completion_demo PRIVATE tprompt)
 # Scrolling completion demo - demonstrates scrollable completion with 25+ candidates
 add_executable(scrolling_completion_demo scrolling_completion_demo.c)
 target_link_libraries(scrolling_completion_demo PRIVATE tprompt)
+
+# terse buffered-mode demo - exercises terse Phase 5 APIs (buffered render + alt screen)
+# directly against the terse library (no tprompt) to validate the new API surface.
+add_executable(terse_buffered_demo terse_buffered_demo.c)
+target_link_libraries(terse_buffered_demo PRIVATE terse)
