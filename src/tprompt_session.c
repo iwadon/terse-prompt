@@ -331,10 +331,11 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 	handle->display.start_row = 0; // Will be set on first render
 	handle->display.start_row_known = false;
 
-	// Clear previous buffer to ensure full redraw on first render
-	// Without this, diff would detect no changes and skip rendering
+	// Discard terse's record of the displayed frame so the first render of this
+	// session redraws the whole rectangle. Without this, terse's diff would see
+	// no change from the prior session and skip rendering.
 	if (handle->display.buffer_based_rendering_active) {
-		tprompt_screen_buffer_clear(&handle->display.previous_buffer);
+		terse_buffer_invalidate(handle->terse);
 	}
 
 	// Mark display as needing full render for initial draw
@@ -444,8 +445,11 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 		tprompt_display_render_buffered(handle);
 	}
 
-	// Clear status line and any remaining display artifacts before confirming input
-	// This ensures the status line doesn't interfere with subsequent output
+	// Clear status line and any remaining display artifacts before confirming input.
+	// This is terminal manipulation outside terse's virtual rectangle (the status
+	// and completion area below the input), so it is emitted as raw escapes via
+	// terse_write_raw() rather than through the buffered render path. CUP is
+	// 1-based, so 0-based row/col are incremented when formatting.
 	if (handle->display.buffer_based_rendering_active) {
 		// Calculate how many lines were used for input text
 		size_t total_lines = handle->display.total_physical_lines;
@@ -459,11 +463,11 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 		// terminal height and issuing CSI J would erase the input line itself because
 		// the terminal clamps the cursor to the last row.
 		if (term_h > 0 && clear_row < term_h) {
-			terse_error_t terr = terse_move_to(handle->terse, clear_row, 0);
-			if (terr == TERSE_OK) {
-				// Clear from status line position to end of screen
-				// Using ED (Erase in Display): CSI J (clear from cursor to end of screen)
-				terse_write_text(handle->terse, "\x1b[J");
+			char seq[32];
+			// Move to (clear_row, 0) then ED (CSI J): clear cursor to end of screen.
+			int len = snprintf(seq, sizeof(seq), "\x1b[%d;1H\x1b[J", clear_row + 1);
+			if (len > 0) {
+				terse_write_raw(handle->terse, seq, (size_t)len);
 			}
 		}
 
@@ -471,13 +475,17 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 		size_t cursor_line, cursor_col;
 		tprompt_calculate_physical_position(handle, handle->buffer.length,
 			true, &cursor_line, &cursor_col);
-		terse_move_to(handle->terse,
-			handle->display.start_row + (int)cursor_line, (int)cursor_col);
+		char seq[32];
+		int len = snprintf(seq, sizeof(seq), "\x1b[%d;%dH",
+			handle->display.start_row + (int)cursor_line + 1, (int)cursor_col + 1);
+		if (len > 0) {
+			terse_write_raw(handle->terse, seq, (size_t)len);
+		}
 	}
 
-	// Move to new line after input is confirmed
-	// In raw mode, we need \r\n to move to the beginning of the next line
-	terse_write_text(handle->terse, "\r\n");
+	// Move to new line after input is confirmed. In raw mode this needs \r\n to
+	// reach the start of the next line; emitted raw, outside the rectangle.
+	terse_write_raw(handle->terse, "\r\n", 2);
 	terse_flush(handle->terse);
 
 	// Restore terminal mode before returning

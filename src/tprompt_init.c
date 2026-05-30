@@ -76,11 +76,19 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 		handle->terse = options->terse_handle;
 		handle->owns_terse = false;
 	} else {
+		// Open terse in buffered render mode: the virtual cell buffer and frame
+		// diff live in terse (TERSE_RENDER_BUFFERED). The initial rectangle is the
+		// full terminal (all-zero fields); tprompt_buffer_based_rendering_init then
+		// narrows it to the prompt area via terse_buffer_set_region().
+		terse_options_t terse_opts;
+		memset(&terse_opts, 0, sizeof(terse_opts));
+		terse_opts.render_mode = TERSE_RENDER_BUFFERED;
+
 		// Try TERSE_PROFILE_AUTO first, fall back to TERSE_P0 for non-TTY environments
-		handle->terse = terse_open(TERSE_PROFILE_AUTO, NULL);
+		handle->terse = terse_open(TERSE_PROFILE_AUTO, &terse_opts);
 		if (!handle->terse) {
 			// Fall back to P0 (basic profile) which works in non-TTY environments
-			handle->terse = terse_open(TERSE_P0, NULL);
+			handle->terse = terse_open(TERSE_P0, &terse_opts);
 		}
 		if (!handle->terse) {
 			tprompt_set_error(&tprompt_global_error, TPROMPT_ERROR_TERSE, errno,

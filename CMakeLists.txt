@@ -34,7 +34,7 @@ include(FetchContent)
 FetchContent_Declare(
 	terse
 	GIT_REPOSITORY https://github.com/iwadon/terse.git
-	GIT_TAG 5fbcdba3a33d3781679a95427a4ca1de30ba699c
+	GIT_TAG e6859c42713a2d6b2ac1a8b6ad36d27934e2f8fb
 )
 FetchContent_MakeAvailable(terse)
 

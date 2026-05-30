@@ -17,16 +17,6 @@
 
 /**
  * @brief Calculate total physical lines needed for buffer content
- *
- * Determines how many screen lines are required to display the entire buffer,
- * accounting for prompt width, terminal wrapping, and explicit newlines.
- * Used to know which screen lines need to be cleared before re-rendering.
- *
- * Algorithm is identical to tprompt_calculate_physical_position but iterates
- * through the entire buffer instead of stopping at a specific offset.
- *
- * @param handle Prompt handle
- * @return Total number of physical lines (minimum 1)
  */
 static size_t tprompt_calculate_total_physical_lines(tprompt_handle_t handle)
 {
@@ -34,32 +24,26 @@ static size_t tprompt_calculate_total_physical_lines(tprompt_handle_t handle)
 		return 1;
 	}
 
-	// Use buffer width for wrapping (terminal_width - 1 for cursor space)
 	size_t wrap_width = handle->display.current_buffer.cols;
 	if (wrap_width == 0) {
-		wrap_width = 79; // Fallback default (80 - 1)
+		wrap_width = 79;
 	}
 
-	// Start with prompt on first physical line
 	size_t current_col = 0;
 	if (handle->prompt) {
 		current_col = strlen(handle->prompt);
 	}
 	size_t total_physical_lines = 1;
 
-	// Iterate through entire buffer
 	const char *data = handle->buffer.data;
 	size_t length = handle->buffer.length;
 	size_t i = 0;
 
 	while (i < length) {
-		// Check for newline character
 		if (data[i] == '\n') {
-			// Newline forces move to next physical line
 			total_physical_lines++;
 			current_col = 0;
 
-			// Add continuation marker width
 			size_t marker_width = tprompt_get_continuation_marker_width(handle);
 			current_col += marker_width;
 
@@ -67,20 +51,17 @@ static size_t tprompt_calculate_total_physical_lines(tprompt_handle_t handle)
 			continue;
 		}
 
-		// Check if we need to wrap to next physical line (auto-wrap)
 		if (current_col >= wrap_width) {
 			total_physical_lines++;
 			current_col = 0;
 		}
 
-		// Get character length and display width
 		size_t char_len = tprompt_utf8_char_length((unsigned char)data[i]);
 		if (char_len == 0) {
-			char_len = 1; // Invalid UTF-8, skip one byte
+			char_len = 1;
 			i++;
 			current_col++;
 		} else {
-			// Decode UTF-8 character and get its display width
 			unsigned int scalar = tprompt_utf8_decode((const unsigned char *)&data[i], char_len);
 			int char_width = tprompt_get_char_width(scalar);
 			i += char_len;
@@ -104,7 +85,6 @@ int tprompt_estimate_status_lines(tprompt_handle_t handle)
 		return 0;
 	}
 
-	// Determine which callback would be used
 	tprompt_status_line_fn callback = NULL;
 	void *user_data = NULL;
 
@@ -153,7 +133,6 @@ static size_t tprompt_calculate_required_rows(tprompt_handle_t handle)
 	if (handle->completion_state.active) {
 		size_t candidate_count = handle->completion_state.candidate_count;
 		if (candidate_count > 0) {
-			// Only the visible window is drawn (max_visible + optional indicators)
 			size_t max_visible = TPROMPT_MAX_VISIBLE_COMPLETION_ROWS;
 			size_t visible_start = handle->completion_state.display_offset;
 			size_t visible_end = candidate_count < visible_start + max_visible
@@ -164,10 +143,10 @@ static size_t tprompt_calculate_required_rows(tprompt_handle_t handle)
 			size_t rows_for_indicators = 0;
 
 			if (visible_start > 0) {
-				rows_for_indicators++; // "↑ N more above"
+				rows_for_indicators++;
 			}
 			if (visible_end < candidate_count) {
-				rows_for_indicators++; // "↓ N more below"
+				rows_for_indicators++;
 			}
 
 			required_rows += rows_for_candidates + rows_for_indicators;
@@ -183,9 +162,6 @@ static size_t tprompt_calculate_required_rows(tprompt_handle_t handle)
 
 /**
  * @brief Ensure there is enough vertical space for the prompt/status/completions
- *
- * When starting on the last terminal row we may need to scroll to keep the
- * status line from overwriting the input line.
  */
 static int tprompt_ensure_vertical_space(tprompt_handle_t handle, size_t required_rows)
 {
@@ -195,7 +171,6 @@ static int tprompt_ensure_vertical_space(tprompt_handle_t handle, size_t require
 
 	size_t term_height = handle->display.terminal_height > 0 ? handle->display.terminal_height : 24;
 
-	// If we need more rows than the terminal can display, clamp to the top
 	if (required_rows >= term_height) {
 		handle->display.start_row = 0;
 		handle->display.start_row_known = true;
@@ -204,33 +179,28 @@ static int tprompt_ensure_vertical_space(tprompt_handle_t handle, size_t require
 
 	int available_rows = (int)term_height - handle->display.start_row;
 	if (available_rows >= (int)required_rows) {
-		return 0; // Enough space already
+		return 0;
 	}
 
 	size_t missing_rows = (size_t)((int)required_rows - available_rows);
 
-	// Scroll down by writing newlines so we have room for the extra rows
-	terse_error_t terr = terse_move_to(handle->terse, (int)term_height - 1, 0);
-	if (terr != TERSE_OK) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
+	// Scrolling the terminal to make room is manipulation outside the virtual
+	// rectangle, so it is emitted as raw escapes (terse_write_raw): move to the
+	// last terminal row (CUP is 1-based) and write a newline per missing row.
+	char seq[16];
+	int len = snprintf(seq, sizeof(seq), "\x1b[%d;1H", (int)term_height);
+	if (len > 0 && terse_write_raw(handle->terse, seq, (size_t)len) != TERSE_OK) {
+		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, 0,
 			"Failed to move cursor before making space for prompt");
 		return -1;
 	}
 
 	for (size_t i = 0; i < missing_rows; i++) {
-		terr = terse_write_text(handle->terse, "\r\n");
-		if (terr != TERSE_OK) {
-			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
+		if (terse_write_raw(handle->terse, "\r\n", 2) != TERSE_OK) {
+			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, 0,
 				"Failed to scroll terminal to fit prompt");
 			return -1;
 		}
-	}
-
-	terr = terse_flush(handle->terse);
-	if (terr != TERSE_OK) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
-			"Failed to flush scroll operation");
-		return -1;
 	}
 
 	int new_start_row = (int)term_height - (int)required_rows;
@@ -250,22 +220,6 @@ static int tprompt_ensure_vertical_space(tprompt_handle_t handle, size_t require
 
 /**
  * @brief Calculate physical line and column from byte offset
- *
- * This function determines the physical screen position (row and column) for a given
- * byte offset in the buffer, accounting for both terminal wrapping and explicit newlines.
- *
- * Algorithm:
- * 1. Start with prompt width on first line (if include_prompt is true)
- * 2. Iterate through buffer character-by-character up to byte_offset
- * 3. For each explicit newline (\n): move to next physical line, reset column to 0
- * 4. For auto-wrap (column >= terminal_width): move to next physical line, reset column
- * 5. For regular character: increment column by 1 (assumes single-width characters)
- *
- * @param handle Prompt handle
- * @param byte_offset Byte offset in buffer (will be clamped to buffer length)
- * @param include_prompt Whether to include prompt width in first line calculation
- * @param out_physical_line Output: physical line number (0-based from start of input)
- * @param out_physical_col Output: physical column within current line (0-based)
  */
 void tprompt_calculate_physical_position(tprompt_handle_t handle, size_t byte_offset,
 	bool include_prompt,
@@ -277,36 +231,29 @@ void tprompt_calculate_physical_position(tprompt_handle_t handle, size_t byte_of
 		return;
 	}
 
-	// Use buffer width for wrapping (terminal_width - 1 for cursor space)
 	size_t wrap_width = handle->display.current_buffer.cols;
 	if (wrap_width == 0) {
-		wrap_width = 79; // Fallback default (80 - 1)
+		wrap_width = 79;
 	}
 
-	// Clamp byte_offset to buffer length
 	if (byte_offset > handle->buffer.length) {
 		byte_offset = handle->buffer.length;
 	}
 
-	// Start position accounting for prompt
 	size_t current_col = 0;
 	if (include_prompt && handle->prompt) {
 		current_col = strlen(handle->prompt);
 	}
 	size_t current_physical_line = 0;
 
-	// Iterate through buffer up to byte_offset
 	const char *data = handle->buffer.data;
 	size_t i = 0;
 
 	while (i < byte_offset) {
-		// Check for newline character
 		if (data[i] == '\n') {
-			// Newline forces move to next physical line
 			current_physical_line++;
 			current_col = 0;
 
-			// Add continuation marker width
 			size_t marker_width = tprompt_get_continuation_marker_width(handle);
 			current_col += marker_width;
 
@@ -314,20 +261,17 @@ void tprompt_calculate_physical_position(tprompt_handle_t handle, size_t byte_of
 			continue;
 		}
 
-		// Check if we need to wrap to next physical line (auto-wrap)
 		if (current_col >= wrap_width) {
 			current_physical_line++;
 			current_col = 0;
 		}
 
-		// Get character length and display width
 		size_t char_len = tprompt_utf8_char_length((unsigned char)data[i]);
 		if (char_len == 0) {
-			char_len = 1; // Invalid UTF-8, skip one byte
+			char_len = 1;
 			i++;
 			current_col++;
 		} else {
-			// Decode UTF-8 character and get its display width
 			unsigned int scalar = tprompt_utf8_decode((const unsigned char *)&data[i], char_len);
 			int char_width = tprompt_get_char_width(scalar);
 			i += char_len;
@@ -341,20 +285,12 @@ void tprompt_calculate_physical_position(tprompt_handle_t handle, size_t byte_of
 
 /**
  * @brief Get the width of the continuation line marker
- *
- * Returns the width (in columns) of the continuation prompt that should be
- * displayed at the start of continuation lines (lines after the first logical line).
- * The continuation prompt is formatted to match the initial prompt width.
- *
- * @param handle Prompt handle
- * @return Width in columns (same as prompt width), or 0 if no prompt
  */
 size_t tprompt_get_continuation_marker_width(tprompt_handle_t handle)
 {
 	if (!handle || !handle->prompt) {
 		return 0;
 	}
-	// Return initial prompt width (continuation prompt is formatted to match)
 	return tprompt_get_prompt_width(handle, handle->prompt);
 }
 
@@ -364,14 +300,12 @@ void tprompt_display_calculate_layout(tprompt_handle_t handle)
 		return;
 	}
 
-	// Get terminal dimensions from terse
 	terse_size_t size = terse_get_size(handle->terse);
 	if (size.known && size.cols > 0 && size.rows > 0) {
 		handle->display.terminal_width = (size_t)size.cols;
 		handle->display.terminal_height = (size_t)size.rows;
 	}
 
-	// Use fallback if terminal size still unknown
 	if (handle->display.terminal_width == 0) {
 		handle->display.terminal_width = 80;
 	}
@@ -379,12 +313,10 @@ void tprompt_display_calculate_layout(tprompt_handle_t handle)
 		handle->display.terminal_height = 24;
 	}
 
-	// Calculate physical line and column at cursor position
 	tprompt_calculate_physical_position(handle, handle->buffer.cursor, true,
 		&handle->display.physical_line,
 		&handle->display.physical_column);
 
-	// Calculate total number of physical lines needed
 	handle->display.total_physical_lines = tprompt_calculate_total_physical_lines(handle);
 }
 
@@ -394,7 +326,6 @@ int tprompt_display_update_cursor(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// Calculate cursor position
 	tprompt_display_calculate_layout(handle);
 
 	int base_row = handle->display.start_row;
@@ -409,10 +340,8 @@ int tprompt_display_update_cursor(tprompt_handle_t handle)
 		}
 	}
 
-	// Calculate target row (start_row + physical_line offset)
 	int target_row = base_row + (int)handle->display.physical_line;
 
-	// Move cursor to calculated position using 0-based coordinates
 	int target_col = (int)handle->display.physical_column;
 	terse_error_t terr = terse_move_to(handle->terse, target_row, target_col);
 	if (terr != TERSE_OK) {
@@ -422,7 +351,6 @@ int tprompt_display_update_cursor(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// Flush to ensure cursor is visible
 	terr = terse_flush(handle->terse);
 	if (terr != TERSE_OK) {
 		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
@@ -439,7 +367,6 @@ int tprompt_display_clear(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// Clear the current line
 	terse_error_t terr = terse_clear_line(handle->terse, TERSE_CLEAR_ALL);
 	if (terr != TERSE_OK) {
 		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
@@ -447,7 +374,6 @@ int tprompt_display_clear(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// Move cursor to start of line
 	terse_cursor_position_t pos = terse_get_cursor_position(handle->terse);
 	int row = pos.known ? pos.row : 0;
 	terr = terse_move_to(handle->terse, row, 0);
@@ -457,7 +383,6 @@ int tprompt_display_clear(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// Flush
 	terr = terse_flush(handle->terse);
 	if (terr != TERSE_OK) {
 		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
@@ -480,7 +405,6 @@ void tprompt_display_mark_dirty_range(tprompt_handle_t handle,
 		return;
 	}
 
-	// Clamp to valid range
 	if (end_byte > handle->buffer.length) {
 		end_byte = handle->buffer.length;
 	}
@@ -489,12 +413,10 @@ void tprompt_display_mark_dirty_range(tprompt_handle_t handle,
 	}
 
 	if (!handle->display.is_dirty) {
-		// First dirty region
 		handle->display.is_dirty = true;
 		handle->display.dirty_start_byte = start_byte;
 		handle->display.dirty_end_byte = end_byte;
 	} else {
-		// Expand existing dirty region to include new range
 		if (start_byte < handle->display.dirty_start_byte) {
 			handle->display.dirty_start_byte = start_byte;
 		}
@@ -527,149 +449,19 @@ void tprompt_display_clear_dirty(tprompt_handle_t handle)
 }
 
 /* ========================================================================
- * Screen Buffer Management (Buffer-based Differential Rendering)
+ * Screen Buffer Management (delegated to terse's TERSE_RENDER_BUFFERED)
+ *
+ * The cell storage and frame diff now live in terse. terse-prompt keeps only
+ * the virtual rectangle dimensions (current_buffer.rows/cols) for layout and
+ * writes characters through to terse via tprompt_screen_buffer_write_string().
  * ======================================================================== */
-
-int tprompt_screen_buffer_init(tprompt_screen_buffer_t *buffer, size_t rows, size_t cols)
-{
-	if (!buffer || rows == 0 || cols == 0) {
-		return -1;
-	}
-
-	size_t total_cells = rows * cols;
-	buffer->cells = (tprompt_screen_cell_t *)calloc(total_cells, sizeof(tprompt_screen_cell_t));
-	if (!buffer->cells) {
-		return -1;
-	}
-
-	buffer->rows = rows;
-	buffer->cols = cols;
-
-	// Initialize all cells to empty
-	for (size_t i = 0; i < total_cells; i++) {
-		buffer->cells[i].char_len = 0;
-		buffer->cells[i].display_width = 1;
-		buffer->cells[i].is_continuation = false;
-		buffer->cells[i].utf8_char[0] = '\0';
-	}
-
-	return 0;
-}
-
-void tprompt_screen_buffer_free(tprompt_screen_buffer_t *buffer)
-{
-	if (!buffer) {
-		return;
-	}
-
-	if (buffer->cells) {
-		free(buffer->cells);
-		buffer->cells = NULL;
-	}
-
-	buffer->rows = 0;
-	buffer->cols = 0;
-}
-
-void tprompt_screen_buffer_clear(tprompt_screen_buffer_t *buffer)
-{
-	if (!buffer || !buffer->cells) {
-		return;
-	}
-
-	size_t total_cells = buffer->rows * buffer->cols;
-	for (size_t i = 0; i < total_cells; i++) {
-		buffer->cells[i].char_len = 0;
-		buffer->cells[i].display_width = 1;
-		buffer->cells[i].is_continuation = false;
-		buffer->cells[i].utf8_char[0] = '\0';
-	}
-}
-
-int tprompt_screen_buffer_resize(tprompt_screen_buffer_t *buffer, size_t new_rows, size_t new_cols)
-{
-	if (!buffer || new_rows == 0 || new_cols == 0) {
-		return -1;
-	}
-
-	// If size unchanged, just clear
-	if (buffer->rows == new_rows && buffer->cols == new_cols) {
-		tprompt_screen_buffer_clear(buffer);
-		return 0;
-	}
-
-	// Reallocate
-	size_t new_total = new_rows * new_cols;
-	tprompt_screen_cell_t *new_cells = (tprompt_screen_cell_t *)calloc(new_total, sizeof(tprompt_screen_cell_t));
-	if (!new_cells) {
-		return -1;
-	}
-
-	// Initialize new cells
-	for (size_t i = 0; i < new_total; i++) {
-		new_cells[i].char_len = 0;
-		new_cells[i].display_width = 1;
-		new_cells[i].is_continuation = false;
-		new_cells[i].utf8_char[0] = '\0';
-	}
-
-	// Free old buffer and update
-	if (buffer->cells) {
-		free(buffer->cells);
-	}
-
-	buffer->cells = new_cells;
-	buffer->rows = new_rows;
-	buffer->cols = new_cols;
-
-	return 0;
-}
-
-int tprompt_screen_buffer_write_char(tprompt_screen_buffer_t *buffer,
-	size_t row, size_t col,
-	const char *utf8_char, size_t char_len, size_t display_width)
-{
-	if (!buffer || !buffer->cells || !utf8_char) {
-		return -1;
-	}
-
-	if (row >= buffer->rows || col >= buffer->cols) {
-		return -1; // Out of bounds
-	}
-
-	if (char_len > 4) {
-		return -1; // Invalid UTF-8 length
-	}
-
-	size_t index = row * buffer->cols + col;
-
-	// Copy UTF-8 character
-	if (char_len > 0) {
-		memcpy(buffer->cells[index].utf8_char, utf8_char, char_len);
-	}
-	buffer->cells[index].utf8_char[char_len] = '\0';
-	buffer->cells[index].char_len = (uint8_t)char_len;
-	buffer->cells[index].display_width = (uint8_t)display_width;
-	buffer->cells[index].is_continuation = false;
-
-	// Handle wide characters (2 columns)
-	if (display_width == 2 && col + 1 < buffer->cols) {
-		size_t next_index = index + 1;
-		buffer->cells[next_index].char_len = 0;
-		buffer->cells[next_index].utf8_char[0] = '\0';
-		buffer->cells[next_index].display_width = 0;
-		buffer->cells[next_index].is_continuation = true;
-	}
-
-	return 0;
-}
 
 int tprompt_screen_buffer_write_string(tprompt_handle_t handle,
 	tprompt_screen_buffer_t *buffer,
 	size_t row, size_t col,
 	const char *str)
 {
-	if (!handle || !buffer || !str) {
+	if (!handle || !buffer || !str || !handle->terse) {
 		return -1;
 	}
 
@@ -678,31 +470,31 @@ int tprompt_screen_buffer_write_string(tprompt_handle_t handle,
 	size_t str_len = strlen(str);
 
 	while (i < str_len && current_col < buffer->cols) {
-		// Get UTF-8 character length
 		size_t char_len = tprompt_utf8_char_length((unsigned char)str[i]);
 		if (char_len == 0 || i + char_len > str_len) {
 			i++;
 			continue;
 		}
 
-		// Decode character to get scalar value
 		unsigned int scalar = tprompt_utf8_decode((const unsigned char *)&str[i], char_len);
 
-		// Get display width
 		int char_width = tprompt_get_char_width(scalar);
 		if (char_width < 0) {
 			char_width = 1;
 		}
 
-		// Check if character fits
 		if (current_col + (size_t)char_width > buffer->cols) {
-			break; // Would overflow line
+			break;
 		}
 
-		// Write character to buffer
-		if (tprompt_screen_buffer_write_char(buffer, row, current_col,
-				&str[i], char_len, (size_t)char_width)
-			!= 0) {
+		if (terse_move_to(handle->terse, (int)row, (int)current_col) != TERSE_OK) {
+			return -1;
+		}
+
+		char ch[5];
+		memcpy(ch, &str[i], char_len);
+		ch[char_len] = '\0';
+		if (terse_write_text(handle->terse, ch) != TERSE_OK) {
 			return -1;
 		}
 
@@ -710,133 +502,7 @@ int tprompt_screen_buffer_write_string(tprompt_handle_t handle,
 		i += char_len;
 	}
 
-	return (int)(current_col - col); // Return number of columns advanced
-}
-
-void tprompt_screen_buffer_diff(const tprompt_screen_buffer_t *prev,
-	const tprompt_screen_buffer_t *curr,
-	bool *dirty_cells)
-{
-	if (!prev || !curr || !dirty_cells) {
-		return;
-	}
-
-	// Buffers must have same dimensions
-	if (prev->rows != curr->rows || prev->cols != curr->cols) {
-		// Mark all as dirty if dimensions changed
-		size_t total = curr->rows * curr->cols;
-		for (size_t i = 0; i < total; i++) {
-			dirty_cells[i] = true;
-		}
-		return;
-	}
-
-	size_t total_cells = prev->rows * prev->cols;
-
-	for (size_t i = 0; i < total_cells; i++) {
-		// Compare cell contents
-		if (prev->cells[i].char_len != curr->cells[i].char_len || prev->cells[i].display_width != curr->cells[i].display_width || prev->cells[i].is_continuation != curr->cells[i].is_continuation) {
-			dirty_cells[i] = true;
-		} else if (prev->cells[i].char_len > 0 && memcmp(prev->cells[i].utf8_char, curr->cells[i].utf8_char, prev->cells[i].char_len) != 0) {
-			dirty_cells[i] = true;
-		} else {
-			dirty_cells[i] = false;
-		}
-	}
-}
-
-void tprompt_screen_buffer_swap(tprompt_screen_buffer_t *buffer1,
-	tprompt_screen_buffer_t *buffer2)
-{
-	if (!buffer1 || !buffer2) {
-		return;
-	}
-
-	// Swap pointers and dimensions
-	tprompt_screen_cell_t *temp_cells = buffer1->cells;
-	size_t temp_rows = buffer1->rows;
-	size_t temp_cols = buffer1->cols;
-
-	buffer1->cells = buffer2->cells;
-	buffer1->rows = buffer2->rows;
-	buffer1->cols = buffer2->cols;
-
-	buffer2->cells = temp_cells;
-	buffer2->rows = temp_rows;
-	buffer2->cols = temp_cols;
-}
-
-int tprompt_screen_buffer_flush_diff(tprompt_handle_t handle)
-{
-	if (!handle || !handle->display.buffer_based_rendering_active) {
-		return -1;
-	}
-
-	tprompt_screen_buffer_t *buf = &handle->display.current_buffer;
-	bool *dirty = handle->display.dirty_cells;
-	int base_row = handle->display.start_row;
-
-	// Iterate through each row and find contiguous dirty regions
-	for (size_t row = 0; row < buf->rows; row++) {
-		size_t col = 0;
-		while (col < buf->cols) {
-			// Skip clean cells
-			while (col < buf->cols && !dirty[row * buf->cols + col]) {
-				col++;
-			}
-
-			if (col >= buf->cols) {
-				break; // End of row
-			}
-
-			// Found start of dirty region
-			size_t dirty_start = col;
-
-			// Find end of contiguous dirty region
-			while (col < buf->cols && dirty[row * buf->cols + col]) {
-				col++;
-			}
-
-			size_t dirty_end = col;
-
-			// Move cursor to start of dirty region
-			terse_error_t terr = terse_move_to(handle->terse, base_row + (int)row, (int)dirty_start);
-			if (terr != TERSE_OK) {
-				return -1;
-			}
-
-			// Write all dirty cells in this region
-			for (size_t c = dirty_start; c < dirty_end; c++) {
-				size_t index = row * buf->cols + c;
-				tprompt_screen_cell_t *cell = &buf->cells[index];
-
-				// Skip continuation cells (already handled by wide char)
-				if (cell->is_continuation) {
-					continue;
-				}
-
-				// Write character or space for empty cell
-				if (cell->char_len > 0) {
-					terr = terse_write_text(handle->terse, cell->utf8_char);
-				} else {
-					terr = terse_write_text(handle->terse, " ");
-				}
-
-				if (terr != TERSE_OK) {
-					return -1;
-				}
-			}
-
-			// Sync terse's internal cursor position with the end of the dirty region.
-			// terse doesn't automatically update cursor tracking when writing text.
-			terr = terse_move_to(handle->terse, base_row + (int)row, (int)dirty_end);
-			if (terr != TERSE_OK) {
-				return -1;
-			}
-		}
-	}
-
-	return 0;
+	return (int)(current_col - col);
 }
 
 int tprompt_buffer_based_rendering_init(tprompt_handle_t handle)
@@ -845,13 +511,10 @@ int tprompt_buffer_based_rendering_init(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// Already initialized
 	if (handle->display.buffer_based_rendering_active) {
 		return 0;
 	}
 
-	// Get actual terminal size from terse before initializing buffers
-	// This ensures buffers are sized correctly for the current terminal
 	if (handle->terse) {
 		terse_size_t size = terse_get_size(handle->terse);
 		if (size.known && size.cols > 0 && size.rows > 0) {
@@ -860,41 +523,34 @@ int tprompt_buffer_based_rendering_init(tprompt_handle_t handle)
 		}
 	}
 
-	// Determine buffer dimensions
-	// Use current terminal dimensions or reasonable defaults
-	size_t rows = handle->display.terminal_height > 0 ? handle->display.terminal_height : 24;
+	// Rectangle width spans the terminal minus one column reserved for the
+	// cursor at end of line, so the cursor always has a dedicated cell.
 	size_t cols = handle->display.terminal_width > 0 ? handle->display.terminal_width : 80;
-
-	// Reserve one column for cursor at end of line (Claude Code style)
-	// This ensures the cursor always has a dedicated cell and never overlaps with text
 	if (cols > 1) {
 		cols -= 1;
 	}
 
-	// We only need a few rows for the prompt area (input + status line + completion)
-	// Start with a reasonable size (20 rows covers most typical inputs, will grow dynamically if needed)
-	rows = 20;
+	// Logical height of the prompt area. It grows dynamically via
+	// tprompt_display_resize_buffers() when input wraps past it.
+	size_t rows = 20;
 
-	// Initialize current buffer
-	if (tprompt_screen_buffer_init(&handle->display.current_buffer, rows, cols) != 0) {
+	// terse projects each rectangle row to an absolute terminal row at flush
+	// time and rejects a move past the terminal bottom, so the rectangle must
+	// fit within the terminal height. Clamp it; on a short terminal the prompt
+	// area simply uses every row available.
+	if (handle->display.terminal_height > 0 && rows > handle->display.terminal_height) {
+		rows = handle->display.terminal_height;
+	}
+
+	// The cell storage lives in terse. Size terse's virtual rectangle to
+	// rows x cols at origin (0,0); the per-frame origin (start_row) is applied
+	// in tprompt_display_render_buffered() via terse_buffer_set_region().
+	if (terse_buffer_set_region(handle->terse, 0, 0, (int)rows, (int)cols) != TERSE_OK) {
 		return -1;
 	}
 
-	// Initialize previous buffer
-	if (tprompt_screen_buffer_init(&handle->display.previous_buffer, rows, cols) != 0) {
-		tprompt_screen_buffer_free(&handle->display.current_buffer);
-		return -1;
-	}
-
-	// Allocate dirty cells array
-	size_t total_cells = rows * cols;
-	handle->display.dirty_cells = (bool *)calloc(total_cells, sizeof(bool));
-	if (!handle->display.dirty_cells) {
-		tprompt_screen_buffer_free(&handle->display.current_buffer);
-		tprompt_screen_buffer_free(&handle->display.previous_buffer);
-		return -1;
-	}
-
+	handle->display.current_buffer.rows = rows;
+	handle->display.current_buffer.cols = cols;
 	handle->display.buffer_based_rendering_active = true;
 
 	return 0;
@@ -910,14 +566,10 @@ void tprompt_buffer_based_rendering_free(tprompt_handle_t handle)
 		return;
 	}
 
-	tprompt_screen_buffer_free(&handle->display.current_buffer);
-	tprompt_screen_buffer_free(&handle->display.previous_buffer);
-
-	if (handle->display.dirty_cells) {
-		free(handle->display.dirty_cells);
-		handle->display.dirty_cells = NULL;
-	}
-
+	// The cell storage is owned by terse and freed when the terse handle is
+	// closed; terse-prompt only tracked logical dimensions, so just reset them.
+	handle->display.current_buffer.rows = 0;
+	handle->display.current_buffer.cols = 0;
 	handle->display.buffer_based_rendering_active = false;
 }
 
@@ -931,46 +583,35 @@ int tprompt_display_resize_buffers(tprompt_handle_t handle, size_t new_rows, siz
 		return -1;
 	}
 
-	// Check if resize is actually needed
+	// terse rejects a flush that would move past the terminal bottom, so the
+	// rectangle (placed at start_row) must fit in the rows available below it.
+	if (handle->display.terminal_height > 0) {
+		size_t available_rows = (size_t)handle->display.start_row < handle->display.terminal_height
+			? handle->display.terminal_height - (size_t)handle->display.start_row
+			: 1;
+		if (new_rows > available_rows) {
+			new_rows = available_rows;
+		}
+	}
+
+	// Only grow; never shrink the rectangle mid-session (matches prior behavior).
 	if (handle->display.current_buffer.rows >= new_rows && handle->display.current_buffer.cols >= new_cols) {
-		return 0; // Already large enough
+		return 0;
 	}
 
-	// Resize current_buffer
-	if (tprompt_screen_buffer_resize(&handle->display.current_buffer, new_rows, new_cols) != 0) {
+	if (terse_buffer_set_region(handle->terse, handle->display.start_row, 0,
+			(int)new_rows, (int)new_cols)
+		!= TERSE_OK) {
 		return -1;
 	}
 
-	// Resize previous_buffer
-	if (tprompt_screen_buffer_resize(&handle->display.previous_buffer, new_rows, new_cols) != 0) {
-		// Rollback: try to restore original size (best effort)
-		// In practice, if this fails we're in trouble anyway
-		return -1;
-	}
-
-	// Resize dirty_cells array
-	size_t new_total = new_rows * new_cols;
-	bool *new_dirty = (bool *)realloc(handle->display.dirty_cells, new_total * sizeof(bool));
-	if (!new_dirty) {
-		// Critical: can't resize dirty_cells
-		// The buffers are already resized, so we're in an inconsistent state
-		// Best we can do is fail and let caller handle it
-		return -1;
-	}
-
-	// Initialize new dirty cells to false
-	size_t old_total = handle->display.current_buffer.rows * handle->display.current_buffer.cols;
-	if (new_total > old_total) {
-		memset(&new_dirty[old_total], 0, (new_total - old_total) * sizeof(bool));
-	}
-
-	handle->display.dirty_cells = new_dirty;
-
+	handle->display.current_buffer.rows = new_rows;
+	handle->display.current_buffer.cols = new_cols;
 	return 0;
 }
 
 /* ========================================================================
- * Buffer-based Rendering Functions (Phase 3)
+ * Buffer-based Rendering Functions
  * ======================================================================== */
 
 /**
@@ -984,11 +625,9 @@ static int tprompt_render_to_buffer_prompt(tprompt_handle_t handle, size_t *out_
 
 	tprompt_screen_buffer_t *buf = &handle->display.current_buffer;
 
-	// Start at row 0, column 0
 	size_t row = 0;
 	size_t col = 0;
 
-	// Write prompt if present
 	if (handle->prompt) {
 		int cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, handle->prompt);
 		if (cols_written < 0) {
@@ -1013,32 +652,25 @@ static int tprompt_render_to_buffer_input(tprompt_handle_t handle, size_t start_
 	}
 
 	tprompt_screen_buffer_t *buf = &handle->display.current_buffer;
-	// Use buffer width for wrapping (which is terminal_width - 1 for cursor space)
 	size_t wrap_width = buf->cols;
 
 	size_t row = start_row;
 	size_t col = start_col;
 
-	// Iterate through buffer and write characters
 	size_t i = 0;
 	while (i < handle->buffer.length) {
-		// Check for explicit newline
 		if (handle->buffer.data[i] == '\n') {
-			// Move to next row, column 0
 			row++;
 			col = 0;
 
-			// Check if we need to resize buffer (leave 1 row margin)
 			if (row >= buf->rows - 1) {
-				size_t new_rows = buf->rows * 2; // Double the size
+				size_t new_rows = buf->rows * 2;
 				if (tprompt_display_resize_buffers(handle, new_rows, buf->cols) != 0) {
-					// Resize failed - cannot continue
 					return -1;
 				}
-				buf = &handle->display.current_buffer; // Update pointer after resize
+				buf = &handle->display.current_buffer;
 			}
 
-			// Write continuation prompt
 			const char *cont_prompt = tprompt_get_continuation_prompt(handle);
 			if (cont_prompt && cont_prompt[0] != '\0') {
 				int cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, cont_prompt);
@@ -1052,59 +684,53 @@ static int tprompt_render_to_buffer_input(tprompt_handle_t handle, size_t start_
 			continue;
 		}
 
-		// Check if we need to wrap to next physical line
 		if (col >= wrap_width) {
 			row++;
 			col = 0;
 
-			// Check if we need to resize buffer (leave 1 row margin)
 			if (row >= buf->rows - 1) {
-				size_t new_rows = buf->rows * 2; // Double the size
+				size_t new_rows = buf->rows * 2;
 				if (tprompt_display_resize_buffers(handle, new_rows, buf->cols) != 0) {
-					// Resize failed - cannot continue
 					return -1;
 				}
-				buf = &handle->display.current_buffer; // Update pointer after resize
+				buf = &handle->display.current_buffer;
 			}
 		}
 
-		// Get character length
 		size_t char_len = tprompt_utf8_char_length((unsigned char)handle->buffer.data[i]);
 		if (char_len == 0 || i + char_len > handle->buffer.length) {
 			i++;
 			continue;
 		}
 
-		// Decode character to get scalar value
 		unsigned int scalar = tprompt_utf8_decode((const unsigned char *)&handle->buffer.data[i], char_len);
 
-		// Get display width
 		int char_width = tprompt_get_char_width(scalar);
 		if (char_width < 0) {
 			char_width = 1;
 		}
 
-		// Check if character fits on current line
 		if (col + (size_t)char_width > wrap_width) {
-			// Wrap to next line
 			row++;
 			col = 0;
 
-			// Check if we need to resize buffer (leave 1 row margin)
 			if (row >= buf->rows - 1) {
-				size_t new_rows = buf->rows * 2; // Double the size
+				size_t new_rows = buf->rows * 2;
 				if (tprompt_display_resize_buffers(handle, new_rows, buf->cols) != 0) {
-					// Resize failed - cannot continue
 					return -1;
 				}
-				buf = &handle->display.current_buffer; // Update pointer after resize
+				buf = &handle->display.current_buffer;
 			}
 		}
 
-		// Write character to buffer
-		if (tprompt_screen_buffer_write_char(buf, row, col,
-				&handle->buffer.data[i], char_len, (size_t)char_width)
-			!= 0) {
+		// Write this character into terse's virtual buffer at the local cell.
+		if (terse_move_to(handle->terse, (int)row, (int)col) != TERSE_OK) {
+			return -1;
+		}
+		char ch[5];
+		memcpy(ch, &handle->buffer.data[i], char_len);
+		ch[char_len] = '\0';
+		if (terse_write_text(handle->terse, ch) != TERSE_OK) {
 			return -1;
 		}
 
@@ -1119,12 +745,6 @@ static int tprompt_render_to_buffer_input(tprompt_handle_t handle, size_t start_
 
 /**
  * @brief Render status line to screen buffer (callback-based, multi-line supported)
- *
- * Priority order:
- * 1. TPROMPT_FLAG_HIDE_STATUS_LINE → skip rendering
- * 2. TPROMPT_FLAG_SHOW_DEBUG_STATUS → use internal debug callback
- * 3. Custom callback (handle->status_line_callback) → use custom callback
- * 4. No callback → skip rendering
  */
 int tprompt_render_status_line(tprompt_handle_t handle, size_t start_row)
 {
@@ -1132,60 +752,48 @@ int tprompt_render_status_line(tprompt_handle_t handle, size_t start_row)
 		return -1;
 	}
 
-	// Check if status line should be hidden
 	if (handle->options.flags & TPROMPT_FLAG_HIDE_STATUS_LINE) {
-		return 0; // 0 rows rendered
+		return 0;
 	}
 
-	// Determine which callback to use
 	tprompt_status_line_fn callback = NULL;
 	void *user_data = NULL;
 
 	if (handle->options.flags & TPROMPT_FLAG_SHOW_DEBUG_STATUS) {
-		// Debug mode takes precedence
 		callback = tprompt_internal_debug_status_callback;
 		user_data = NULL;
 	} else if (handle->status_line_callback) {
-		// Use custom callback
 		callback = handle->status_line_callback;
 		user_data = handle->status_line_user_data;
 	}
 
-	// No callback, no status line
 	if (!callback) {
-		return 0; // 0 rows rendered
+		return 0;
 	}
 
-	// Allocate buffer for status line text
 	char status_buffer[TPROMPT_STATUS_LINE_BUFFER_SIZE];
 	status_buffer[0] = '\0';
 
-	// Call the callback
 	int num_lines = callback(handle, status_buffer, sizeof(status_buffer), user_data);
 
 	if (num_lines < 0) {
-		// Error in callback
 		return -1;
 	}
 
 	if (num_lines == 0) {
-		// Callback requested to hide status line this time
-		return 0; // 0 rows rendered
+		return 0;
 	}
 
-	// Limit to maximum rows
 	if (num_lines > TPROMPT_STATUS_LINE_MAX_ROWS) {
 		num_lines = TPROMPT_STATUS_LINE_MAX_ROWS;
 	}
 
-	// Split status buffer into lines and render each
 	tprompt_screen_buffer_t *buf = &handle->display.current_buffer;
 	const char *line_start = status_buffer;
 	size_t current_row = start_row;
 	int lines_rendered = 0;
 
 	for (int i = 0; i < num_lines && current_row < buf->rows; i++) {
-		// Find end of current line
 		const char *line_end = strchr(line_start, '\n');
 		size_t line_len;
 
@@ -1195,7 +803,6 @@ int tprompt_render_status_line(tprompt_handle_t handle, size_t start_row)
 			line_len = strlen(line_start);
 		}
 
-		// Copy line to temporary buffer (for NUL termination)
 		char line_buffer[TPROMPT_STATUS_LINE_BUFFER_SIZE];
 		if (line_len >= sizeof(line_buffer)) {
 			line_len = sizeof(line_buffer) - 1;
@@ -1203,21 +810,18 @@ int tprompt_render_status_line(tprompt_handle_t handle, size_t start_row)
 		memcpy(line_buffer, line_start, line_len);
 		line_buffer[line_len] = '\0';
 
-		// Write line to buffer
 		int cols_written = tprompt_screen_buffer_write_string(handle, buf, current_row, 0, line_buffer);
 		if (cols_written < 0) {
-			// Non-fatal, just stop rendering more lines
 			break;
 		}
 
 		lines_rendered++;
 		current_row++;
 
-		// Move to next line
 		if (line_end) {
-			line_start = line_end + 1; // Skip the newline
+			line_start = line_end + 1;
 		} else {
-			break; // No more lines
+			break;
 		}
 	}
 
@@ -1233,7 +837,6 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 		return -1;
 	}
 
-	// Only render if completion is active
 	if (!handle->completion_state.active) {
 		return 0;
 	}
@@ -1250,7 +853,6 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 	char **candidates = handle->completion_state.candidates;
 	size_t selected_index = handle->completion_state.selected_index;
 
-	// Calculate the maximum candidate text width for alignment
 	size_t max_candidate_width = 0;
 	if (use_extended && candidates_ex) {
 		for (size_t i = 0; i < candidate_count; i++) {
@@ -1272,7 +874,6 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 		}
 	}
 
-	// Calculate visible window (scrollable view)
 	size_t display_offset = handle->completion_state.display_offset;
 	size_t max_visible = TPROMPT_MAX_VISIBLE_COMPLETION_ROWS;
 	size_t visible_start = display_offset;
@@ -1281,10 +882,8 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 		: display_offset + max_visible;
 	size_t visible_count = visible_end - visible_start;
 
-	// Render scroll indicator if there are hidden candidates above
 	size_t current_row = start_row;
 	if (visible_start > 0) {
-		// Check if we need to resize buffer
 		if (current_row >= buf->rows - 1) {
 			size_t new_rows = buf->rows * 2;
 			if (tprompt_display_resize_buffers(handle, new_rows, buf->cols) != 0) {
@@ -1293,29 +892,24 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 			buf = &handle->display.current_buffer;
 		}
 
-		// Render "↑ N more above" indicator
 		char indicator[64];
 		snprintf(indicator, sizeof(indicator), "  ↑ %zu more above", visible_start);
 		tprompt_screen_buffer_write_string(handle, buf, current_row, 0, indicator);
 		current_row++;
 	}
 
-	// Render visible candidates only
 	for (size_t i = visible_start; i < visible_end; i++) {
 		size_t row = current_row + (i - visible_start);
 		size_t col = 0;
 
-		// Check if we need to resize buffer for completion list
 		if (row >= buf->rows - 1) {
-			size_t new_rows = buf->rows * 2; // Double the size
+			size_t new_rows = buf->rows * 2;
 			if (tprompt_display_resize_buffers(handle, new_rows, buf->cols) != 0) {
-				// Resize failed - stop rendering completion list
 				break;
 			}
-			buf = &handle->display.current_buffer; // Update pointer after resize
+			buf = &handle->display.current_buffer;
 		}
 
-		// Write selection indicator
 		const char *prefix = (i == selected_index) ? "> " : "  ";
 		int cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, prefix);
 		if (cols_written < 0) {
@@ -1323,7 +917,6 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 		}
 		col += (size_t)cols_written;
 
-		// Write candidate text (from either extended or legacy candidates)
 		const char *candidate_text = NULL;
 		const char *description_text = NULL;
 
@@ -1341,13 +934,10 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 			}
 			col += (size_t)cols_written;
 
-			// If we have a description, add padding and write it
 			if (description_text && description_text[0] != '\0') {
-				// Calculate padding needed to align descriptions
 				size_t text_width = tprompt_utf8_char_count(candidate_text, strlen(candidate_text));
 				size_t padding = max_candidate_width > text_width ? (max_candidate_width - text_width) : 0;
 
-				// Add padding spaces (2 minimum + calculated alignment)
 				for (size_t j = 0; j < padding + 2; j++) {
 					cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, " ");
 					if (cols_written < 0) {
@@ -1356,7 +946,6 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 					col += (size_t)cols_written;
 				}
 
-				// Write description text
 				cols_written = tprompt_screen_buffer_write_string(handle, buf, row, col, description_text);
 				if (cols_written < 0) {
 					return -1;
@@ -1365,11 +954,9 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 		}
 	}
 
-	// Render scroll indicator if there are hidden candidates below
 	if (visible_end < candidate_count) {
 		current_row = start_row + (visible_start > 0 ? 1 : 0) + visible_count;
 
-		// Check if we need to resize buffer
 		if (current_row >= buf->rows - 1) {
 			size_t new_rows = buf->rows * 2;
 			if (tprompt_display_resize_buffers(handle, new_rows, buf->cols) != 0) {
@@ -1378,7 +965,6 @@ static int tprompt_render_to_buffer_completion(tprompt_handle_t handle, size_t s
 			buf = &handle->display.current_buffer;
 		}
 
-		// Render "↓ N more below" indicator
 		char indicator[64];
 		size_t hidden_below = candidate_count - visible_end;
 		snprintf(indicator, sizeof(indicator), "  ↓ %zu more below", hidden_below);
@@ -1397,7 +983,6 @@ int tprompt_display_render_buffered(tprompt_handle_t handle)
 		return -1;
 	}
 
-	// Ensure we know our starting row
 	if (!handle->display.start_row_known) {
 		terse_cursor_position_t start_pos = terse_get_cursor_position(handle->terse);
 		if (start_pos.known) {
@@ -1409,19 +994,39 @@ int tprompt_display_render_buffered(tprompt_handle_t handle)
 		}
 	}
 
-	// Calculate layout to get total_physical_lines
 	tprompt_display_calculate_layout(handle);
 
-	// Ensure we have enough rows to render input + status + completion lines
 	size_t required_rows = tprompt_calculate_required_rows(handle);
 	if (required_rows > 0 && tprompt_ensure_vertical_space(handle, required_rows) != 0) {
 		return -1;
 	}
 
-	// Clear current buffer
-	tprompt_screen_buffer_clear(&handle->display.current_buffer);
+	// Position terse's virtual rectangle so its top-left maps to start_row,
+	// column 0. terse projects each local cell to the terminal as
+	// absolute = origin + local.
+	//
+	// The rectangle bottom (start_row + rows) must not exceed the terminal
+	// height, or terse_buffer_flush() will move the cursor past the terminal
+	// bottom and fail. Clamp the height handed to terse to the rows available
+	// below start_row. current_buffer.rows is the logical height used for layout
+	// and wrapping and is left unchanged; only the rectangle handed to terse is
+	// clamped.
+	size_t region_rows = handle->display.current_buffer.rows;
+	if (handle->display.terminal_height > 0) {
+		size_t available_rows = (size_t)handle->display.start_row < handle->display.terminal_height
+			? handle->display.terminal_height - (size_t)handle->display.start_row
+			: 1;
+		if (region_rows > available_rows) {
+			region_rows = available_rows;
+		}
+	}
+	if (terse_buffer_set_region(handle->terse, handle->display.start_row, 0,
+			(int)region_rows,
+			(int)handle->display.current_buffer.cols)
+		!= TERSE_OK) {
+		return -1;
+	}
 
-	// Render components to buffer
 	size_t row = 0, col = 0;
 
 	// 1. Render prompt
@@ -1439,7 +1044,6 @@ int tprompt_display_render_buffered(tprompt_handle_t handle)
 	size_t status_start_row = end_row + 1;
 	int status_lines_rendered = tprompt_render_status_line(handle, status_start_row);
 	if (status_lines_rendered < 0) {
-		// Non-fatal error, continue without status line
 		status_lines_rendered = 0;
 	}
 
@@ -1451,45 +1055,25 @@ int tprompt_display_render_buffered(tprompt_handle_t handle)
 		}
 	}
 
-	// 5. Detect differences with previous buffer
-	tprompt_screen_buffer_diff(&handle->display.previous_buffer,
-		&handle->display.current_buffer,
-		handle->display.dirty_cells);
-
-	// 6. Flush only dirty regions to terminal
-	if (tprompt_screen_buffer_flush_diff(handle) != 0) {
-		return -1;
-	}
-
-	// 7. Swap buffers (current becomes previous for next frame)
-	tprompt_screen_buffer_swap(&handle->display.current_buffer,
-		&handle->display.previous_buffer);
-
-	// 8. Update cursor position
+	// 5. Request the cursor's final resting place in local coordinates.
 	size_t cursor_line, cursor_col;
 	tprompt_calculate_physical_position(handle, handle->buffer.cursor,
 		true, &cursor_line, &cursor_col);
-
-	int base_row = handle->display.start_row;
-	terse_error_t terr = terse_move_to(handle->terse, base_row + (int)cursor_line, (int)cursor_col);
-	if (terr != TERSE_OK) {
-		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
-			"Failed to position cursor after buffered render");
+	if (terse_buffer_set_cursor(handle->terse, (int)cursor_line, (int)cursor_col) != TERSE_OK) {
 		return -1;
 	}
 
-	// 9. Flush terminal output
-	terr = terse_flush(handle->terse);
+	// 6. Flush: terse diffs against the previously displayed frame, emits only
+	// the changed cells (projected through the origin), then positions the cursor.
+	terse_error_t terr = terse_flush(handle->terse);
 	if (terr != TERSE_OK) {
 		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_TERSE, (int)terr,
 			"Failed to flush output after buffered render");
 		return -1;
 	}
 
-	// Update previous line count
 	handle->display.prev_total_physical_lines = handle->display.total_physical_lines;
 
-	// Clear dirty flags
 	tprompt_display_clear_dirty(handle);
 
 	return 0;

@@ -22,6 +22,7 @@
 #include <windows.h>
 #define test_unlink _unlink
 #else
+#include <fcntl.h>
 #include <unistd.h>
 #define test_unlink unlink
 #endif
@@ -47,7 +48,26 @@
  */
 static inline terse_handle_t test_create_terse_handle_sized(int rows, int cols)
 {
-	terse_handle_t handle = terse_open(TERSE_PROFILE_AUTO, NULL);
+	// terse-prompt delegates its virtual screen to terse's buffered render mode,
+	// so test handles must be opened buffered too (matching tprompt_init.c).
+	//
+	// Buffered flush issues real write()s to output_fd. The default (0) is stdin,
+	// which is not writable under ctest, so the flush during a render would fail
+	// with TERSE_ERR_IO and tprompt_display_render_buffered() would return -1.
+	// Point output_fd at the null device: writes always succeed, and rendering is
+	// still verified via terse's test-mode call recording rather than the bytes.
+#ifdef _WIN32
+	int null_fd = _open("NUL", _O_WRONLY);
+#else
+	int null_fd = open("/dev/null", O_WRONLY);
+#endif
+
+	terse_options_t terse_opts;
+	memset(&terse_opts, 0, sizeof(terse_opts));
+	terse_opts.render_mode = TERSE_RENDER_BUFFERED;
+	terse_opts.output_fd = null_fd >= 0 ? null_fd : 1;
+
+	terse_handle_t handle = terse_open(TERSE_PROFILE_AUTO, &terse_opts);
 	if (!handle) {
 		return NULL;
 	}

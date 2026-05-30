@@ -47,35 +47,16 @@ typedef struct tprompt_buffer {
 } tprompt_buffer_t;
 
 /**
- * @brief Screen cell for virtual buffer-based rendering
+ * @brief Logical dimensions of the virtual screen rectangle
  *
- * Represents a single character cell on the terminal screen.
- * Each cell can hold one UTF-8 character (up to 4 bytes).
- * Reserved fields for future color/attribute support.
- */
-typedef struct tprompt_screen_cell {
-	char utf8_char[5];	   /**< UTF-8 character (max 4 bytes + NUL terminator) */
-	uint8_t char_len;	   /**< Byte length of UTF-8 character (0 = empty cell) */
-	uint8_t display_width; /**< Display width in columns (1 or 2 for wide chars) */
-	bool is_continuation;  /**< True if this cell is the 2nd column of a wide char */
-
-	/* Reserved for future extensions */
-	uint8_t reserved1; /**< Reserved for fg_color */
-	uint8_t reserved2; /**< Reserved for bg_color */
-	uint8_t reserved3; /**< Reserved for attributes (bold, underline, etc.) */
-	uint8_t reserved4; /**< Reserved for future use */
-} tprompt_screen_cell_t;
-
-/**
- * @brief Virtual screen buffer for differential rendering
- *
- * Holds a 2D grid of screen cells representing the terminal display area.
- * Used for detecting changes between frames and rendering only differences.
+ * The actual cell storage and frame diffing now live in terse's buffered
+ * rendering (TERSE_RENDER_BUFFERED). terse-prompt keeps only the logical
+ * rows/cols here so the layout/wrapping code can decide when text must wrap
+ * or the rectangle must grow; the rendering itself goes straight to terse.
  */
 typedef struct tprompt_screen_buffer {
-	tprompt_screen_cell_t *cells; /**< 2D array of cells (rows * cols) */
-	size_t rows;				  /**< Number of rows in buffer */
-	size_t cols;				  /**< Number of columns in buffer */
+	size_t rows; /**< Number of rows in the virtual rectangle */
+	size_t cols; /**< Number of columns in the virtual rectangle */
 } tprompt_screen_buffer_t;
 
 /**
@@ -97,11 +78,11 @@ typedef struct tprompt_display_state {
 	size_t dirty_end_byte;	 /**< End byte offset of dirty region (exclusive) */
 	bool force_full_redraw;	 /**< Force full redraw on next render */
 
-	/* Virtual screen buffer for new buffer-based differential rendering */
-	tprompt_screen_buffer_t current_buffer;	 /**< Current frame buffer */
-	tprompt_screen_buffer_t previous_buffer; /**< Previous frame buffer for diff */
-	bool *dirty_cells;						 /**< Per-cell dirty flags (rows * cols) */
-	bool buffer_based_rendering_active;		 /**< Whether buffer-based rendering is initialized */
+	/* Virtual screen rectangle. The cell storage and frame diff now live in
+	 * terse (TERSE_RENDER_BUFFERED); current_buffer holds only the logical
+	 * rows/cols used by layout/wrapping. */
+	tprompt_screen_buffer_t current_buffer; /**< Logical rectangle dimensions */
+	bool buffer_based_rendering_active;		/**< Whether buffer-based rendering is initialized */
 } tprompt_display_state_t;
 
 /**
@@ -374,87 +355,22 @@ void tprompt_display_clear_dirty(tprompt_handle_t handle);
  * ======================================================================== */
 
 /**
- * @brief Initialize screen buffer with given dimensions
- * @param buffer Buffer to initialize
- * @param rows Number of rows
- * @param cols Number of columns
- * @return 0 on success, -1 on allocation failure
- */
-int tprompt_screen_buffer_init(tprompt_screen_buffer_t *buffer, size_t rows, size_t cols);
-
-/**
- * @brief Free screen buffer resources
- * @param buffer Buffer to free
- */
-void tprompt_screen_buffer_free(tprompt_screen_buffer_t *buffer);
-
-/**
- * @brief Clear all cells in buffer (set to empty)
- * @param buffer Buffer to clear
- */
-void tprompt_screen_buffer_clear(tprompt_screen_buffer_t *buffer);
-
-/**
- * @brief Resize screen buffer (reallocates if needed)
- * @param buffer Buffer to resize
- * @param new_rows New number of rows
- * @param new_cols New number of columns
- * @return 0 on success, -1 on allocation failure
- */
-int tprompt_screen_buffer_resize(tprompt_screen_buffer_t *buffer, size_t new_rows, size_t new_cols);
-
-/**
- * @brief Write a UTF-8 character to buffer at specified position
- * @param buffer Target buffer
- * @param row Row position (0-based)
- * @param col Column position (0-based)
- * @param utf8_char UTF-8 character bytes
- * @param char_len Length of UTF-8 character in bytes
- * @param display_width Display width (1 or 2 for wide chars)
- * @return 0 on success, -1 if position out of bounds
- */
-int tprompt_screen_buffer_write_char(tprompt_screen_buffer_t *buffer,
-	size_t row, size_t col,
-	const char *utf8_char, size_t char_len, size_t display_width);
-
-/**
- * @brief Write a string to buffer starting at specified position
- * @param handle Prompt handle (for character width calculation)
- * @param buffer Target buffer
- * @param row Starting row (0-based)
- * @param col Starting column (0-based)
+ * @brief Write a UTF-8 string into the virtual rectangle via terse
+ * @param handle Prompt handle (for terse handle and character width)
+ * @param buffer Virtual rectangle dimensions (for the column bound)
+ * @param row Starting row in rectangle-local coordinates (0-based)
+ * @param col Starting column in rectangle-local coordinates (0-based)
  * @param str UTF-8 string to write
  * @return Number of columns advanced, or -1 on error
+ *
+ * Positions the terse cursor at (row, col) in buffered-mode local coordinates
+ * and writes the string. terse projects local coordinates onto the terminal
+ * (absolute = origin + local) and performs the frame diff at flush time.
  */
 int tprompt_screen_buffer_write_string(tprompt_handle_t handle,
 	tprompt_screen_buffer_t *buffer,
 	size_t row, size_t col,
 	const char *str);
-
-/**
- * @brief Compare two buffers and mark differences in dirty_cells array
- * @param prev Previous buffer
- * @param curr Current buffer
- * @param dirty_cells Output array of dirty flags (must be rows * cols in size)
- */
-void tprompt_screen_buffer_diff(const tprompt_screen_buffer_t *prev,
-	const tprompt_screen_buffer_t *curr,
-	bool *dirty_cells);
-
-/**
- * @brief Swap current and previous buffers (avoids reallocation)
- * @param buffer1 First buffer
- * @param buffer2 Second buffer
- */
-void tprompt_screen_buffer_swap(tprompt_screen_buffer_t *buffer1,
-	tprompt_screen_buffer_t *buffer2);
-
-/**
- * @brief Flush dirty cells from buffer to terminal
- * @param handle Prompt handle
- * @return 0 on success, -1 on error
- */
-int tprompt_screen_buffer_flush_diff(tprompt_handle_t handle);
 
 /**
  * @brief Initialize buffer-based rendering system
@@ -470,11 +386,11 @@ int tprompt_buffer_based_rendering_init(tprompt_handle_t handle);
 void tprompt_buffer_based_rendering_free(tprompt_handle_t handle);
 
 /**
- * @brief Resize all display buffers (current, previous, dirty_cells) synchronously
+ * @brief Grow the virtual rectangle, syncing the new size to terse
  * @param handle Prompt handle
  * @param new_rows New number of rows
  * @param new_cols New number of columns
- * @return 0 on success, -1 on allocation failure
+ * @return 0 on success, -1 on failure
  */
 int tprompt_display_resize_buffers(tprompt_handle_t handle, size_t new_rows, size_t new_cols);
 
