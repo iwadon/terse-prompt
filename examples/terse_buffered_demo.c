@@ -92,7 +92,7 @@ static void draw_frame(terse_handle_t t, int rows, int cols, int box_row, int bo
 	header.effects = TERSE_STYLE_BOLD;
 	terse_set_style(t, &header);
 	terse_move_to(t, 0, 0);
-	terse_write_text(t, "terse buffered-mode demo — arrows to move, q to quit");
+	terse_write_text(t, "terse buffered-mode demo - arrows to move, q to quit");
 
 	/* 箱（マゼンタ背景）。3x3 のブロック。 */
 	terse_style_t box = terse_style_default();
