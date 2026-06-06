@@ -92,6 +92,52 @@ else()
 	target_link_libraries(tprompt PUBLIC terse)
 endif()
 
+# インストールルール
+include(GNUInstallDirs)
+include(CMakePackageConfigHelpers)
+
+install(TARGETS tprompt
+	EXPORT terse-promptTargets
+	ARCHIVE DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+	LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
+	INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+
+install(DIRECTORY include/
+	DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+	FILES_MATCHING PATTERN "*.h"
+)
+
+# CMakeパッケージ設定（find_package経由でterseを使用している場合のみ）
+# FetchContent経由のterseはエクスポートセットに含められない
+if(terse_FOUND)
+	set(TPROMPT_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/terse-prompt")
+
+	write_basic_package_version_file(
+		"${CMAKE_CURRENT_BINARY_DIR}/terse-promptConfigVersion.cmake"
+		VERSION ${PROJECT_VERSION}
+		COMPATIBILITY SameMajorVersion
+	)
+
+	configure_package_config_file(
+		"${CMAKE_CURRENT_SOURCE_DIR}/cmake/terse-promptConfig.cmake.in"
+		"${CMAKE_CURRENT_BINARY_DIR}/terse-promptConfig.cmake"
+		INSTALL_DESTINATION "${TPROMPT_INSTALL_CMAKEDIR}"
+	)
+
+	install(EXPORT terse-promptTargets
+		FILE terse-promptTargets.cmake
+		NAMESPACE terse-prompt::
+		DESTINATION "${TPROMPT_INSTALL_CMAKEDIR}"
+	)
+
+	install(FILES
+		"${CMAKE_CURRENT_BINARY_DIR}/terse-promptConfig.cmake"
+		"${CMAKE_CURRENT_BINARY_DIR}/terse-promptConfigVersion.cmake"
+		DESTINATION "${TPROMPT_INSTALL_CMAKEDIR}"
+	)
+endif()
+
 # テストの追加
 if(TPROMPT_BUILD_TESTING)
 	add_subdirectory(tests)
