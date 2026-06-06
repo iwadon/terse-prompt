@@ -28,17 +28,23 @@ if(TPROMPT_USE_TERSE_TEST_MODE)
 	set(TERSE_ENABLE_TEST_MODE ON CACHE BOOL "Enable terse test mode" FORCE)
 endif()
 
-# 外部依存をFetchContentで取得
-include(FetchContent)
-
-FetchContent_Declare(
-	terse
-	GIT_REPOSITORY https://github.com/iwadon/terse.git
-	GIT_TAG e6859c42713a2d6b2ac1a8b6ad36d27934e2f8fb
-)
-FetchContent_MakeAvailable(terse)
+# terse: テストモードが不要ならインストール済みを優先、なければFetchContentで取得
+# テストモード有効時はモック関数が必要なためFetchContentを強制
+if(NOT TPROMPT_USE_TERSE_TEST_MODE)
+	find_package(terse QUIET)
+endif()
+if(NOT terse_FOUND)
+	include(FetchContent)
+	FetchContent_Declare(
+		terse
+		GIT_REPOSITORY https://github.com/iwadon/terse.git
+		GIT_TAG e6859c42713a2d6b2ac1a8b6ad36d27934e2f8fb
+	)
+	FetchContent_MakeAvailable(terse)
+endif()
 
 if(TPROMPT_BUILD_TESTING)
+	include(FetchContent)
 	FetchContent_Declare(
 		attest
 		GIT_REPOSITORY https://github.com/iwadon/attest.git
@@ -68,14 +74,23 @@ add_library(tprompt STATIC
 target_include_directories(tprompt
 	PUBLIC
 		$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-		$<BUILD_INTERFACE:${terse_SOURCE_DIR}/include>
 		$<INSTALL_INTERFACE:include>
 )
 
-target_link_libraries(tprompt
-	PUBLIC
-		terse
-)
+# FetchContent経由の場合のみterseソースのインクルードパスを追加
+if(NOT terse_FOUND)
+	target_include_directories(tprompt
+		PUBLIC
+			$<BUILD_INTERFACE:${terse_SOURCE_DIR}/include>
+	)
+endif()
+
+# terse::terseが存在すればそちらを使用（find_package経由）
+if(TARGET terse::terse)
+	target_link_libraries(tprompt PUBLIC terse::terse)
+else()
+	target_link_libraries(tprompt PUBLIC terse)
+endif()
 
 # テストの追加
 if(TPROMPT_BUILD_TESTING)
