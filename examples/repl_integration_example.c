@@ -1,6 +1,6 @@
 /**
- * @file deft_integration_example.c
- * @brief Complete integration example for deft REPL
+ * @file repl_integration_example.c
+ * @brief Complete integration example for REPL
  *
  * Demonstrates:
  * - Validation callback for bracket/brace balancing
@@ -19,14 +19,14 @@
  * ======================================================================== */
 
 /**
- * @brief Check if input has balanced brackets/braces for deft
+ * @brief Check if input has balanced brackets/braces for a REPL
  *
  * Returns:
  * - TPROMPT_VALIDATION_ACCEPT: Input is complete and balanced
  * - TPROMPT_VALIDATION_CONTINUE: Has unclosed brackets, insert newline
  * - TPROMPT_VALIDATION_REJECT: Has over-closed brackets, reject
  */
-static tprompt_validation_result_t deft_validate_input(
+static tprompt_validation_result_t repl_validate_input(
 	const char *text,
 	size_t length,
 	void *user_data)
@@ -83,18 +83,18 @@ int main(void)
 {
 	example_setup_console_utf8();
 
-	printf("=== deft REPL Integration Example ===\n");
+	printf("=== REPL Integration Example ===\n");
 	printf("Multi-line editing with automatic bracket detection\n");
 	printf("Press Ctrl+D to exit\n\n");
 
-	// Configure tprompt options for deft
+	// Configure tprompt options for a REPL
 	tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
-	opts.prompt = "deft> ";							// Primary prompt
-	opts.continuation_prompt = "...   ";			// Continuation prompt (same width as "deft> ")
-	opts.history_file = ".deft_history";			// Persistent history
+	opts.prompt = "repl> ";							// Primary prompt
+	opts.continuation_prompt = "...   ";			// Continuation prompt (same width as "repl> ")
+	opts.history_file = ".repl_history";			// Persistent history
 	opts.max_history_size = 1000;					// Keep last 1000 commands
 	opts.flags = TPROMPT_FLAG_MULTILINE;			// Enable multi-line mode
-	opts.validation_callback = deft_validate_input; // Bracket balancing
+	opts.validation_callback = repl_validate_input; // Bracket balancing
 	opts.validation_user_data = NULL;				// No user data needed
 
 	// Open tprompt session
@@ -128,20 +128,20 @@ int main(void)
 			continue;
 		}
 
-		// Execute the command (in real deft, this would parse and evaluate)
+		// Execute the command (in a real REPL, this would parse and evaluate)
 		command_count++;
 		printf("\n--- Command #%d ---\n", command_count);
 		printf("%s\n", input);
 		printf("--- End ---\n\n");
 
-		// In real deft, you would:
+		// In a real REPL, you would:
 		// 1. Parse the input into AST
 		// 2. Evaluate the AST
 		// 3. Print the result
 
 		// Example:
-		// deft_value_t result = deft_eval(input);
-		// deft_print(result);
+		// repl_value_t result = repl_eval(input);
+		// repl_print(result);
 
 		free(input);
 	}
@@ -159,17 +159,17 @@ int main(void)
 /*
 Expected behavior:
 
-$ ./deft_integration_example
-=== deft REPL Integration Example ===
+$ ./repl_integration_example
+=== REPL Integration Example ===
 Multi-line editing with automatic bracket detection
 Press Ctrl+D to exit
 
-deft> let x = 42
+repl> let x = 42
 --- Command #1 ---
 let x = 42
 --- End ---
 
-deft> let add = fn(a, b) {
+repl> let add = fn(a, b) {
 ...   a + b
 ... }
 
@@ -179,7 +179,7 @@ let add = fn(a, b) {
 }
 --- End ---
 
-deft> let nested = {
+repl> let nested = {
 ...   inner: {
 ...     value: [1, 2, 3]
 ...   }
@@ -193,13 +193,13 @@ let nested = {
 }
 --- End ---
 
-deft> ^D
+repl> ^D
 Goodbye!
 
 Notes:
 1. Single-line commands (balanced brackets) are accepted immediately
 2. Multi-line commands (unclosed brackets) automatically insert newlines
-3. Continuation lines show "...   " prompt (right-aligned with "deft> ")
+3. Continuation lines show "...   " prompt (right-aligned with "repl> ")
 4. Over-closed brackets (e.g., "test)") are rejected with a beep
-5. History is saved to .deft_history
+5. History is saved to .repl_history
 */

@@ -1,6 +1,6 @@
-# deft Integration Guide
+# REPL Integration Guide
 
-Complete guide for integrating terse-prompt into the deft REPL.
+Complete guide for integrating terse-prompt into the REPL.
 
 ## Table of Contents
 
@@ -35,7 +35,7 @@ typedef tprompt_validation_result_t (*tprompt_validation_fn)(
 
 // Options structure (complete)
 typedef struct tprompt_options {
-    const char *prompt;                         // Primary prompt (e.g., "deft> ")
+    const char *prompt;                         // Primary prompt (e.g., "repl> ")
     const char *continuation_prompt;            // Continuation prompt (e.g., "...   ")
     const char *history_file;                   // History file path
     size_t max_input_size;                      // Max input size in bytes
@@ -91,7 +91,7 @@ typedef struct tprompt_options {
 #include <stdlib.h>
 
 // Validation callback for bracket balancing
-static tprompt_validation_result_t deft_validate(
+static tprompt_validation_result_t repl_validate(
     const char *text, size_t len, void *data)
 {
     int balance = 0;
@@ -107,10 +107,10 @@ static tprompt_validation_result_t deft_validate(
 
 int main(void) {
     tprompt_options_t opts = TPROMPT_OPTIONS_DEFAULT;
-    opts.prompt = "deft> ";
-    opts.continuation_prompt = "...   ";  // Same width as "deft> "
-    opts.validation_callback = deft_validate;
-    opts.history_file = ".deft_history";
+    opts.prompt = "repl> ";
+    opts.continuation_prompt = "...   ";  // Same width as "repl> "
+    opts.validation_callback = repl_validate;
+    opts.history_file = ".repl_history";
 
     tprompt_handle_t tp = tprompt_open(&opts);
 
@@ -119,7 +119,7 @@ int main(void) {
         if (!input) break; // EOF or error
 
         printf("Received: %s\n", input);
-        // deft_eval(input); // Your evaluation logic here
+        // repl_eval(input); // Your evaluation logic here
         free(input);
     }
 
@@ -131,8 +131,8 @@ int main(void) {
 ### Expected Behavior
 
 ```
-$ ./deft
-deft> let x = {
+$ ./my_repl
+repl> let x = {
 ...   let y = 10;    ← Automatic continuation (bracket not closed)
 ...   y * 2
 ... }                ← Automatic acceptance (brackets balanced)
@@ -142,17 +142,17 @@ Received: let x = {
   y * 2
 }
 
-deft> print(x)       ← Single-line (balanced immediately)
+repl> print(x)       ← Single-line (balanced immediately)
 
 Received: print(x)
 
-deft> test)          ← Over-closed bracket
+repl> test)          ← Over-closed bracket
 [BEEP - input rejected, stays in edit mode]
 ```
 
 ### Full Example
 
-See `examples/deft_integration_example.c` for a complete, production-ready example with:
+See `examples/repl_integration_example.c` for a complete, production-ready example with:
 - Bracket/brace/parenthesis balancing
 - Persistent history
 - Error handling
@@ -167,7 +167,7 @@ See `examples/deft_integration_example.c` for a complete, production-ready examp
 **CMakeLists.txt**:
 ```cmake
 cmake_minimum_required(VERSION 3.16)
-project(deft C)
+project(my_repl C)
 
 include(FetchContent)
 
@@ -178,15 +178,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(terse-prompt)
 
-# Your deft executable
-add_executable(deft
+# Your REPL executable
+add_executable(my_repl
     src/main.c
     src/eval.c
     # ... other sources
 )
 
 # Link against tprompt
-target_link_libraries(deft PRIVATE tprompt)
+target_link_libraries(my_repl PRIVATE tprompt)
 
 # Include directories (tprompt provides interface includes)
 # No need to manually add include paths - CMake handles it
@@ -205,8 +205,8 @@ sudo cmake --install build
 **CMakeLists.txt**:
 ```cmake
 find_package(tprompt REQUIRED)
-add_executable(deft src/main.c)
-target_link_libraries(deft PRIVATE tprompt::tprompt)
+add_executable(my_repl src/main.c)
+target_link_libraries(my_repl PRIVATE tprompt::tprompt)
 ```
 
 ### Build Notes
@@ -311,8 +311,8 @@ cd terse-prompt
 cmake -B build -G Ninja
 cmake --build build
 
-# Run deft integration example
-./build/examples/deft_integration_example
+# Run REPL integration example
+./build/examples/repl_integration_example
 ```
 
 ### Running Tests
@@ -350,17 +350,17 @@ All tests pass (100% - 8/8 test suites).
 
 ---
 
-## Quick Checklist for deft Integration
+## Quick Checklist for a REPL Integration
 
 - [ ] Add terse-prompt via FetchContent in `CMakeLists.txt`
 - [ ] Update `CMakeLists.txt` to link against `tprompt`
-- [ ] Implement validation callback for deft syntax
-- [ ] Set `opts.prompt = "deft> "`
+- [ ] Implement validation callback for your language syntax
+- [ ] Set `opts.prompt = "repl> "`
 - [ ] Set `opts.continuation_prompt = "...   "` (same width as prompt)
-- [ ] Set `opts.validation_callback = your_deft_validator`
-- [ ] Set `opts.history_file = ".deft_history"`
+- [ ] Set `opts.validation_callback = your_repl_validator`
+- [ ] Set `opts.history_file = ".repl_history"`
 - [ ] Enable `TPROMPT_FLAG_MULTILINE`
-- [ ] Test with example: `./build/examples/deft_integration_example`
+- [ ] Test with example: `./build/examples/repl_integration_example`
 - [ ] Run test suite: `ctest --test-dir build`
 
 ---

@@ -286,19 +286,19 @@ cmake --build build --config Release
 See the `examples/` directory:
 - `simple_demo.c`: Basic usage with the simple API
 - `advanced_demo.c`: Completion, status line, and custom keybindings
-- `deft_integration_example.c`: Complete REPL example with validation and continuation prompts
+- `repl_integration_example.c`: Complete REPL example with validation and continuation prompts
 
 Build and run:
 ```bash
 cmake --build build
 ./build/examples/simple_demo
 ./build/examples/advanced_demo
-./build/examples/deft_integration_example
+./build/examples/repl_integration_example
 ```
 
 ## Integration Guides
 
-- **[deft Integration Guide](docs/deft-integration-guide.md)**: Complete guide for integrating terse-prompt into REPL applications with validation callbacks and continuation prompts
+- **[REPL Integration Guide](docs/repl-integration-guide.md)**: Complete guide for integrating terse-prompt into REPL applications with validation callbacks and continuation prompts
 
 ## License
 
