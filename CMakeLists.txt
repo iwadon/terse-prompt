@@ -38,7 +38,7 @@ if(NOT terse_FOUND)
 	FetchContent_Declare(
 		terse
 		GIT_REPOSITORY https://github.com/iwadon/terse.git
-		GIT_TAG e6859c42713a2d6b2ac1a8b6ad36d27934e2f8fb
+		GIT_TAG a81922bc7101f1d6b1cfb6647330584ff82ffdb5
 	)
 	FetchContent_MakeAvailable(terse)
 endif()
