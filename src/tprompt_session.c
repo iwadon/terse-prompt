@@ -352,6 +352,10 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 		}
 	}
 
+	// Flush any pending application output (e.g. printf between readline calls)
+	// before querying cursor position.
+	fflush(stdout);
+
 	// Enable raw mode
 	tprompt_readline_enable_raw_mode(handle);
 
@@ -485,8 +489,16 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 
 	// Move to new line after input is confirmed. In raw mode this needs \r\n to
 	// reach the start of the next line; emitted raw, outside the rectangle.
+	// terse_write_raw bypasses the buffered render path and writes directly to
+	// the fd, so no terse_flush is needed here. Calling terse_flush would diff
+	// the (now empty) current buffer against the previously rendered frame and
+	// erase the confirmed input line with spaces.
 	terse_write_raw(handle->terse, "\r\n", 2);
-	terse_flush(handle->terse);
+
+	// Discard the previous-rectangle record so the next session's flush does not
+	// erase the confirmed input line or any application output printed between
+	// readline calls.
+	terse_buffer_forget_previous_rect(handle->terse);
 
 	// Restore terminal mode before returning
 	tprompt_readline_disable_raw_mode(handle);
