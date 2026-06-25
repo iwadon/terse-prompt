@@ -28,27 +28,23 @@ if(TPROMPT_USE_TERSE_TEST_MODE)
 	set(TERSE_ENABLE_TEST_MODE ON CACHE BOOL "Enable terse test mode" FORCE)
 endif()
 
-# terse: テストモードが不要ならインストール済みを優先、なければFetchContentで取得
-# テストモード有効時はモック関数が必要なためFetchContentを強制
-if(NOT TPROMPT_USE_TERSE_TEST_MODE)
-	find_package(terse QUIET)
-endif()
-if(NOT terse_FOUND)
+option(TPROMPT_USE_SYSTEM_TERSE "Use system-installed terse instead of fetching" OFF)
+if(TPROMPT_USE_SYSTEM_TERSE)
+	find_package(terse REQUIRED)
+else()
 	include(FetchContent)
 	FetchContent_Declare(
 		terse
 		GIT_REPOSITORY https://github.com/iwadon/terse.git
-		GIT_TAG 2aeab34715b0799fec9a6cc2203c3d0a210316bf
+		GIT_TAG 8eabd228a8b3d7914031375d461b36fea5584ae7
 	)
 	FetchContent_MakeAvailable(terse)
 endif()
 
 if(TPROMPT_BUILD_TESTING)
-	find_package(attest QUIET)
-	if(attest_FOUND)
-		if(TARGET attest::attest AND NOT TARGET attest)
-			add_library(attest ALIAS attest::attest)
-		endif()
+	option(TPROMPT_USE_SYSTEM_ATTEST "Use system-installed attest instead of fetching" OFF)
+	if(TPROMPT_USE_SYSTEM_ATTEST)
+		find_package(attest REQUIRED)
 	else()
 		include(FetchContent)
 		FetchContent_Declare(
@@ -84,16 +80,7 @@ target_include_directories(tprompt
 		$<INSTALL_INTERFACE:include>
 )
 
-# FetchContent経由の場合のみterseソースのインクルードパスを追加
-if(NOT terse_FOUND)
-	target_include_directories(tprompt
-		PUBLIC
-			$<BUILD_INTERFACE:${terse_SOURCE_DIR}/include>
-	)
-endif()
-
-# terse::terseが存在すればそちらを使用（find_package経由）
-if(TARGET terse::terse)
+if(TPROMPT_USE_SYSTEM_TERSE)
 	target_link_libraries(tprompt PUBLIC terse::terse)
 else()
 	target_link_libraries(tprompt PUBLIC terse)
@@ -115,9 +102,9 @@ install(DIRECTORY include/
 	FILES_MATCHING PATTERN "*.h"
 )
 
-# CMakeパッケージ設定（find_package経由でterseを使用している場合のみ）
+# CMakeパッケージ設定（システムterseを使用している場合のみ）
 # FetchContent経由のterseはエクスポートセットに含められない
-if(terse_FOUND)
+if(TPROMPT_USE_SYSTEM_TERSE)
 	set(TPROMPT_INSTALL_CMAKEDIR "${CMAKE_INSTALL_LIBDIR}/cmake/terse-prompt")
 
 	write_basic_package_version_file(
