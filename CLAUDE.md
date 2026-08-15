@@ -312,6 +312,27 @@ opts.keybinding_count = 3;
 - Constants: `TPROMPT_*`
 - Internal helpers: Declared in `tprompt_internal.h`
 
+### POSIX 依存の方針
+
+厳格な ISO C11 (`-std=c11` + `CMAKE_C_EXTENSIONS OFF`) でビルドするため、glibc は
+POSIX 拡張をヘッダから隠す。**非 ISO C の関数を安易に使わないこと。**
+
+- **`strdup()` は使わない。** 代わりに `tprompt_strdup()` (`src/tprompt_util.c`) を使う。
+  NULL 引数を許容し NULL を返すので、呼び出し側での NULL ガードは不要
+- **`_POSIX_C_SOURCE` を定義してよいのは 2 ファイルのみ**: `src/tprompt_history.c`
+  (ファイル I/O) と `src/tprompt_session.c` (端末制御)。この 2 つは POSIX 機能そのものを
+  使うため依存が正当だが、それ以外のファイルに広げないこと。マクロを増やす前に、
+  ISO C11 だけで書けないかを検討する
+- **`examples/` は内部ヘッダを使えない**ため、必要なら各ファイルに static な
+  ローカルヘルパーを置く
+- `-Werror=implicit-function-declaration` が有効なので、宣言のない関数呼び出しは
+  ビルドエラーになる
+
+**背景**: `strdup` は POSIX 拡張であり、macOS では既定で見えるが glibc の strict モードでは
+隠れる。さらに MSVC では C4996 非推奨警告の対象で、非 POSIX 環境には存在しない。
+`_POSIX_C_SOURCE` の一括定義は glibc の問題しか解決せず、macOS では `__DARWIN_C_LEVEL` が
+下がって BSD 拡張 (`strlcpy`, `cfmakeraw` 等) が逆に隠れる副作用がある。
+
 ## Development Workflow
 
 1. **Feature Implementation**:
