@@ -346,7 +346,16 @@ POSIX 拡張をヘッダから隠す。**非 ISO C の関数を安易に使わ�
    - All tests must pass
    - Add tests for new features before implementation
 
-3. **Commit**:
+3. **Cross-platform Verification** (ローカルCI):
+   - `git push weir && weir ci wait` で macOS (host) と Ubuntu コンテナ (container) の
+     両環境のビルド・テストを検証できる
+   - **macOS でのテスト通過だけでは不十分。** glibc は strict ISO C11 で POSIX 拡張を
+     隠すなど Apple libc と挙動が異なり、Linux 側だけが落ちることがある
+     (実例: `strdup` の implicit declaration エラー。「POSIX 依存の方針」を参照)
+   - 失敗時は `weir ci log -failed` で失敗したステップのログを取得する
+   - `.weir.yml` の `paths-ignore` により、ドキュメントのみの変更はスキップされる
+
+4. **Commit**:
    - Follow Conventional Commits specification
    - Ensure clean build and passing tests
 
