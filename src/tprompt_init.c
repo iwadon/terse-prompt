@@ -5,8 +5,6 @@
  * @date 2025-11-20
  */
 
-#define _POSIX_C_SOURCE 200809L
-
 #include "tprompt_buffer.h"
 #include "tprompt_completion.h"
 #include "tprompt_display.h"
@@ -17,10 +15,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#if defined(__unix__) || defined(__APPLE__)
-#include <termios.h>
-#include <unistd.h>
-#endif
 
 #define DEFAULT_BUFFER_SIZE 256
 #define DEFAULT_PROMPT "> "
@@ -141,7 +135,7 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 
 	// Load history from file if specified
 	if (options->history_file && !(options->flags & TPROMPT_FLAG_DISABLE_HISTORY)) {
-		handle->history_file_path = strdup(options->history_file);
+		handle->history_file_path = tprompt_strdup(options->history_file);
 		if (!handle->history_file_path) {
 			tprompt_set_error(&tprompt_global_error, TPROMPT_ERROR_MEMORY, errno,
 				"Failed to allocate history file path");
@@ -164,7 +158,7 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 	handle->completion_ex_callback = options->completion_ex_callback;
 	handle->completion_user_data = options->completion_user_data;
 	if (options->completion_prefixes) {
-		handle->completion_prefixes = strdup(options->completion_prefixes);
+		handle->completion_prefixes = tprompt_strdup(options->completion_prefixes);
 		if (!handle->completion_prefixes) {
 			tprompt_set_error(&tprompt_global_error, TPROMPT_ERROR_MEMORY, errno,
 				"Failed to allocate completion prefixes");
@@ -201,7 +195,7 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 	handle->validation_error_msg = NULL;
 
 	// Store prompt
-	handle->prompt = strdup(options->prompt);
+	handle->prompt = tprompt_strdup(options->prompt);
 	if (!handle->prompt) {
 		tprompt_set_error(&tprompt_global_error, TPROMPT_ERROR_MEMORY, errno,
 			"Failed to allocate prompt string");
@@ -219,7 +213,7 @@ tprompt_handle_t tprompt_open(const tprompt_options_t *options)
 
 	// Store continuation prompt (use default if NULL)
 	const char *cont_prompt = options->continuation_prompt ? options->continuation_prompt : DEFAULT_CONTINUATION_PROMPT;
-	handle->continuation_prompt = strdup(cont_prompt);
+	handle->continuation_prompt = tprompt_strdup(cont_prompt);
 	if (!handle->continuation_prompt) {
 		tprompt_set_error(&tprompt_global_error, TPROMPT_ERROR_MEMORY, errno,
 			"Failed to allocate continuation prompt string");

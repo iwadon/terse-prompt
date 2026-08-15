@@ -5,9 +5,11 @@
  * @date 2025-11-13
  */
 
+/* POSIX ファイルI/O (open/fstat/fdopen/close/O_NOFOLLOW/S_ISREG) のために必要 */
 #define _POSIX_C_SOURCE 200809L
 
 #include "tprompt_history.h"
+#include "tprompt_internal.h"
 #include <errno.h>
 #include <limits.h>
 #include <stdbool.h>
@@ -153,7 +155,7 @@ int tprompt_history_add_internal(tprompt_history_t *history, const char *text)
 	}
 
 	// Duplicate text
-	entry->text = strdup(text);
+	entry->text = tprompt_strdup(text);
 	if (!entry->text) {
 		free(entry);
 		return -1;

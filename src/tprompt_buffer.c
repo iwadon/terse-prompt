@@ -6,8 +6,6 @@
  * deletion) and cursor movement operations.
  */
 
-#define _POSIX_C_SOURCE 200809L
-
 #include "tprompt_internal.h"
 #include <errno.h>
 #include <stdlib.h>

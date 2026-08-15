@@ -7,6 +7,9 @@ set(CMAKE_C_EXTENSIONS OFF)
 
 if(MSVC)
 	add_compile_options(/source-charset:utf-8)
+else()
+	# 暗黙の関数宣言を即座にエラー化し、非標準関数の呼び出しを早期検出する
+	add_compile_options(-Werror=implicit-function-declaration)
 endif()
 
 include(CTest)
@@ -72,6 +75,7 @@ add_library(tprompt STATIC
 	src/tprompt_session.c
 	src/tprompt_status.c
 	src/tprompt_utf8.c
+	src/tprompt_util.c
 )
 
 target_include_directories(tprompt

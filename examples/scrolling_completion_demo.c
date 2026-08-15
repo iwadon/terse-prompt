@@ -65,6 +65,27 @@ static int starts_with_ignore_case(const char *str, const char *prefix)
 }
 
 /**
+ * ISO C11-only strdup() replacement (POSIX strdup() is unavailable under
+ * strict ISO C11). Unlike POSIX strdup(), a NULL argument returns NULL
+ * instead of invoking undefined behavior.
+ */
+static char *demo_strdup(const char *s)
+{
+	if (s == NULL) {
+		return NULL;
+	}
+
+	size_t len = strlen(s) + 1;
+	char *copy = malloc(len);
+	if (copy == NULL) {
+		return NULL;
+	}
+
+	memcpy(copy, s, len);
+	return copy;
+}
+
+/**
  * Extended completion callback for commands
  */
 static int complete_commands_ex(const char *text, size_t cursor_pos, const char *prefix_char, void *user_data,
@@ -106,8 +127,8 @@ static int complete_commands_ex(const char *text, size_t cursor_pos, const char 
 	size_t idx = 0;
 	for (size_t i = 0; commands[i].text != NULL; i++) {
 		if (starts_with_ignore_case(commands[i].text, command_start)) {
-			cands[idx].text = strdup(commands[i].text);
-			cands[idx].description = commands[i].description ? strdup(commands[i].description) : NULL;
+			cands[idx].text = demo_strdup(commands[i].text);
+			cands[idx].description = demo_strdup(commands[i].description);
 
 			if (cands[idx].text == NULL) {
 				// Cleanup on error

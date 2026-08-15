@@ -5,8 +5,6 @@
  * @date 2025-11-20
  */
 
-#define _POSIX_C_SOURCE 200809L
-
 #include "tprompt_action.h"
 #include "tprompt_buffer.h"
 #include "tprompt_completion.h"
@@ -211,7 +209,7 @@ int tprompt_action_history_prev(tprompt_handle_t handle, const terse_event_t *ev
 		if (handle->history.saved_input) {
 			free(handle->history.saved_input);
 		}
-		handle->history.saved_input = strdup(handle->buffer.data);
+		handle->history.saved_input = tprompt_strdup(handle->buffer.data);
 	}
 
 	const char *entry = tprompt_history_prev(&handle->history);

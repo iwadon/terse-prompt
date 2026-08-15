@@ -5,8 +5,6 @@
  * @date 2025-11-13
  */
 
-#define _POSIX_C_SOURCE 200809L
-
 #include "tprompt_completion.h"
 #include "tprompt_buffer.h"
 #include "tprompt_internal.h"
@@ -78,7 +76,7 @@ int tprompt_completion_activate(tprompt_handle_t handle, char trigger_char, size
 
 	// Save current buffer state for ESC restore
 	free(handle->completion_state.saved_text);
-	handle->completion_state.saved_text = strdup(handle->buffer.data ? handle->buffer.data : "");
+	handle->completion_state.saved_text = tprompt_strdup(handle->buffer.data ? handle->buffer.data : "");
 	handle->completion_state.saved_cursor = handle->buffer.cursor;
 	handle->completion_state.has_applied = false;
 

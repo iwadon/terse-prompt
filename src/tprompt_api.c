@@ -5,8 +5,6 @@
  * @date 2025-11-20
  */
 
-#define _POSIX_C_SOURCE 200809L
-
 #include "tprompt_buffer.h"
 #include "tprompt_completion.h"
 #include "tprompt_history.h"
@@ -203,7 +201,7 @@ int tprompt_set_completion_prefixes(tprompt_handle_t handle, const char *prefixe
 	handle->completion_prefixes = NULL;
 
 	if (prefixes && prefixes[0] != '\0') {
-		handle->completion_prefixes = strdup(prefixes);
+		handle->completion_prefixes = tprompt_strdup(prefixes);
 		if (!handle->completion_prefixes) {
 			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
 				"Failed to allocate completion prefixes");

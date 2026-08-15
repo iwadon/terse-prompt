@@ -179,14 +179,23 @@ typedef tprompt_completion_result_t (*tprompt_completion_fn)(
  *
  * Example:
  * @code
+ * // strdup() is a POSIX extension, not available under strict ISO C11,
+ * // so applications typically provide their own small malloc+memcpy helper.
+ * static char *dup_str(const char *s) {
+ *     size_t len = strlen(s) + 1;
+ *     char *copy = malloc(len);
+ *     if (copy) memcpy(copy, s, len);
+ *     return copy;
+ * }
+ *
  * int my_completion_ex(const char *text, size_t cursor_pos, const char *prefix_char,
  *                      void *user_data, tprompt_completion_candidate_t **candidates, size_t *count) {
  *     tprompt_completion_candidate_t *cands = malloc(sizeof(*cands) * 3);
- *     cands[0].text = strdup("help");
- *     cands[0].description = strdup("ヘルプを表示する");
- *     cands[1].text = strdup("clear");
- *     cands[1].description = strdup("クリアする");
- *     cands[2].text = strdup("quit");
+ *     cands[0].text = dup_str("help");
+ *     cands[0].description = dup_str("ヘルプを表示する");
+ *     cands[1].text = dup_str("clear");
+ *     cands[1].description = dup_str("クリアする");
+ *     cands[2].text = dup_str("quit");
  *     cands[2].description = NULL;  // No description
  *     *candidates = cands;
  *     *count = 3;

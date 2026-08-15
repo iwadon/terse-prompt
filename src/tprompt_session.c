@@ -5,6 +5,7 @@
  * @date 2025-11-20
  */
 
+/* POSIX 端末制御 (tcgetattr/tcsetattr/struct termios/STDIN_FILENO) のために必要 */
 #define _POSIX_C_SOURCE 200809L
 
 #include "tprompt_session.h"
@@ -344,7 +345,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 	// Update prompt if override is provided
 	if (prompt_override) {
 		free(handle->prompt);
-		handle->prompt = strdup(prompt_override);
+		handle->prompt = tprompt_strdup(prompt_override);
 		if (!handle->prompt) {
 			tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
 				"Failed to allocate prompt override");
@@ -526,7 +527,7 @@ char *tprompt_readline(tprompt_handle_t handle, const char *prompt_override)
 	}
 
 	// Return a copy of the buffer
-	char *result = strdup(handle->buffer.data);
+	char *result = tprompt_strdup(handle->buffer.data);
 	if (!result) {
 		tprompt_set_error(&handle->last_error, TPROMPT_ERROR_MEMORY, errno,
 			"Failed to allocate result string");

@@ -5,8 +5,6 @@
  * @date 2025-11-20
  */
 
-#define _POSIX_C_SOURCE 200809L
-
 #include "tprompt_status.h"
 #include "tprompt_display.h"
 #include "tprompt_internal.h"

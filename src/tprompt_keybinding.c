@@ -5,8 +5,6 @@
  * @date 2025-11-20
  */
 
-#define _POSIX_C_SOURCE 200809L
-
 #include "tprompt_keybinding.h"
 #include "tprompt_action.h"
 #include "tprompt_buffer.h"
@@ -217,7 +215,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 				} else {
 					// Update saved text/cursor to reflect the deletion
 					free(handle->completion_state.saved_text);
-					handle->completion_state.saved_text = strdup(handle->buffer.data ? handle->buffer.data : "");
+					handle->completion_state.saved_text = tprompt_strdup(handle->buffer.data ? handle->buffer.data : "");
 					handle->completion_state.saved_cursor = handle->buffer.cursor;
 					tprompt_completion_update(handle);
 				}
@@ -252,7 +250,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 						if (handle->history.saved_input) {
 							free(handle->history.saved_input);
 						}
-						handle->history.saved_input = strdup(handle->buffer.data);
+						handle->history.saved_input = tprompt_strdup(handle->buffer.data);
 					}
 					const char *entry = tprompt_history_prev(&handle->history);
 					if (entry) {
@@ -270,7 +268,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 					if (handle->history.saved_input) {
 						free(handle->history.saved_input);
 					}
-					handle->history.saved_input = strdup(handle->buffer.data);
+					handle->history.saved_input = tprompt_strdup(handle->buffer.data);
 				}
 				const char *entry = tprompt_history_prev(&handle->history);
 				if (entry) {
@@ -439,7 +437,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 					if (handle->history.saved_input) {
 						free(handle->history.saved_input);
 					}
-					handle->history.saved_input = strdup(handle->buffer.data);
+					handle->history.saved_input = tprompt_strdup(handle->buffer.data);
 				}
 				const char *entry = tprompt_history_prev(&handle->history);
 				if (entry) {
@@ -457,7 +455,7 @@ int tprompt_handle_key_event(tprompt_handle_t handle, const terse_event_t *event
 				if (handle->history.saved_input) {
 					free(handle->history.saved_input);
 				}
-				handle->history.saved_input = strdup(handle->buffer.data);
+				handle->history.saved_input = tprompt_strdup(handle->buffer.data);
 			}
 			const char *entry = tprompt_history_prev(&handle->history);
 			if (entry) {

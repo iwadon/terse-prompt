@@ -255,6 +255,22 @@ int tprompt_get_char_width(unsigned int scalar);
 int tprompt_utf8_encode(unsigned int scalar, char *out_buf, size_t max_buf_size);
 
 /* ========================================================================
+ * Internal Helper Functions - String Utilities
+ * ======================================================================== */
+
+/**
+ * @brief Duplicate a NUL-terminated string (ISO C11-only strdup replacement)
+ *
+ * Unlike POSIX strdup(), this function accepts a NULL argument and returns
+ * NULL instead of invoking undefined behavior. Implemented with only
+ * malloc()/memcpy() so callers do not need any POSIX feature test macro.
+ *
+ * @param s String to duplicate, or NULL
+ * @return Newly allocated copy of s, NULL if s is NULL, or NULL on allocation failure
+ */
+char *tprompt_strdup(const char *s);
+
+/* ========================================================================
  * Internal Helper Functions - Display and Rendering
  * ======================================================================== */
 
