@@ -66,7 +66,8 @@ rmdir /s /q build
 
 **Project Structure**:
 - `include/tprompt.h`: Public API
-- `src/tprompt.c`: Implementation
+- `src/tprompt_*.c`: 機能別に分割された実装 (buffer, display, history, completion,
+  keybinding, session, action, status, api, init, error, match, utf8, util)
 - `src/tprompt_internal.h`: Internal structures and helpers
 - `tests/`: Test suite (using attest framework)
 
@@ -338,7 +339,8 @@ POSIX 拡張をヘッダから隠す。**非 ISO C の関数を安易に使わ�
 1. **Feature Implementation**:
    - Update API in `include/tprompt.h` if needed
    - Add internal helpers in `tprompt_internal.h`
-   - Implement in `src/tprompt.c`
+   - 該当する機能の `src/tprompt_*.c` に実装する。新しい領域なら新規ファイルを追加し、
+     ルート `CMakeLists.txt` の `add_library(tprompt STATIC ...)` にソースを登録する
    - Write tests in `tests/`
 
 2. **Testing**:
