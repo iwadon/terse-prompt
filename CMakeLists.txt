@@ -36,7 +36,7 @@ else()
 	FetchContent_Declare(
 		terse
 		GIT_REPOSITORY https://github.com/iwadon/terse.git
-		GIT_TAG 290b251534626ea175b6b4a6434fbd2973d8bc0d
+		GIT_TAG 2843738eae1c5288a2acd74f1a198c48e509bf7b
 	)
 	FetchContent_MakeAvailable(terse)
 endif()
@@ -50,7 +50,7 @@ if(TPROMPT_BUILD_TESTING)
 		FetchContent_Declare(
 			attest
 			GIT_REPOSITORY https://github.com/iwadon/attest.git
-			GIT_TAG 85646ae2b85463ed80b6246d9e251a02b2a59a83
+			GIT_TAG b083754b78e87e725521078ba064c6f913b3b2d4
 		)
 		FetchContent_MakeAvailable(attest)
 	endif()
